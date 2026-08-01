@@ -1,484 +1,215 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="description" content="HydroclimateX Lab — Hydroclimate Extremes Modelling and Forecasting. WASP: WAvelet System Prediction.">
-<title>HydroclimateX Lab</title>
-
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-
-<link rel="stylesheet" href="style.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="HydroclimateX Lab — Hydroclimate Extremes Modelling and Forecasting. WASP: WAvelet System Prediction.">
+  <title>HydroclimateX Lab | Hydroclimate Extremes Modelling & Forecasting</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <a class="skip" href="#main">Skip to content</a>
 
-<!-- ====== Navigation ====== -->
-<nav class="nav" id="nav">
-  <div class="nav-inner">
-    <a href="#about" class="nav-logo">HydroclimateX</a>
-    <div class="nav-links">
+  <header class="site-header">
+    <a class="brand" href="#top"><span>HX</span> HydroclimateX</a>
+    <button class="menu-button" aria-expanded="false" aria-controls="nav">Menu</button>
+    <nav id="nav">
       <a href="#about">About</a>
       <a href="#research">Research</a>
       <a href="#publications">Publications</a>
       <a href="#showcase">Showcase</a>
       <a href="#contact">Contact</a>
-    </div>
-    <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
-      <span></span><span></span><span></span>
-    </button>
-  </div>
-</nav>
+    </nav>
+  </header>
 
-<!-- ====== Hero / About ====== -->
-<header class="hero" id="about">
-  <div class="hero-bg-particles" id="heroParticles"></div>
-  <div class="hero-inner">
-    <div class="hero-content">
-      <p class="hero-overline">Hydroclimate science for a <em>resilient</em> future</p>
-      <h1 class="hero-title">
-        <span class="hero-title-main">HydroclimateX Lab</span>
-        <span class="hero-title-sub">Hydroclimate Extremes<br>Modelling &amp; Forecasting</span>
-      </h1>
-      <p class="hero-desc">
-        We advance the <strong>prediction of extreme hydrometeorological events</strong> —
-        floods, droughts, and compound hazards — by developing
-        <strong>wavelet-based spectral transformation methods</strong>,
-        multi-model ensemble frameworks, and physics-aware machine learning.
-        Our open-source <strong>WASP</strong> toolkit bridges cutting-edge research
-        and operational water management across timescales from seasonal to decadal.
-      </p>
-      <div class="hero-actions">
-        <a href="#showcase" class="btn btn-primary">Try WASP Online</a>
-        <a href="#research" class="btn btn-outline">Explore Research</a>
+  <main id="main">
+
+    <!-- ====== Hero ====== -->
+    <section class="hero" id="top">
+      <div class="hero-copy">
+        <p class="eyebrow">Hydroclimate Extremes · Modelling · Forecasting</p>
+        <h1>Hydroclimate science for a <em>resilient</em> future.</h1>
+        <p class="lead">We advance the prediction of extreme hydrometeorological events — floods, droughts and compound hazards — by developing wavelet-based spectral transformation methods, multi-model ensemble frameworks, and physics-aware machine learning.</p>
+        <div class="hero-actions">
+          <a class="button" href="#showcase">Try WASP Online</a>
+          <a class="text-link" href="https://github.com/HydroclimateX" target="_blank" rel="noreferrer">GitHub / HydroclimateX ↗</a>
+        </div>
       </div>
-    </div>
-    <div class="hero-visual">
-      <!-- Extreme flood & drought illustration -->
-      <div class="extreme-illustration" id="extremeIllustration">
-        <svg viewBox="0 0 400 340" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- Background gradient defs -->
-          <defs>
-            <linearGradient id="floodGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#0B5EA7" stop-opacity="0.85"/>
-              <stop offset="100%" stop-color="#083D6E" stop-opacity="0.95"/>
-            </linearGradient>
-            <linearGradient id="droughtGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#C4922E" stop-opacity="0.9"/>
-              <stop offset="100%" stop-color="#8B6914" stop-opacity="0.85"/>
-            </linearGradient>
-            <linearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stop-color="#E8F0F8"/>
-              <stop offset="100%" stop-color="#FFFFFF"/>
-            </linearGradient>
-            <clipPath id="illustClip">
-              <rect x="0" y="0" width="400" height="340" rx="16"/>
-            </clipPath>
-          </defs>
-
-          <g clip-path="url(#illustClip)">
-            <!-- Sky -->
-            <rect width="400" height="340" fill="url(#skyGrad)"/>
-
-            <!-- LEFT: Flood scene -->
-            <!-- Heavy rain clouds -->
-            <ellipse cx="95" cy="45" rx="55" ry="22" fill="#7A8BA0" opacity="0.6"/>
-            <ellipse cx="60" cy="55" rx="40" ry="18" fill="#8A9BAF" opacity="0.5"/>
-            <ellipse cx="135" cy="55" rx="35" ry="16" fill="#7A8BA0" opacity="0.55"/>
-
-            <!-- Rain lines -->
-            <g stroke="#0B5EA7" stroke-width="1.2" opacity="0.5">
-              <line x1="40" y1="70" x2="35" y2="100"/><line x1="65" y1="70" x2="60" y2="105"/>
-              <line x1="90" y1="68" x2="85" y2="98"/><line x1="110" y1="72" x2="105" y2="108"/>
-              <line x1="130" y1="68" x2="125" y2="95"/><line x1="55" y1="72" x2="50" y2="110"/>
-              <line x1="80" y1="74" x2="75" y2="100"/><line x1="140" y1="70" x2="135" y2="102"/>
+      <div class="hero-visual">
+        <div class="extreme-card">
+          <svg viewBox="0 0 360 300" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="floodG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#087aba" stop-opacity="0.9"/><stop offset="100%" stop-color="#092d4c" stop-opacity="0.95"/></linearGradient>
+              <linearGradient id="droughtG" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#e7af27" stop-opacity="0.9"/><stop offset="100%" stop-color="#8B6914" stop-opacity="0.85"/></linearGradient>
+              <clipPath id="hc"><rect width="360" height="300" rx="12"/></clipPath>
+            </defs>
+            <g clip-path="url(#hc)">
+              <rect width="360" height="300" fill="#f5f8f9"/>
+              <!-- Left: Flood -->
+              <ellipse cx="80" cy="45" rx="50" ry="18" fill="#7A8BA0" opacity="0.5"/>
+              <ellipse cx="50" cy="55" rx="32" ry="14" fill="#8A9BAF" opacity="0.4"/>
+              <g stroke="#087aba" stroke-width="1" opacity="0.45">
+                <line x1="35" y1="68" x2="30" y2="98"/><line x1="60" y1="68" x2="55" y2="100"/>
+                <line x1="85" y1="66" x2="80" y2="96"/><line x1="105" y1="70" x2="100" y2="104"/>
+                <line x1="125" y1="66" x2="120" y2="93"/><line x1="48" y1="70" x2="43" y2="106"/>
+              </g>
+              <path d="M0 180 Q45 162 90 176 Q135 190 180 170 L180 300 L0 300Z" fill="url(#floodG)"/>
+              <path d="M0 180 Q45 170 90 178 Q135 185 180 170" stroke="#1fb6d5" stroke-width="1.5" fill="none" opacity="0.5"/>
+              <rect x="20" y="156" width="26" height="26" fill="#5a5a7a" opacity="0.5" rx="1"/>
+              <polygon points="17,156 33,142 49,156" fill="#6a6a8a" opacity="0.5"/>
+              <text x="90" y="242" text-anchor="middle" fill="#fff" font-family="DM Mono,monospace" font-size="9" font-weight="500" letter-spacing="2">EXTREME FLOOD</text>
+              <!-- Divider -->
+              <line x1="180" y1="10" x2="180" y2="300" stroke="#cfdee4" stroke-width="1" stroke-dasharray="5,4"/>
+              <!-- Right: Drought -->
+              <circle cx="280" cy="45" r="22" fill="#e7af27" opacity="0.2"/>
+              <circle cx="280" cy="45" r="14" fill="#e7af27" opacity="0.5"/>
+              <circle cx="280" cy="45" r="8" fill="#f0c040"/>
+              <path d="M180 230 Q225 212 270 224 Q315 236 360 218 L360 300 L180 300Z" fill="url(#droughtG)"/>
+              <g stroke="#8B6914" stroke-width="0.8" opacity="0.35" fill="none">
+                <path d="M200 260 L218 270 L236 258 L252 272"/><path d="M280 250 L295 264 L310 254"/>
+                <path d="M235 288 L252 296 L268 286"/><path d="M305 278 L318 286 L332 276"/>
+              </g>
+              <rect x="326" y="196" width="3" height="32" fill="#8B7355" opacity="0.5"/>
+              <path d="M328 200 L340 192M328 203 L316 194" stroke="#8B7355" stroke-width="1.5" opacity="0.4"/>
+              <text x="270" y="248" text-anchor="middle" fill="#fff" font-family="DM Mono,monospace" font-size="9" font-weight="500" letter-spacing="2">EXTREME DROUGHT</text>
             </g>
-
-            <!-- Flood water -->
-            <path d="M0 200 Q50 180 100 195 Q150 210 200 190 L200 340 L0 340Z" fill="url(#floodGrad)" opacity="0.85"/>
-            <!-- Flood water surface with waves -->
-            <path d="M0 200 Q25 190 50 197 Q75 204 100 195 Q125 186 150 198 Q175 210 200 190" stroke="#0B5EA7" stroke-width="2" fill="none" opacity="0.7"/>
-            <path d="M0 210 Q25 203 50 208 Q75 213 100 206 Q125 199 150 209 Q175 219 200 202" stroke="#1565C0" stroke-width="1.5" fill="none" opacity="0.5"/>
-
-            <!-- Submerged house -->
-            <rect x="25" y="175" width="30" height="30" fill="#5a5a7a" opacity="0.6" rx="1"/>
-            <polygon points="20,175 40,160 60,175" fill="#6a6a8a" opacity="0.6"/>
-            <!-- Water line on house -->
-            <line x1="18" y1="195" x2="62" y2="195" stroke="#0B5EA7" stroke-width="1" opacity="0.8"/>
-            <!-- Submerged tree -->
-            <rect x="130" y="190" width="4" height="20" fill="#5a4a3a" opacity="0.5"/>
-            <circle cx="132" cy="186" r="10" fill="#3a6a3a" opacity="0.35"/>
-
-            <!-- Flood label -->
-            <text x="100" y="270" text-anchor="middle" fill="white" font-family="Inter, sans-serif" font-size="11" font-weight="700" letter-spacing="2">EXTREME FLOOD</text>
-
-            <!-- Divider -->
-            <line x1="200" y1="20" x2="200" y2="340" stroke="#e2e6ed" stroke-width="1.5" stroke-dasharray="6,4"/>
-
-            <!-- RIGHT: Drought scene -->
-            <!-- Sun -->
-            <circle cx="310" cy="50" r="28" fill="#C4922E" opacity="0.3"/>
-            <circle cx="310" cy="50" r="20" fill="#C4922E" opacity="0.6"/>
-            <circle cx="310" cy="50" r="12" fill="#E8B84B"/>
-
-            <!-- Sun rays -->
-            <g stroke="#C4922E" stroke-width="1" opacity="0.3">
-              <line x1="310" y1="14" x2="310" y2="4"/><line x1="310" y1="86" x2="310" y2="96"/>
-              <line x1="274" y1="50" x2="264" y2="50"/><line x1="346" y1="50" x2="356" y2="50"/>
-              <line x1="288" y1="28" x2="280" y2="20"/><line x1="332" y1="72" x2="340" y2="80"/>
-              <line x1="332" y1="28" x2="340" y2="20"/><line x1="288" y1="72" x2="280" y2="80"/>
-            </g>
-
-            <!-- Dry cracked earth -->
-            <path d="M200 240 Q250 220 300 232 Q350 244 400 225 L400 340 L200 340Z" fill="url(#droughtGrad)"/>
-            <!-- Crack pattern -->
-            <g stroke="#8B6914" stroke-width="1" opacity="0.4" fill="none">
-              <path d="M220 270 L240 280 L260 268 L280 285"/>
-              <path d="M300 260 L315 275 L330 265 L350 278"/>
-              <path d="M260 295 L278 305 L295 295"/>
-              <path d="M330 290 L345 298 L360 288"/>
-              <path d="M240 310 L260 318 L275 308"/>
-              <path d="M310 315 L325 322 L340 312"/>
-            </g>
-
-            <!-- Dead tree -->
-            <rect x="352" y="210" width="4" height="40" fill="#8B7355" opacity="0.6"/>
-            <path d="M354 215 L368 205M354 218 L340 208M354 212 L370 215" stroke="#8B7355" stroke-width="2" opacity="0.5"/>
-
-            <!-- Dry riverbed -->
-            <path d="M280 300 Q310 295 340 300 Q370 305 400 298" stroke="#A08040" stroke-width="1.5" fill="none" opacity="0.4" stroke-dasharray="3,4"/>
-
-            <!-- Drought label -->
-            <text x="300" y="272" text-anchor="middle" fill="white" font-family="Inter, sans-serif" font-size="11" font-weight="700" letter-spacing="2">EXTREME DROUGHT</text>
-          </g>
-
-          <!-- Border -->
-          <rect x="0.5" y="0.5" width="399" height="339" rx="16" stroke="#e2e6ed" stroke-width="1" fill="none"/>
-        </svg>
-      </div>
-      <!-- Caption -->
-      <p class="hero-fig-caption">From flood to drought — understanding hydroclimate extremes across scales</p>
-    </div>
-  </div>
-</header>
-
-<!-- ====== Research ====== -->
-<section class="section" id="research">
-  <div class="section-inner">
-    <div class="section-header">
-      <span class="section-num">01</span>
-      <div>
-        <h2 class="section-title">Research Interests</h2>
-        <p class="section-sub">Five pillars of hydroclimate extremes research</p>
-      </div>
-    </div>
-
-    <div class="research-grid">
-      <!-- Direction 1 -->
-      <div class="research-card" data-animate>
-        <div class="research-card-icon">
-          <svg viewBox="0 0 48 48" fill="none">
-            <path d="M24 4C24 4 8 16 8 28c0 8.84 7.16 16 16 16s16-7.16 16-16C40 16 24 4 24 4z" stroke="currentColor" stroke-width="2"/>
-            <path d="M16 24l4 4 6-8 6 12" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="0.5" y="0.5" width="359" height="299" rx="12" stroke="#cfdee4" stroke-width="1" fill="none"/>
           </svg>
+          <div class="extreme-caption"><strong>Hydroclimate Extremes</strong><span>From flood to drought — across scales</span></div>
         </div>
-        <h3>Extreme Event Simulation &amp; Prediction</h3>
-        <p>
-          Simulation and prediction of extreme hydro-meteorological events using
-          wavelet-based spectral transformation, machine learning, and
-          climate-informed statistical methods. From heavy precipitation to
-          compound flood–drought cascades at seasonal to decadal horizons.
-        </p>
       </div>
+    </section>
 
-      <!-- Direction 2 -->
-      <div class="research-card" data-animate>
-        <div class="research-card-icon">
-          <svg viewBox="0 0 48 48" fill="none">
-            <circle cx="24" cy="24" r="18" stroke="currentColor" stroke-width="2"/>
-            <circle cx="18" cy="20" r="5" fill="currentColor" opacity="0.25"/>
-            <circle cx="32" cy="28" r="4" fill="currentColor" opacity="0.35"/>
-            <circle cx="22" cy="32" r="3" fill="currentColor" opacity="0.2"/>
-            <path d="M18 25l8 4M22 24l8-2M20 28l6 5" stroke="currentColor" stroke-width="1" opacity="0.5"/>
-          </svg>
-        </div>
-        <h3>Multi-Agent &amp; Human–Water Systems</h3>
-        <p>
-          Multi-agent models and human–water system simulation capturing feedbacks
-          between reservoir operations, agricultural water use, flood management
-          policies, and climate variability. Agent-based frameworks for coupled
-          natural–human system dynamics.
-        </p>
+    <!-- ====== Facts Bar ====== -->
+    <section class="facts" aria-label="Lab profile">
+      <div><span>Position</span><strong>Associate Professor</strong></div>
+      <div><span>Affiliation</span><strong>Hohai University, Nanjing</strong></div>
+      <div><span>Research home</span><strong>Hydroclimate Extremes &amp; Forecasting</strong></div>
+      <div><span>Google Scholar</span><strong id="scholar-metrics">430+ citations · h-index 13</strong><small id="scholar-updated">Synced daily</small></div>
+    </section>
+
+    <!-- ====== 01 / About ====== -->
+    <section id="about" class="section split">
+      <div><p class="eyebrow">01 / About</p><h2>Hydroclimate Extremes Modelling &amp; Forecasting.</h2></div>
+      <div class="prose">
+        <p>HydroclimateX Lab develops advanced methods for predicting extreme hydrometeorological events — floods, droughts, and compound hazards — across timescales from seasonal to decadal. Our work integrates wavelet-based spectral transformation, multi-model ensemble frameworks, and physics-aware machine learning to bridge cutting-edge research and operational water management.</p>
+        <p>We maintain the open-source <strong>WASP</strong> (WAvelet System Prediction) toolkit, available in R, Python and MATLAB, along with companion tools for quantile mapping (WQM), predictor identification (NPRED), and synthetic data generation.</p>
+        <a class="text-link" href="https://github.com/HydroclimateX" target="_blank" rel="noreferrer">Explore our open-source tools ↗</a>
       </div>
+    </section>
 
-      <!-- Direction 3 -->
-      <div class="research-card" data-animate>
-        <div class="research-card-icon">
-          <svg viewBox="0 0 48 48" fill="none">
-            <path d="M6 36 L24 8 L42 36" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M18 36 L24 26 L30 36" stroke="currentColor" stroke-width="1.5" fill="none" opacity="0.6"/>
-            <circle cx="24" cy="20" r="2" fill="currentColor" opacity="0.4"/>
-            <circle cx="16" cy="36" r="1.5" fill="currentColor" opacity="0.4"/>
-            <circle cx="32" cy="36" r="1.5" fill="currentColor" opacity="0.4"/>
-          </svg>
-        </div>
-        <h3>Landslide Hazard Prediction &amp; Risk</h3>
-        <p>
-          Rainfall-induced landslide hazard prediction and risk assessment
-          integrating satellite precipitation estimates, soil moisture dynamics,
-          and terrain susceptibility mapping. Probabilistic early-warning
-          systems for mountainous regions.
-        </p>
+    <!-- ====== 02 / Research ====== -->
+    <section id="research" class="section research-section">
+      <p class="eyebrow">02 / Research interests</p>
+      <h2>Five connected research directions.</h2>
+      <div class="research-grid">
+        <article class="research-card blue">
+          <span>01</span>
+          <h3>Extreme event simulation &amp; prediction</h3>
+          <p>Simulation and prediction of extreme hydro-meteorological events using wavelet-based spectral transformation and machine learning.</p>
+        </article>
+        <article class="research-card orange">
+          <span>02</span>
+          <h3>Multi-agent &amp; human–water systems</h3>
+          <p>Multi-agent models capturing feedbacks between reservoir operations, agricultural water use, and climate variability.</p>
+        </article>
+        <article class="research-card teal">
+          <span>03</span>
+          <h3>Landslide hazard prediction &amp; risk</h3>
+          <p>Rainfall-induced landslide hazard prediction integrating satellite precipitation, soil moisture, and terrain susceptibility.</p>
+        </article>
+        <article class="research-card green">
+          <span>04</span>
+          <h3>Hydrological–ecological modelling</h3>
+          <p>Hydrological-hydrodynamic, hydro-ecological, and water quality process modelling for integrated watershed management.</p>
+        </article>
+        <article class="research-card gold">
+          <span>05</span>
+          <h3>Climate model bias correction</h3>
+          <p>Post-processing and bias correction of climate and weather forecast models using frequency-domain quantile mapping (WQM).</p>
+        </article>
       </div>
+    </section>
 
-      <!-- Direction 4 -->
-      <div class="research-card" data-animate>
-        <div class="research-card-icon">
-          <svg viewBox="0 0 48 48" fill="none">
-            <path d="M8 38V18a4 4 0 014-4h6l4-6h4l4 6h6a4 4 0 014 4v20" stroke="currentColor" stroke-width="2"/>
-            <path d="M8 38h32" stroke="currentColor" stroke-width="2"/>
-            <rect x="16" y="22" width="16" height="12" rx="2" fill="currentColor" opacity="0.15"/>
-            <path d="M20 22V18M28 22V18" stroke="currentColor" stroke-width="1.2" opacity="0.5"/>
-          </svg>
-        </div>
-        <h3>Hydrological–Hydrodynamic–Ecological Modelling</h3>
-        <p>
-          Hydrological–hydrodynamic, hydro-ecological, and water quality process
-          modelling across scales. Coupling land-surface processes with channel
-          routing, reservoir regulation, and nutrient transport for integrated
-          watershed management.
-        </p>
-      </div>
-
-      <!-- Direction 5 -->
-      <div class="research-card" data-animate>
-        <div class="research-card-icon">
-          <svg viewBox="0 0 48 48" fill="none">
-            <path d="M12 36V12l24 12-24 12z" stroke="currentColor" stroke-width="2" fill="none"/>
-            <path d="M20 28V20" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
-            <path d="M12 36V12" stroke="currentColor" stroke-width="1" opacity="0.25"/>
-            <circle cx="30" cy="24" r="8" fill="currentColor" opacity="0.12"/>
-            <path d="M30 20v8M26 24h8" stroke="currentColor" stroke-width="1.5" opacity="0.5"/>
-          </svg>
-        </div>
-        <h3>Climate Model Post-Processing &amp; Bias Correction</h3>
-        <p>
-          Post-processing and bias correction of climate and weather forecast
-          models using frequency-domain quantile mapping (WQM). Correcting
-          systematic bias in both trend and variability while preserving
-          the predictive signal across GCM and NWP outputs.
-        </p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ====== Publications ====== -->
-<section class="section section-alt" id="publications">
-  <div class="section-inner">
-    <div class="section-header">
-      <span class="section-num">02</span>
-      <div>
-        <h2 class="section-title">Publications</h2>
-        <p class="section-sub">Synced daily from Google Scholar</p>
-      </div>
-    </div>
-
-    <div class="pub-featured-label">Featured</div>
-    <div class="pub-grid" id="featuredPubs">
-      <!-- Populated by JS -->
-    </div>
-
-    <!-- Filters -->
-    <div class="pub-filters" id="pubFilters">
-      <button class="pub-filter active" data-filter="all">All</button>
-      <button class="pub-filter" data-filter="extreme">Extreme events</button>
-      <button class="pub-filter" data-filter="bias">Bias correction</button>
-      <button class="pub-filter" data-filter="drought">Drought &amp; flood</button>
-      <button class="pub-filter" data-filter="method">Methodology</button>
-    </div>
-
-    <div class="pub-list-container">
-      <div class="pub-list-header">
-        <span class="pub-count" id="pubCount"></span>
-        <span class="pub-updated" id="pubUpdated"></span>
-      </div>
-      <ol class="pub-list" id="pubList">
-        <!-- Populated by JS -->
+    <!-- ====== Research Approach ====== -->
+    <section class="section methods">
+      <div><p class="eyebrow">Research approach</p><h2>From spectral decomposition to operational decisions.</h2></div>
+      <ol>
+        <li><span>01</span> Observe <small>Multi-source hydro-climate observations · reanalysis · GCM outputs</small></li>
+        <li><span>02</span> Decompose <small>Wavelet spectral transformation to isolate predictive frequency bands</small></li>
+        <li><span>03</span> Predict <small>Models built on spectrally refined predictors (WASP, WQM, NPRED)</small></li>
+        <li><span>04</span> Decide <small>Actionable forecasts for water management, agriculture, and energy</small></li>
       </ol>
-    </div>
+    </section>
 
-    <div class="pub-cta">
-      <a href="https://scholar.google.com/citations?user=4iVouPYAAAAJ&hl=en" target="_blank" rel="noopener" class="btn btn-outline">
-        Full List on Google Scholar →
-      </a>
-    </div>
-  </div>
-</section>
-
-<!-- ====== Showcase ====== -->
-<section class="section" id="showcase">
-  <div class="section-inner">
-    <div class="section-header">
-      <span class="section-num">03</span>
-      <div>
-        <h2 class="section-title">Showcase</h2>
-        <p class="section-sub">WASP · WAvelet System Prediction</p>
+    <!-- ====== 03 / Publications ====== -->
+    <section id="publications" class="section publications">
+      <p class="eyebrow">03 / Publications</p>
+      <h2>Peer-reviewed research.</h2>
+      <p class="section-intro">Selected publications from the lab. The full list is synced daily from <strong>Google Scholar</strong>. Papers are grouped into research directions using title keywords. <span id="publication-updated">Showing current records.</span></p>
+      <div class="filters" role="group" aria-label="Filter publications">
+        <button class="active" data-filter="all">All</button>
+        <button data-filter="extreme">Extreme events</button>
+        <button data-filter="bias">Bias correction</button>
+        <button data-filter="drought">Drought &amp; flood</button>
+        <button data-filter="method">Methodology</button>
+        <button data-filter="agri">Agriculture</button>
       </div>
-    </div>
-
-    <p class="showcase-intro">
-      WASP refines predictor representation using wavelet theory for improved
-      hydrologic prediction. The interactive demo below lets you upload data,
-      select parameters, and visualize spectral transformation results — directly
-      in the browser.
-    </p>
-
-    <!-- Software badges -->
-    <div class="software-badges">
-      <a href="https://github.com/HydroclimateX/WASP" target="_blank" rel="noopener" class="software-badge">
-        <span class="badge-lang">R</span> WASP <span class="badge-stars">★ 10</span>
-      </a>
-      <a href="https://github.com/HydroclimateX/WASP_python" target="_blank" rel="noopener" class="software-badge">
-        <span class="badge-lang">Python</span> WASP_python
-      </a>
-      <a href="https://github.com/HydroclimateX/WASP_matlab" target="_blank" rel="noopener" class="software-badge">
-        <span class="badge-lang">MATLAB</span> WASP_matlab
-      </a>
-      <a href="https://github.com/HydroclimateX/WQM" target="_blank" rel="noopener" class="software-badge">
-        <span class="badge-lang">R</span> WQM
-      </a>
-      <a href="https://github.com/HydroclimateX/NPRED" target="_blank" rel="noopener" class="software-badge">
-        <span class="badge-lang">R</span> NPRED
-      </a>
-    </div>
-
-    <!-- Embedded WASP-Web Demo -->
-    <div class="wasp-demo-wrapper" id="waspDemo">
-      <div class="wasp-demo-header">
-        <span class="wasp-demo-dot"></span>
-        <span>WASP-Web · Interactive Demo</span>
-        <a href="showcase/wasp-web/" target="_blank" style="margin-left:auto;color:#a0a0b0;font-size:0.75rem;text-decoration:none;" title="Open in full page">⛶ Open full page</a>
+      <div id="publication-list" class="publication-list">
+        <!-- Populated by JS -->
       </div>
-      <iframe
-        id="waspIframe"
-        class="wasp-iframe"
-        src="showcase/wasp-web/"
-        loading="lazy"
-        title="WASP-Web Interactive Demo"
-        allow="clipboard-read; clipboard-write"
-      ></iframe>
-      <div class="wasp-demo-fallback" id="waspFallback" style="display:none;">
-        <div class="wasp-fallback-content">
-          <svg viewBox="0 0 64 64" width="48" height="48" fill="none">
-            <rect x="8" y="8" width="48" height="48" rx="8" stroke="currentColor" stroke-width="2"/>
-            <path d="M24 36 L32 20 L40 36" stroke="currentColor" stroke-width="2" fill="none"/>
-            <circle cx="28" cy="40" r="3" fill="currentColor"/>
-            <circle cx="36" cy="40" r="3" fill="currentColor"/>
-          </svg>
-          <h3>WASP-Web Demo</h3>
-          <p>The interactive demo loads below. If it doesn't appear, open it in a new tab.</p>
-          <a href="showcase/wasp-web/" target="_blank" class="btn btn-outline" style="margin-top:8px;">Open Demo →</a>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
+      <a class="button outline" href="https://scholar.google.com/citations?user=4iVouPYAAAAJ&hl=en" target="_blank" rel="noreferrer">View full list on Google Scholar</a>
+    </section>
 
-<!-- ====== Contact ====== -->
-<section class="section section-alt" id="contact">
-  <div class="section-inner">
-    <div class="section-header">
-      <span class="section-num">04</span>
-      <div>
-        <h2 class="section-title">Contact</h2>
-        <p class="section-sub">Get in touch</p>
-      </div>
-    </div>
+    <!-- ====== 04 / Showcase ====== -->
+    <section id="showcase" class="section">
+      <p class="eyebrow">04 / Showcase</p>
+      <h2>WASP · WAvelet System Prediction.</h2>
+      <p class="section-intro">WASP refines predictor representation using wavelet theory for improved hydrologic prediction. The interactive demo runs on the <strong>FastAPI backend</strong> deployed on Alibaba Cloud. Upload your data or use the built-in demo dataset.</p>
 
-    <div class="contact-grid">
-      <div class="contact-card" data-animate>
-        <div class="contact-icon">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 6l10 7 10-7"/>
-          </svg>
-        </div>
-        <div>
-          <h4>Email</h4>
-          <a href="mailto:ze.jiang@hhu.edu.cn">ze.jiang@hhu.edu.cn</a>
-        </div>
+      <div class="software-badges">
+        <a href="https://github.com/HydroclimateX/WASP" target="_blank" rel="noreferrer" class="sw-badge"><span class="sw-lang">R</span> WASP <span class="sw-stars">★ 10</span></a>
+        <a href="https://github.com/HydroclimateX/WASP_python" target="_blank" rel="noreferrer" class="sw-badge"><span class="sw-lang">Python</span> WASP</a>
+        <a href="https://github.com/HydroclimateX/WASP_matlab" target="_blank" rel="noreferrer" class="sw-badge"><span class="sw-lang">MATLAB</span> WASP</a>
+        <a href="https://github.com/HydroclimateX/WQM" target="_blank" rel="noreferrer" class="sw-badge"><span class="sw-lang">R</span> WQM</a>
+        <a href="https://github.com/HydroclimateX/NPRED" target="_blank" rel="noreferrer" class="sw-badge"><span class="sw-lang">R</span> NPRED</a>
       </div>
 
-      <div class="contact-card" data-animate>
-        <div class="contact-icon">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="5" width="18" height="14" rx="2"/><line x1="3" y1="10" x2="21" y2="10"/>
-          </svg>
+      <div class="wasp-demo-wrapper">
+        <div class="wasp-demo-bar">
+          <span class="wasp-demo-dot"></span> WASP-Web · Interactive Demo
+          <a href="showcase/wasp-web/" target="_blank" rel="noreferrer" style="margin-left:auto;color:#94a3b8;font-size:12px;text-decoration:none;">Open full page ↗</a>
         </div>
-        <div>
-          <h4>Address</h4>
-          <p>College of Hydrology &amp; Water Resources<br>Hohai University, Xikang Road Campus<br>Nanjing, China</p>
-        </div>
+        <iframe id="waspIframe" class="wasp-iframe" src="showcase/wasp-web/" loading="lazy" title="WASP-Web Interactive Demo" allow="clipboard-read; clipboard-write"></iframe>
       </div>
+    </section>
 
-      <div class="contact-card" data-animate>
-        <div class="contact-icon">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/>
-          </svg>
-        </div>
-        <div>
-          <h4>GitHub</h4>
-          <a href="https://github.com/HydroclimateX" target="_blank" rel="noopener">github.com/HydroclimateX</a>
-        </div>
+    <!-- ====== 05 / Contact ====== -->
+    <section id="contact" class="section team">
+      <div><p class="eyebrow">05 / Contact</p><h2>Join the lab.</h2></div>
+      <div class="prose">
+        <p>We welcome motivated MSc and PhD students and postdoctoral researchers interested in hydroclimate extremes, AI/ML for environmental prediction, and open-source scientific software development.</p>
+        <ul>
+          <li>Hydroclimate extremes modelling and forecasting</li>
+          <li>Wavelet-based methods and AI for water resources</li>
+          <li>Multi-agent systems and human–water feedbacks</li>
+          <li>Open-source toolkit development (R / Python / Web)</li>
+        </ul>
+        <a class="button" href="mailto:ze.jiang@hhu.edu.cn">Get in touch</a>
       </div>
+    </section>
 
-      <div class="contact-card" data-animate>
-        <div class="contact-icon">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
-          </svg>
-        </div>
-        <div>
-          <h4>Scholar &amp; ORCID</h4>
-          <p>
-            <a href="https://scholar.google.com/citations?user=4iVouPYAAAAJ&hl=en" target="_blank" rel="noopener">Google Scholar</a>
-            &nbsp;·&nbsp;
-            <a href="https://orcid.org/0000-0002-3472-0829" target="_blank" rel="noopener">ORCID: 0000-0002-3472-0829</a>
-          </p>
-        </div>
-      </div>
+  </main>
 
-      <div class="contact-card" data-animate>
-        <div class="contact-icon">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
-            <path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
-          </svg>
-        </div>
-        <div>
-          <h4>Join Us</h4>
-          <p>We welcome MSc/PhD applicants passionate about hydroclimate extremes, AI/ML, and open-source scientific software.</p>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
+  <footer id="footer">
+    <div><strong>HydroclimateX Lab</strong><span>College of Hydrology &amp; Water Resources · Hohai University</span></div>
+    <a href="mailto:ze.jiang@hhu.edu.cn">ze.jiang@hhu.edu.cn</a>
+    <span>© <span id="year"></span> · <a href="https://github.com/HydroclimateX" target="_blank" rel="noreferrer">GitHub</a> · <a href="https://scholar.google.com/citations?user=4iVouPYAAAAJ&hl=en" target="_blank" rel="noreferrer">Google Scholar</a> · <a href="https://orcid.org/0000-0002-3472-0829" target="_blank" rel="noreferrer">ORCID</a></span>
+  </footer>
 
-<!-- ====== Footer ====== -->
-<footer class="footer">
-  <div class="footer-inner">
-    <div class="footer-metrics" id="footerMetrics">
-      <span id="ftCitations">430+</span> citations ·
-      <span id="ftHindex">13</span> h-index ·
-      <span id="ftI10">15</span> i10-index
-    </div>
-    <p class="footer-text">© 2026 HydroclimateX Lab · Hohai University, Nanjing</p>
-    <p class="footer-credit">Powered by open science &amp; wavelet theory</p>
-  </div>
-</footer>
-
-<script src="main.js"></script>
+  <script src="main.js"></script>
 </body>
 </html>
