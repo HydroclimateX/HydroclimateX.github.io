@@ -288,7 +288,7 @@ const API_BASE = (() => {
   if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:8000';
   // Default: assume FastAPI backend runs on same origin
   // Override by setting data-api-base on the script tag or hardcoding below:
-  return window.WASP_API_BASE || 'http://YOUR_ECS_IP:8000';
+  return window.WASP_API_BASE || 'http://121.41.164.89:8000';
 })();
 
 let uploadedFile = null;
