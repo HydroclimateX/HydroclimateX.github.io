@@ -29,31 +29,33 @@
 })();
 
 // ================================================================
-// 3. Google Scholar metrics
+// 3. Google Scholar metrics (from data/scholar-stats.json)
 // ================================================================
 (async function () {
   const metricsEl = document.getElementById('scholar-metrics');
   const updatedEl = document.getElementById('scholar-updated');
   try {
-    const resp = await fetch(
-      'https://scholar.google.com/citations?user=4iVouPYAAAAJ&hl=en',
-      { signal: AbortSignal.timeout(8000) }
-    );
-    const html = await resp.text();
-    const c = html.match(/Cited by (\d[\d,]*)/);
-    const h = html.match(/h-index[:\s]*(\d+)/i);
-    const i10 = html.match(/i10-index[:\s]*(\d+)/i);
-    if (c && h && i10 && metricsEl) {
-      metricsEl.textContent = `${c[1]} citations · h-index ${h[1]} · i10-index ${i10[1]}`;
+    const resp = await fetch('data/scholar-stats.json', { signal: AbortSignal.timeout(8000) });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const s = await resp.json();
+    if (metricsEl && Number.isFinite(s.citations) && Number.isFinite(s.hIndex)) {
+      metricsEl.textContent = `${s.citations} citations · h-index ${s.hIndex} · i10-index ${s.i10Index}`;
     }
-    if (updatedEl) updatedEl.textContent = 'Synced daily from Google Scholar';
-  } catch (_) { /* keep fallback */ }
+    window.__scholarUpdatedAt = s.updatedAt || null;
+    if (updatedEl) {
+      updatedEl.textContent = s.updatedAt
+        ? `Synced ${fmtDate(s.updatedAt)}`
+        : 'Synced daily from Google Scholar';
+    }
+  } catch (_) { /* keep the HTML fallback */ }
 })();
 
 // ================================================================
 // 4. Publication data
 // ================================================================
-const PUBLICATIONS = [
+// Curated fallback list, used when data/scholar-publications.json is
+// unavailable (offline or before the first sync).
+const FALLBACK_PUBLICATIONS = [
   { year: 2025, title: 'Spectral transformation of covariates improves seasonal flood forecasting', authors: 'Jiang, Z., Merz, B. & Sharma, A.', venue: 'Geophysical Research Letters', tag: 'extreme' },
   { year: 2025, title: 'Spectrally transformed CMIP6 decadal projections improve rainfall forecasts', authors: 'Jiang, Z., Choudhury, D. & Sharma, A.', venue: 'Journal of Hydrology', tag: 'drought' },
   { year: 2025, title: 'Decadal drought prediction via spectral transformation of sea-surface temperatures', authors: 'Jiang, Z. & Sharma, A.', venue: 'Journal of Hydrology X', tag: 'drought' },
@@ -66,7 +68,32 @@ const PUBLICATIONS = [
   { year: 2020, title: 'Using a regional climate model to develop index-based drought insurance for sovereign disaster risk transfer', authors: 'Rashid, M.M., Jiang, Z. et al.', venue: 'Agricultural and Forest Meteorology', tag: 'agri' },
   { year: 2019, title: 'Future changes in rice yields over the Mekong River Delta due to climate change — alarming or alerting?', authors: 'Jiang, Z. et al.', venue: 'Theoretical and Applied Climatology', tag: 'agri' },
   { year: 2019, title: 'Assessing the sensitivity of hydro-climatological change detection methods to model uncertainty and bias', authors: 'Jiang, Z. et al.', venue: 'Water Resources Management', tag: 'method' },
-].sort((a, b) => b.year - a.year);
+].sort((a, b) => (b.year || 0) - (a.year || 0));
+
+let PUBLICATIONS = FALLBACK_PUBLICATIONS;
+
+// Group papers into research directions using title/venue keywords.
+function tagPublication(p) {
+  const t = `${p.title} ${p.venue}`.toLowerCase();
+  if (/\b(flood|flooding|rainstorm|storm surge|precipitation|extreme|compound)\b/.test(t)) return 'extreme';
+  if (/\b(drought|aridity|arid)\b/.test(t)) return 'drought';
+  if (/\b(bias|quantile mapping|post-process|downscal|cmip)\b/.test(t)) return 'bias';
+  if (/\b(wavelet|spectral|wasp|predictor|ensemble|modell?ing|forecast|prediction)\b/.test(t)) return 'method';
+  if (/\b(rice|crop|yield|agricultur|soybean|millet|wheat|farming)\b/.test(t)) return 'agri';
+  return '';
+}
+
+// Escape text from the external data feed before injecting into innerHTML.
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function fmtDate(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return 'unknown date';
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
 
 // ================================================================
 // 5. Render publication list
@@ -76,23 +103,27 @@ const PUBLICATIONS = [
   const updatedEl = document.getElementById('publication-updated');
   if (!list) return;
 
-  const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  function syncLabel() {
+    return window.__scholarUpdatedAt ? `Last synced: ${fmtDate(window.__scholarUpdatedAt)}` : '';
+  }
 
   function render(filter) {
     const pubs = filter === 'all' ? PUBLICATIONS : PUBLICATIONS.filter(p => p.tag === filter);
     list.innerHTML = pubs.map(p => `
-      <article class="publication" data-tag="${p.tag}">
+      <article class="publication" data-tag="${escapeHtml(p.tag)}">
         <div class="meta">
-          <strong>${p.year}</strong><br>
-          <span>${p.venue.split(' ').slice(0, 2).join(' ')}</span>
+          <strong>${escapeHtml(p.year || 'n/a')}</strong><br>
+          <span>${escapeHtml(p.venue ? p.venue.split(' ').slice(0, 2).join(' ') : '—')}</span>
         </div>
         <div>
-          <h3>${p.title}</h3>
-          <p>${p.authors} <span class="pub-venue">· ${p.venue}</span></p>
+          <h3>${escapeHtml(p.title)}</h3>
+          <p>${escapeHtml(p.authors)}${p.venue ? ` <span class="pub-venue">· ${escapeHtml(p.venue)}</span>` : ''}</p>
         </div>
       </article>
     `).join('');
-    if (updatedEl) updatedEl.textContent = `Showing ${pubs.length} of ${PUBLICATIONS.length} publications · Last synced: ${dateStr}`;
+    if (updatedEl) {
+      updatedEl.textContent = `Showing ${pubs.length} of ${PUBLICATIONS.length} publications${syncLabel() ? ' · ' + syncLabel() : ''}`;
+    }
   }
 
   render('all');
@@ -105,6 +136,22 @@ const PUBLICATIONS = [
       render(btn.dataset.filter);
     });
   });
+
+  // Swap in the full Google Scholar list when data/scholar-publications.json
+  // is available; otherwise keep the curated fallback list.
+  (async () => {
+    try {
+      const resp = await fetch('data/scholar-publications.json', { signal: AbortSignal.timeout(8000) });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      if (!Array.isArray(data) || data.length === 0) throw new Error('empty list');
+      PUBLICATIONS = data
+        .sort((a, b) => (b.year || 0) - (a.year || 0))
+        .map(p => ({ ...p, tag: tagPublication(p) }));
+      const active = document.querySelector('.filters button.active');
+      render(active ? active.dataset.filter : 'all');
+    } catch (_) { /* keep curated fallback list */ }
+  })();
 })();
 
 // ================================================================

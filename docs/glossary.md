@@ -33,3 +33,12 @@ The interactive browser UI embedded in the Showcase page. Allows CSV upload, par
 
 **deploy.sh**
 One-click deployment script. On a fresh Alibaba Cloud ECS instance, running `bash deploy.sh` will: install Docker, pull images, start services, configure nginx, and obtain SSL cert.
+
+**GitHub Actions Pages deployment**
+The CI pipeline (`.github/workflows/static.yml`) that publishes the site to GitHub Pages. Runs on push to `main` (deploy), a daily schedule (refresh Scholar data + deploy), and manual dispatch. Requires Pages source = "GitHub Actions". See ADR-003.
+
+**Scholar sync pipeline**
+`scripts/sync_scholar.py` fetches the public Google Scholar profile and writes `data/scholar-stats.json` (citation metrics) and `data/scholar-publications.json` (full publication list), both committed to `main`. The site reads these JSON files at runtime; `main.js` falls back to curated data if they are unavailable.
+
+**Web-root artifact (`_site`)**
+The staged publish folder containing only the files the site serves (`index.html`, `main.js`, `style.css`, `assets/`, `showcase/`, `data/`). Everything else in the repo (backend, WASP-devel, docs, deploy scripts) is excluded from the deployed Pages site.
