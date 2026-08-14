@@ -137,9 +137,10 @@ nav a:hover, .text-link:hover { color: var(--blue); }
   position: relative;
   max-width: 360px;
 }
-.extreme-card svg {
+.extreme-card img {
   display: block;
   width: 100%;
+  height: auto;
   border: 8px solid #fff;
   box-shadow: 15px 15px 0 var(--cyan);
 }

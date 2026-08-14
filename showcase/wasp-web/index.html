@@ -282,14 +282,13 @@ input[type="file"] { display: none; }
 // ================================================================
 
 // --- Config ---
-// In production, set this to your Alibaba Cloud ECS IP
-const API_BASE = (() => {
-  const host = window.location.hostname;
-  if (host === 'localhost' || host === '127.0.0.1') return 'http://localhost:8000';
-  // Default: assume FastAPI backend runs on same origin
-  // Override by setting data-api-base on the script tag or hardcoding below:
-  return window.WASP_API_BASE || 'http://121.41.164.89:8000';
-})();
+// 后端 FastAPI 地址。
+// - 本地测试(localhost, HTTP)：指向 http://121.41.164.89:8000 即可(后端在阿里云)。
+//   如果后端跑在本机，改成 http://localhost:8000。
+// - 生产环境(GitHub Pages, HTTPS)：必须改成 https://你的域名。
+//   注意：HTTPS 页面不能请求 http:// 后端(浏览器混合内容拦截)，
+//   所以正式上线前需要给后端配 HTTPS 证书。
+const API_BASE = 'http://121.41.164.89:8000';
 
 let uploadedFile = null;
 let activeFileName = null;
