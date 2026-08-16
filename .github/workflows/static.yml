@@ -56,7 +56,14 @@ jobs:
       - name: Stage web-root files for Pages
         run: |
           mkdir -p _site
-          cp -r index.html main.js style.css assets showcase data _site/
+          cp index.html main.js style.css _site/
+          cp -r showcase data figs _site/
+          if [ -d assets ]; then
+            cp -r assets _site/
+          fi
+          test -f _site/index.html
+          test -f _site/showcase/wasp-web/index.html
+          test -f "_site/figs/Flood&Drought.jpeg"
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
