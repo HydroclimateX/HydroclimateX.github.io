@@ -282,19 +282,25 @@ input[type="file"] { display: none; }
 // ================================================================
 
 // --- Config ---
-// 后端 FastAPI 地址。
-// - 本地测试(localhost, HTTP)：指向 http://121.41.164.89:8000 即可(后端在阿里云)。
-//   如果后端跑在本机，改成 http://localhost:8000。
-// - 生产环境(GitHub Pages, HTTPS)：必须改成 https://你的域名。
-//   注意：HTTPS 页面不能请求 http:// 后端(浏览器混合内容拦截)，
-//   所以正式上线前需要给后端配 HTTPS 证书。
-const API_BASE = 'http://121.41.164.89:8000';
+// `window.WASP_API_BASE` makes preview/staging deployments configurable without
+// rebuilding the page. Local development retains a convenient HTTP fallback;
+// every other host uses the TLS API to avoid browser mixed-content blocking.
+const API_BASE = window.WASP_API_BASE || (
+  ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
+    ? 'http://localhost:8000'
+    : 'https://wasp.hydroclimatex.com'
+);
 
 let uploadedFile = null;
 let activeFileName = null;
 
 // --- DOM refs ---
 const $ = id => document.getElementById(id);
+
+function escapeHTML(value) {
+  const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+  return String(value).replace(/[&<>"']/g, character => entities[character]);
+}
 
 // --- Data Source ---
 function handleSourceChange() {
@@ -448,8 +454,8 @@ function renderResults(data) {
   // Info table
   const infoHTML = `
     <table class="info-table">
-      <tr><th>Target</th><td>${target_column}</td><th>Predictors</th><td>${predictor_columns.join(', ')}</td></tr>
-      <tr><th>Wavelet</th><td>${wavelet}</td><th>Level</th><td>${level}</td></tr>
+      <tr><th>Target</th><td>${escapeHTML(target_column)}</td><th>Predictors</th><td>${predictor_columns.map(escapeHTML).join(', ')}</td></tr>
+      <tr><th>Wavelet</th><td>${escapeHTML(wavelet)}</td><th>Level</th><td>${level}</td></tr>
       <tr><th>Samples</th><td>${n_samples} (train: ${n_train}, test: ${n_test})</td><th>Predictors</th><td>${predictor_columns.length}</td></tr>
     </table>`;
 
@@ -488,7 +494,7 @@ function renderResults(data) {
   // Modulation factors
   let modHTML = '';
   for (const [col, factors] of Object.entries(modulation_factors)) {
-    modHTML += `<div style="margin-bottom:10px;"><strong style="font-size:12px;">${col}</strong>`;
+    modHTML += `<div style="margin-bottom:10px;"><strong style="font-size:12px;">${escapeHTML(col)}</strong>`;
     factors.forEach((f, i) => {
       const pct = Math.max(4, f * 150);
       const color = f > 1.1 ? '#16a34a' : f < 0.9 ? '#dc2626' : '#5a5a7a';
@@ -509,7 +515,7 @@ function renderResults(data) {
     const pct = Math.abs(c.coefficient) / maxAbsCoef * 100;
     const color = c.coefficient >= 0 ? 'var(--blue)' : '#dc2626';
     coefHTML += `<div class="mod-factor-bar">
-      <span class="mod-factor-label" style="width:auto;min-width:100px;">${c.predictor}</span>
+      <span class="mod-factor-label" style="width:auto;min-width:100px;">${escapeHTML(c.predictor)}</span>
       <span class="mod-factor-fill" style="width:${Math.max(4, pct*2)}px;background:${color};"></span>
       <span class="mod-factor-val">${c.coefficient.toFixed(4)}</span>
     </div>`;
@@ -525,7 +531,7 @@ function renderResults(data) {
       <div class="chart-card"><div class="chart-card-header">📈 Time Series — Observed vs Predicted</div>
         <div id="chartTS" style="min-height:320px;"></div>
       </div>
-      <div class="chart-card"><div class="chart-card-header">🔬 Frequency Band Energy — ${firstPred}</div>
+      <div class="chart-card"><div class="chart-card-header">🔬 Frequency Band Energy — ${escapeHTML(firstPred)}</div>
         <div id="chartBands" style="min-height:320px;"></div>
       </div>
     </div>

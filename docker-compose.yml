@@ -1,0 +1,60 @@
+# HydroclimateX Lab — WASP-Web Deployment
+# `NGINX_CONFIG=nginx.bootstrap.conf docker compose up -d nginx` is used only
+# during the first ACME webroot challenge. The normal configuration is TLS.
+
+services:
+  # ---- FastAPI + WASP Engine ----
+  wasp-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: wasp-api
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+      - WASP_MAX_UPLOAD_MB=10
+    volumes:
+      - wasp_uploads:/tmp/wasp_uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - wasp-net
+
+  # ---- Nginx Reverse Proxy ----
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: wasp-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./${NGINX_CONFIG:-nginx.conf}:/etc/nginx/conf.d/default.conf:ro
+      - ./certbot/www:/var/www/certbot:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+    depends_on:
+      wasp-api:
+        condition: service_healthy
+    networks:
+      - wasp-net
+
+  # Invoked by deploy.sh (and the installed renewal command), not long-running.
+  certbot:
+    image: certbot/certbot:v2.11.0
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    entrypoint: certbot
+
+volumes:
+  wasp_uploads:
+
+networks:
+  wasp-net:
+    driver: bridge

@@ -1,0 +1,27 @@
+# Deployment runtime state and secrets
+certbot/conf/
+certbot/www/
+certs/
+.env
+.env.*
+!.env.example
+.ecs_ip
+
+# Python, JavaScript, editor, and operating-system artifacts
+__pycache__/
+*.py[cod]
+*.so
+.pytest_cache/
+.mypy_cache/
+node_modules/
+dist/
+build/
+.DS_Store
+.vscode/
+*.zip
+
+# Local repositories and generated project metadata not published from this repo
+WASP-devel/
+tanxuezhi.github.io/
+Task
+.codegraph/
