@@ -258,14 +258,20 @@ input[type="file"] { display: none; }
       </svg>
       <h3>WASP — WAvelet System Prediction</h3>
       <p>
-        Upload a CSV file (or use the built-in demo dataset), configure wavelet
-        parameters, and run the WASP pipeline.<br>
-        The <strong>FastAPI backend</strong> will decompose your predictors using
-        Discrete Wavelet Transform, identify predictive frequency bands, modulate
-        variance, and return spectrally refined predictions with evaluation metrics.
+        Run the full WASP prediction pipeline.
+        Upload a CSV file where:
+          - **First column** = predictand (target variable, e.g., streamflow anomaly)
+          - **Remaining columns** = predictors (e.g., SST indices, climate variables)
+
+        The pipeline will:
+          1. Decompose each predictor using wavelet transform
+          2. Identify predictive frequency bands via correlation
+          3. Modulate variance to amplify signal, attenuate noise
+          4. Reconstruct spectrally refined predictors
+          5. Fit Ridge regression model and evaluate
       </p>
       <p style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;">
-        First column = predictand · 1–50 predictors · 30–5000 complete numeric rows
+        Returns metrics comparing **WASP** vs **baseline** (raw predictors).
       </p>
     </div>
 

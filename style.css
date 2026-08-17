@@ -151,8 +151,8 @@ nav a:hover, .text-link:hover { color: var(--blue); }
   display: block;
   width: 100%;
   height: auto;
-  border: 8px solid #fff;
-  box-shadow: 0 24px 48px rgba(13, 37, 63, 0.12);
+  border: 8px solid var(--orange);
+  box-shadow: 0 28px 60px rgba(0, 39, 102, 0.28);
 }
 .extreme-caption { padding: .8rem .4rem; }
 .extreme-caption strong, .extreme-caption span { display: block; }
