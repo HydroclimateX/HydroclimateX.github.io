@@ -142,7 +142,6 @@ nav a:hover, .text-link:hover { color: var(--blue); }
   width: 100%;
   height: auto;
   border: 8px solid #fff;
-  box-shadow: 15px 15px 0 var(--cyan);
 }
 .extreme-caption { padding: .8rem .4rem; }
 .extreme-caption strong, .extreme-caption span { display: block; }
