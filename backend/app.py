@@ -16,6 +16,7 @@ Endpoints:
 import asyncio
 import io
 import os
+from typing import List, Optional
 
 from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -77,25 +78,27 @@ async def health():
 
 @app.post("/api/wasp/predict")
 async def predict(
-    file: UploadFile = File(..., description="CSV file: 1st column = predictand, remaining = predictors"),
-    wavelet: str = Form("db4", description="Wavelet family (db4, sym8, coif3, haar)"),
+    file: UploadFile = File(..., description="CSV containing selectable predictand and predictor columns"),
+    wavelet: str = Form("db4", description="Daubechies wavelet (db1, db2, db4, db8, db16)"),
     level: int = Form(0, description="Decomposition level (0 = auto)"),
     test_size: float = Form(0.2, ge=0.1, le=0.5, description="Fraction of data for testing"),
-    alpha: float = Form(1.0, ge=0.01, le=100.0, description="Ridge regularization strength"),
+    model: str = Form("linear", description="Regression model (linear, knn, xgboost)"),
+    target_column: Optional[str] = Form(None, description="Predictand column; defaults to the first column"),
+    predictor_columns: Optional[List[str]] = Form(None, description="Repeated predictor column names"),
 ):
     """
     Run the full WASP prediction pipeline.
 
-    Upload a CSV file where:
-    - **First column** = predictand (target variable, e.g., streamflow anomaly)
-    - **Remaining columns** = predictors (e.g., SST indices, climate variables)
+    Upload a CSV file and optionally select one predictand plus one or more
+    predictors by column name. The first column and all remaining columns are
+    used when the selection fields are omitted.
 
     The pipeline will:
     1. Decompose each predictor using wavelet transform
     2. Identify predictive frequency bands via correlation
     3. Modulate variance to amplify signal, attenuate noise
     4. Reconstruct spectrally refined predictors
-    5. Fit Ridge regression model and evaluate
+    5. Fit the selected regression model and evaluate
 
     Returns metrics comparing **WASP** vs **baseline** (raw predictors).
     """
@@ -125,7 +128,9 @@ async def predict(
                 wavelet=wavelet,
                 level=level if level > 0 else None,
                 test_size=test_size,
-                alpha=alpha,
+                model=model,
+                target_column=target_column,
+                predictor_columns=predictor_columns,
             )
     except (TypeError, ValueError) as error:
         return JSONResponse(

@@ -67,6 +67,58 @@ class InputValidationTests(unittest.TestCase):
         self.assertIsNone(error)
         self.assertEqual(parsed.shape, (30, 2))
 
+    def test_explicit_variable_selection_ignores_unselected_text_columns(self) -> None:
+        values = np.arange(30, dtype=float)
+        frame = pd.DataFrame({
+            "date": [f"2026-01-{index + 1:02d}" for index in range(30)],
+            "flow": values,
+            "rain": values * 0.5 + 1,
+            "temperature": values * -0.25,
+        })
+
+        parsed, error = validate_data(
+            self.csv_bytes(frame),
+            "input.csv",
+            target_column="flow",
+            predictor_columns=["temperature", "rain"],
+        )
+
+        self.assertIsNone(error)
+        self.assertEqual(parsed.columns.tolist(), ["flow", "temperature", "rain"])
+        self.assertEqual(parsed.shape, (30, 3))
+
+    def test_variable_selection_rejects_invalid_column_combinations(self) -> None:
+        contents = self.csv_bytes(self.valid_frame())
+        cases = [
+            ("missing", ["predictor"], "Target column 'missing'"),
+            ("target", ["missing"], "Predictor column 'missing'"),
+            ("target", ["predictor", "predictor"], "must be unique"),
+            ("target", ["target"], "cannot also be a predictor"),
+            ("target", [], "at least one predictor"),
+        ]
+
+        for target, predictors, message in cases:
+            with self.subTest(target=target, predictors=predictors):
+                parsed, error = validate_data(
+                    contents,
+                    "input.csv",
+                    target_column=target,
+                    predictor_columns=predictors,
+                )
+                self.assertTrue(parsed.empty)
+                self.assertIn(message, error)
+
+    def test_rejects_blank_and_duplicate_csv_headers(self) -> None:
+        rows = "\n".join(f"{index},{index + 1}" for index in range(30))
+        for header, message in (("target,", "blank"), ("target,target", "unique")):
+            with self.subTest(header=header):
+                parsed, error = validate_data(
+                    f"{header}\n{rows}\n".encode(),
+                    "input.csv",
+                )
+                self.assertTrue(parsed.empty)
+                self.assertIn(message, error)
+
     def test_requires_at_least_one_predictor(self) -> None:
         self.assert_invalid(self.valid_frame().iloc[:, :1], "at least 2 columns")
 
@@ -133,10 +185,11 @@ class InputValidationTests(unittest.TestCase):
     def test_wavelet_allowlist_matches_the_ui(self) -> None:
         self.assertEqual(
             SUPPORTED_WAVELETS,
-            frozenset({"db4", "sym8", "coif3", "haar"}),
+            frozenset({"db1", "db2", "db4", "db8", "db16"}),
         )
-        self.assertIsNone(validate_wavelet("db4"))
-        self.assertIn("Unsupported wavelet", validate_wavelet("db8"))
+        for wavelet in ("db1", "db2", "db4", "db8", "db16"):
+            self.assertIsNone(validate_wavelet(wavelet))
+        self.assertIn("Unsupported wavelet", validate_wavelet("haar"))
 
     def test_constant_series_metrics_use_none_and_are_json_safe(self) -> None:
         constant_observed = compute_metrics(np.ones(30), np.ones(30))
@@ -199,10 +252,12 @@ class ApiInputValidationTests(unittest.TestCase):
         response = asyncio.run(
             api_predict(
                 file=self.upload(("\n".join(rows) + "\n").encode()),
-                wavelet="db8",
+                wavelet="sym8",
                 level=0,
                 test_size=0.2,
-                alpha=1.0,
+                model="linear",
+                target_column=None,
+                predictor_columns=None,
             )
         )
         self.assertIsInstance(response, JSONResponse)
@@ -210,6 +265,48 @@ class ApiInputValidationTests(unittest.TestCase):
         payload = json.loads(response.body)
         self.assertFalse(payload["success"])
         self.assertIn("Unsupported wavelet", payload["message"])
+
+    def test_api_accepts_selected_variables_and_model(self) -> None:
+        rows = ["date,target,predictor,unused"] + [
+            f"day-{index},{index},{index * 2 + 1},metadata"
+            for index in range(64)
+        ]
+        response = asyncio.run(
+            api_predict(
+                file=self.upload(("\n".join(rows) + "\n").encode()),
+                wavelet="db2",
+                level=0,
+                test_size=0.5,
+                model="knn",
+                target_column="target",
+                predictor_columns=["predictor"],
+            )
+        )
+
+        self.assertNotIsInstance(response, JSONResponse)
+        self.assertTrue(response["success"])
+        self.assertEqual(response["model"], "knn")
+        self.assertEqual(response["target_column"], "target")
+        self.assertEqual(response["predictor_columns"], ["predictor"])
+
+    def test_unsupported_model_is_a_structured_400(self) -> None:
+        rows = ["target,predictor"] + [f"{index},{index + 1}" for index in range(64)]
+        response = asyncio.run(
+            api_predict(
+                file=self.upload(("\n".join(rows) + "\n").encode()),
+                wavelet="db2",
+                level=0,
+                test_size=0.2,
+                model="ridge",
+                target_column="target",
+                predictor_columns=["predictor"],
+            )
+        )
+
+        self.assertIsInstance(response, JSONResponse)
+        self.assertEqual(response.status_code, 400)
+        payload = json.loads(response.body)
+        self.assertIn("Unsupported model", payload["message"])
 
     def test_invalid_csv_is_a_structured_400(self) -> None:
         rows = ["target,predictor"] + [f"{index},bad" for index in range(30)]
@@ -219,7 +316,9 @@ class ApiInputValidationTests(unittest.TestCase):
                 wavelet="db4",
                 level=0,
                 test_size=0.2,
-                alpha=1.0,
+                model="linear",
+                target_column=None,
+                predictor_columns=None,
             )
         )
         self.assertIsInstance(response, JSONResponse)
@@ -237,7 +336,9 @@ class ApiInputValidationTests(unittest.TestCase):
                 wavelet="db4",
                 level=0,
                 test_size=0.2,
-                alpha=1.0,
+                model="linear",
+                target_column=None,
+                predictor_columns=None,
             )
         )
         self.assertIsInstance(response, JSONResponse)
@@ -257,7 +358,9 @@ class ApiInputValidationTests(unittest.TestCase):
                     wavelet="db4",
                     level=0,
                     test_size=0.2,
-                    alpha=1.0,
+                    model="linear",
+                    target_column=None,
+                    predictor_columns=None,
                 )
             )
 

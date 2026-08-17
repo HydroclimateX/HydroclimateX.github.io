@@ -8,11 +8,16 @@ frequency bands, modulates their variance, and reconstructs refined predictors
 for hydrologic prediction.
 
 **Predictand / target**
-The first numeric column in a WASP CSV file: the quantity the model predicts.
+The selected predictand (Y) in a WASP CSV file: the quantity the model predicts.
+The browser selects the first column by default, and the user can change it.
 
 **Predictor**
-Any numeric input column after the target. At least one finite, non-constant
-predictor is required.
+A selected input column (X) used to predict Y. At least one numeric, finite,
+non-constant predictor is required; unselected columns are ignored.
+
+**Prediction model**
+The estimator fitted to both the WASP-refined and raw baseline predictors.
+The web application offers Linear Regression, K-Nearest Neighbors, and XGBoost.
 
 **WQM (Wavelet-based Quantile Mapping)**
 Frequency-domain quantile mapping for correcting systematic bias in numerical

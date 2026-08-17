@@ -7,16 +7,14 @@ Orchestrates the full WASP workflow:
 3. Optimal frequency band identification
 4. Variance modulation
 5. Predictor reconstruction
-6. Model fitting (Ridge regression)
+6. Model fitting with a bounded public regression model
 7. Evaluation & metrics
 """
 
 import numpy as np
 import pandas as pd
 from typing import Dict, List, Tuple, Optional, Any
-from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
-from sklearn.model_selection import TimeSeriesSplit
 
 from .wavelet import (
     wavelet_decompose,
@@ -27,6 +25,12 @@ from .wavelet import (
     max_levels,
 )
 from .utils import compute_metrics, make_json_safe, validate_data, validate_wavelet
+from .models import (
+    MODEL_LABELS,
+    build_regressor,
+    feature_attributions,
+    validate_model,
+)
 
 
 def run_wasp_prediction(
@@ -35,7 +39,10 @@ def run_wasp_prediction(
     wavelet: str = 'db4',
     level: Optional[int] = None,
     test_size: float = 0.2,
-    alpha: float = 1.0,
+    model: str = 'linear',
+    target_column: Optional[str] = None,
+    predictor_columns: Optional[List[str]] = None,
+    alpha: Optional[float] = None,
 ) -> Dict[str, Any]:
     """
     Run the complete WASP prediction pipeline.
@@ -47,13 +54,19 @@ def run_wasp_prediction(
     filename : str
         Original filename.
     wavelet : str
-        Wavelet family (db4, sym8, coif3, haar, etc.).
+        Public Daubechies wavelet choice: db1, db2, db4, db8, or db16.
     level : int, optional
         Decomposition level. Auto-detected if None.
     test_size : float
         Fraction of data to hold out for testing (0.0 to 0.5).
-    alpha : float
-        Ridge regression regularization strength.
+    model : str
+        Regression model identifier: linear, knn, or xgboost.
+    target_column : str, optional
+        Selected predictand. Defaults to the first CSV column.
+    predictor_columns : list of str, optional
+        Selected predictors. Defaults to all remaining CSV columns.
+    alpha : float, optional
+        Deprecated compatibility argument; ignored.
 
     Returns
     -------
@@ -65,12 +78,20 @@ def run_wasp_prediction(
     wavelet_error = validate_wavelet(wavelet)
     if wavelet_error:
         return {'success': False, 'message': wavelet_error}
+    model_error = validate_model(model)
+    if model_error:
+        return {'success': False, 'message': model_error}
 
-    df, error = validate_data(contents, filename)
+    df, error = validate_data(
+        contents,
+        filename,
+        target_column=target_column,
+        predictor_columns=predictor_columns,
+    )
     if error:
         return {'success': False, 'message': error}
 
-    # 2. Extract predictand (first column) and predictors (remaining)
+    # 2. Extract the validated, explicitly ordered predictand and predictors.
     target_col = df.columns[0]
     predictor_cols = df.columns[1:].tolist()
 
@@ -91,10 +112,19 @@ def run_wasp_prediction(
     # modulation factors (fit on train) mismatch the test decomposition.
     max_level_train = max_levels(len(y_train), wavelet=wavelet)
     max_level_test = max_levels(len(y_test), wavelet=wavelet)
+    available_level = min(max_level_train, max_level_test, 6)
+    if available_level < 1:
+        return {
+            'success': False,
+            'message': (
+                f"The {wavelet} wavelet and {test_size:g} test fraction require "
+                "more observations to support at least one wavelet decomposition level."
+            ),
+        }
     if level is None:
-        level = min(max_level_train, max_level_test, 6)  # cap at 6 for performance
+        level = available_level
     else:
-        level = min(level, max_level_train, max_level_test, 6)
+        level = min(level, available_level)
 
     # 4. WASP spectral transformation on each predictor (fit on train)
     X_train_transformed = np.zeros_like(X_train_raw)
@@ -139,12 +169,12 @@ def run_wasp_prediction(
     X_train_scaled = scaler_X.fit_transform(X_train_transformed)
     y_train_scaled = scaler_y.fit_transform(y_train.reshape(-1, 1)).ravel()
 
-    model = Ridge(alpha=alpha)
-    model.fit(X_train_scaled, y_train_scaled)
+    fitted_model = build_regressor(model)
+    fitted_model.fit(X_train_scaled, y_train_scaled)
 
     # 6. Predict on test set
     X_test_scaled = scaler_X.transform(X_test_transformed)
-    y_pred_scaled = model.predict(X_test_scaled)
+    y_pred_scaled = fitted_model.predict(X_test_scaled)
     y_pred = scaler_y.inverse_transform(y_pred_scaled.reshape(-1, 1)).ravel()
 
     # 7. Also compute baseline: raw predictors without spectral transformation
@@ -153,7 +183,7 @@ def run_wasp_prediction(
     X_train_raw_scaled = baseline_scaler_X.fit_transform(X_train_raw)
     X_test_raw_scaled = baseline_scaler_X.transform(X_test_raw)
     y_train_raw_scaled = baseline_scaler_y.fit_transform(y_train.reshape(-1, 1)).ravel()
-    baseline_model = Ridge(alpha=alpha)
+    baseline_model = build_regressor(model)
     baseline_model.fit(
         X_train_raw_scaled,
         y_train_raw_scaled
@@ -167,13 +197,15 @@ def run_wasp_prediction(
     wasp_metrics = compute_metrics(y_test, y_pred)
     baseline_metrics = compute_metrics(y_test, y_baseline_pred)
 
-    # 9. Model coefficients
-    coef_df = []
-    for i, col in enumerate(predictor_cols):
-        coef_df.append({
-            'predictor': col,
-            'coefficient': round(float(model.coef_[i]), 4),
-        })
+    # 9. Estimator-specific feature information.
+    attributions = feature_attributions(fitted_model, model, predictor_cols)
+    coefficient_compat = [
+        {
+            'predictor': item['predictor'],
+            'coefficient': round(float(item['value']), 4),
+        }
+        for item in attributions['items']
+    ] if attributions['kind'] == 'coefficient' else []
 
     return make_json_safe({
         'success': True,
@@ -181,7 +213,10 @@ def run_wasp_prediction(
             'wasp': wasp_metrics,
             'baseline': baseline_metrics,
         },
-        'model_coefficients': coef_df,
+        'model': model,
+        'model_label': MODEL_LABELS[model],
+        'feature_attributions': attributions,
+        'model_coefficients': coefficient_compat,
         'band_energies': band_energies,
         'modulation_factors': modulation_factors,
         'n_samples': n_samples,

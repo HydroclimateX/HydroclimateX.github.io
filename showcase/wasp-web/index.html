@@ -145,19 +145,20 @@
           <h3>CSV input</h3>
           <p>Upload a UTF-8 comma-separated file with 30–5000 complete observations.</p>
           <ul>
-            <li>First column: predictand or target variable</li>
-            <li>Remaining columns: 1–50 numeric predictors</li>
-            <li>Every value must be finite; every column must vary</li>
+            <li>Select one predictand (Y) and 1–50 predictors (X) after loading</li>
+            <li>Only selected Y/X columns must be numeric, finite, and non-constant</li>
+            <li>Unused date, identifier, or text columns are ignored</li>
+            <li>Resource limit: 51 total columns, including unused columns</li>
             <li>Maximum CSV file: 10 MiB (the proxy allows 11 MB including multipart overhead)</li>
           </ul>
         </article>
         <article class="spec-card">
           <h3>Run parameters</h3>
           <ul>
-            <li><code>wavelet</code>: transform family such as db4 or sym8</li>
+            <li><code>wavelet</code>: db1 (Haar), db2, db4, db8, or db16</li>
             <li><code>level</code>: decomposition depth; 0 selects automatically</li>
-            <li><code>test_size</code>: held-out evaluation fraction</li>
-            <li><code>alpha</code>: ridge regularisation strength</li>
+            <li><code>test_size</code>: 20%, 25%, 33%, or 50% chronological holdout</li>
+            <li><code>model</code>: Linear Regression, K-Nearest Neighbors, or XGBoost</li>
           </ul>
         </article>
       </div>

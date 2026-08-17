@@ -28,9 +28,8 @@ WAVELET_FAMILIES = {
 def max_levels(n: int, wavelet: str = 'db4') -> int:
     """Return max decomposition levels for series of length n.
 
-    The filter length depends on the wavelet family (db4=8, sym8=16,
-    coif3=24, haar=2), so the maximum level is computed for the
-    specific wavelet being used.
+    The filter length depends on the selected Daubechies wavelet, so the
+    maximum level is computed for the specific wavelet being used.
     """
     return pywt.dwt_max_level(n, filter_len=pywt.Wavelet(wavelet).dec_len)
 
@@ -53,7 +52,7 @@ def wavelet_decompose(
     data : np.ndarray (n,)
         1-D input time series. Length n must be ≥ 2^level.
     wavelet : str
-        Wavelet name (e.g., 'db4', 'sym8', 'coif3', 'haar').
+        Wavelet name (the public API allows db1, db2, db4, db8, and db16).
     level : int, optional
         Number of decomposition levels. Default: max possible for length.
     mode : str

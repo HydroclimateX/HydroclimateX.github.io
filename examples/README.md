@@ -8,8 +8,9 @@ Application Server.
 
 ## `demo.csv`
 
-This file contains 391 monthly observations. The first column is the target and
-the remaining four columns are predictors.
+This file contains 391 monthly observations. The browser initially selects the
+first column as Y and the remaining four columns as X, but those roles can be
+changed before a run.
 
 | Column | Role |
 |---|---|
@@ -19,10 +20,13 @@ the remaining four columns are predictors.
 | `pdo_index` | Pacific Decadal Oscillation predictor |
 | `precip_index` | Precipitation predictor |
 
-All input columns must be numeric, finite, and non-constant. Files must contain
-30–5000 rows and 1–50 predictors. Nginx accepts an 11 MB multipart request, and
-FastAPI enforces a 10 MiB limit on the uploaded file itself. Supported wavelets
-are `db4`, `sym8`, `coif3`, and `haar`.
+Selected Y/X columns must be numeric, finite, and non-constant; unused text,
+date, or identifier columns are ignored. Files must contain 30–5000 rows and
+1–50 selected predictors, with a resource limit of 51 total columns including
+unused columns. Nginx accepts an 11 MB multipart request, and FastAPI enforces
+a 10 MiB limit on the uploaded file itself. Supported wavelets are
+`db1` (Haar), `db2`, `db4`, `db8`, and `db16`. Available models are Linear
+Regression, K-Nearest Neighbors, and XGBoost.
 
 ## Use the example
 
@@ -35,7 +39,10 @@ curl --fail --show-error \
   -F "wavelet=db4" \
   -F "level=0" \
   -F "test_size=0.2" \
-  -F "alpha=1.0" \
+  -F "target_column=streamflow_anomaly" \
+  -F "predictor_columns=sst_index" \
+  -F "predictor_columns=soi" \
+  -F "model=linear" \
   https://wasp.hydroclimatex.com/api/wasp/predict
 ```
 

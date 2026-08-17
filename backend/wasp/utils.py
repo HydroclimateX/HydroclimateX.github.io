@@ -17,7 +17,7 @@ MAX_ROWS = 5000
 MAX_PREDICTORS = 50
 MAX_COLUMNS = MAX_PREDICTORS + 1
 MAX_ABS_VALUE = 1e100
-SUPPORTED_WAVELETS = frozenset({"db4", "sym8", "coif3", "haar"})
+SUPPORTED_WAVELETS = frozenset({"db1", "db2", "db4", "db8", "db16"})
 
 
 def validate_wavelet(wavelet: str) -> Optional[str]:
@@ -46,6 +46,10 @@ def _preflight_csv(contents: bytes) -> Optional[str]:
                 f"Upload at most {MAX_COLUMNS} columns "
                 f"(1 target + at most {MAX_PREDICTORS} predictors)."
             )
+        if any(not str(column).strip() for column in header):
+            return "CSV column headers must not be blank."
+        if len(set(header)) != column_count:
+            return "CSV column headers must be unique."
 
         row_count = 0
         for row_count, row in enumerate(rows, start=1):
@@ -61,7 +65,9 @@ def _preflight_csv(contents: bytes) -> Optional[str]:
 
 def validate_data(
     contents: bytes,
-    filename: str
+    filename: str,
+    target_column: Optional[str] = None,
+    predictor_columns: Optional[list[str]] = None,
 ) -> Tuple[pd.DataFrame, Optional[str]]:
     """
     Validate uploaded CSV data and return a DataFrame.
@@ -81,8 +87,8 @@ def validate_data(
         Error message if validation fails, None otherwise.
 
     Resource and modelling checks are intentionally strict because this endpoint
-    runs on a 2 GB server. Every value must be numeric and finite; the target and
-    every retained predictor must vary.
+    runs on a 2 GB server. Only the selected target and predictors must be
+    numeric, finite and non-constant; unselected metadata columns are ignored.
     """
     if not filename.lower().endswith('.csv'):
         return pd.DataFrame(), "Only CSV files are supported (.csv)"
@@ -102,7 +108,26 @@ def validate_data(
             f"Found {len(df.columns)}."
         )
 
-    n_predictors = len(df.columns) - 1
+    if target_column is None:
+        target_column = str(df.columns[0])
+    if predictor_columns is None:
+        predictor_columns = [str(column) for column in df.columns[1:]]
+    else:
+        predictor_columns = list(predictor_columns)
+
+    if target_column not in df.columns:
+        return pd.DataFrame(), f"Target column '{target_column}' was not found in the CSV."
+    missing_predictors = [column for column in predictor_columns if column not in df.columns]
+    if missing_predictors:
+        return pd.DataFrame(), f"Predictor column '{missing_predictors[0]}' was not found in the CSV."
+    if len(set(predictor_columns)) != len(predictor_columns):
+        return pd.DataFrame(), "Predictor columns must be unique."
+    if target_column in predictor_columns:
+        return pd.DataFrame(), "The target column cannot also be a predictor."
+    if not predictor_columns:
+        return pd.DataFrame(), "Select at least one predictor column."
+
+    n_predictors = len(predictor_columns)
     if n_predictors > MAX_PREDICTORS:
         return pd.DataFrame(), (
             f"Upload at most {MAX_PREDICTORS} predictors. Found {n_predictors}."
@@ -119,12 +144,15 @@ def validate_data(
             f"Found {len(df)}."
         )
 
-    try:
-        df = df.apply(pd.to_numeric, errors="raise")
-    except (TypeError, ValueError):
-        return pd.DataFrame(), "Every CSV column must contain only numeric values."
+    selected_columns = [target_column, *predictor_columns]
+    selected = df.loc[:, selected_columns].copy()
 
-    values = df.to_numpy(dtype=float)
+    try:
+        selected = selected.apply(pd.to_numeric, errors="raise")
+    except (TypeError, ValueError):
+        return pd.DataFrame(), "Every selected target and predictor column must contain only numeric values."
+
+    values = selected.to_numpy(dtype=float)
     if not np.isfinite(values).all():
         return pd.DataFrame(), "Every CSV value must be finite; missing and infinite values are not accepted."
     if np.any(np.abs(values) > MAX_ABS_VALUE):
@@ -132,20 +160,20 @@ def validate_data(
             f"Every CSV value's absolute value must not exceed {MAX_ABS_VALUE:g}."
         )
 
-    target = df.iloc[:, 0]
+    target = selected[target_column]
     if target.nunique(dropna=False) <= 1:
         return pd.DataFrame(), "Target column must be non-constant."
 
     constant_predictors = [
         str(column)
-        for column in df.columns[1:]
-        if df[column].nunique(dropna=False) <= 1
+        for column in predictor_columns
+        if selected[column].nunique(dropna=False) <= 1
     ]
     if constant_predictors:
         names = ", ".join(constant_predictors)
         return pd.DataFrame(), f"Each predictor must be non-constant. Constant predictor(s): {names}."
 
-    return df, None
+    return selected, None
 
 
 def make_json_safe(value: Any) -> Any:

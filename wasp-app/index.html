@@ -4,8 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>WASP-Web — WAvelet System Prediction</title>
+<link rel="icon" href="data:,">
 <script src="vendor/plotly-2.35.2.min.js"></script>
 <script src="response.js"></script>
+<script src="data-selection.js"></script>
 <style>
 /* ================================================================
    WASP-Web Demo — Design System (Hohai Blue)
@@ -20,7 +22,7 @@
   --shadow: 0 2px 12px rgba(0,0,0,0.06);
   --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
-  --sidebar-w: 300px;
+  --sidebar-w: 330px;
 }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -73,8 +75,24 @@ body {
 }
 .file-upload-zone:hover, .file-upload-zone.dragover { border-color: var(--blue); background: var(--blue-light); }
 .file-upload-zone.active { border-style: solid; border-color: #22c55e; background: #f0fdf4; }
+.file-upload-zone.locked { cursor: not-allowed; opacity: 0.65; pointer-events: none; }
 .file-name { font-weight: 600; color: var(--blue); margin-top: 4px; word-break: break-all; }
 input[type="file"] { display: none; }
+.variable-panel { display: none; margin-top: 12px; }
+.variable-panel.show { display: block; }
+.variable-help { color: var(--text-muted); font-size: 11px; margin: -2px 0 8px; }
+.predictor-toolbar { display: flex; justify-content: space-between; margin-bottom: 5px; }
+.predictor-toolbar button {
+  border: 0; background: transparent; color: var(--blue); cursor: pointer;
+  font-size: 11px; padding: 0;
+}
+.predictor-list {
+  max-height: 130px; overflow-y: auto; padding: 7px 8px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: #f8fafc;
+}
+.predictor-option { display: flex; align-items: flex-start; gap: 7px; padding: 3px 0; }
+.predictor-option input { margin-top: 3px; flex-shrink: 0; }
+.predictor-option span { overflow-wrap: anywhere; color: var(--text-secondary); font-size: 12px; }
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
@@ -110,7 +128,10 @@ input[type="file"] { display: none; }
   background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 60px 40px; text-align: center; color: var(--text-muted);
 }
-.placeholder-card svg { margin-bottom: 12px; }
+.placeholder-image {
+  display: block; width: min(100%, 900px); max-height: 300px; object-fit: contain;
+  margin: 0 auto 22px; border-radius: var(--radius-sm);
+}
 .placeholder-card h3 { color: var(--text); font-size: 1.2rem; margin-bottom: 6px; }
 .placeholder-card p { font-size: 0.88rem; line-height: 1.6; }
 
@@ -194,7 +215,7 @@ input[type="file"] { display: none; }
         </select>
       </div>
       <div id="uploadGroup" style="display:none;">
-        <div class="file-upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <div class="file-upload-zone" id="dropZone" onclick="openFilePicker()">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 20h16"/></svg>
           <div style="margin-top:4px;">Drop CSV or click to browse</div>
           <div class="file-name" id="fileName"></div>
@@ -203,6 +224,22 @@ input[type="file"] { display: none; }
       </div>
       <button class="btn btn-demo" id="btnLoadDemo" onclick="loadDemoData()">📥 Load Demo Data</button>
       <button class="btn btn-clear" id="btnClear" onclick="clearData()" style="display:none;">✕ Clear Uploaded Data</button>
+
+      <div class="variable-panel" id="variablePanel">
+        <div class="param-group">
+          <label for="targetColumn">Predictand (Y)</label>
+          <select id="targetColumn" onchange="handleTargetChange()"></select>
+        </div>
+        <div class="param-group">
+          <label>Predictors (X)</label>
+          <p class="variable-help">Choose one or more columns used to predict Y.</p>
+          <div class="predictor-toolbar">
+            <button type="button" onclick="selectAllPredictors()">Select all</button>
+            <button type="button" onclick="clearPredictors()">Clear</button>
+          </div>
+          <div class="predictor-list" id="predictorList"></div>
+        </div>
+      </div>
     </div>
 
     <!-- Parameters -->
@@ -210,10 +247,11 @@ input[type="file"] { display: none; }
       <div class="param-group">
         <label>Wavelet Family</label>
         <select id="wavelet">
-          <option value="db4">db4 (Daubechies 4)</option>
-          <option value="sym8">sym8 (Symlet 8)</option>
-          <option value="coif3">coif3 (Coiflet 3)</option>
-          <option value="haar">haar (Haar)</option>
+          <option value="db1">db1 (Haar)</option>
+          <option value="db2">db2 (Daubechies 2)</option>
+          <option value="db4" selected>db4 (Daubechies 4)</option>
+          <option value="db8">db8 (Daubechies 8)</option>
+          <option value="db16">db16 (Daubechies 16)</option>
         </select>
       </div>
       <div class="param-group">
@@ -229,11 +267,16 @@ input[type="file"] { display: none; }
           <option value="0.2">20%</option>
           <option value="0.25">25%</option>
           <option value="0.33">33%</option>
+          <option value="0.5">50%</option>
         </select>
       </div>
       <div class="param-group">
-        <label>Ridge Regularization (α)</label>
-        <input type="number" id="alpha" value="1.0" min="0.01" max="100" step="0.1">
+        <label>Prediction Model</label>
+        <select id="model">
+          <option value="linear">Linear Regression</option>
+          <option value="knn">K-Nearest Neighbors</option>
+          <option value="xgboost">XGBoost</option>
+        </select>
       </div>
     </div>
 
@@ -250,28 +293,14 @@ input[type="file"] { display: none; }
   <!-- Content Area -->
   <div class="content-area" id="contentArea">
     <div class="placeholder-card" id="placeholder">
-      <svg viewBox="0 0 64 64" width="56" height="56" fill="none">
-        <rect x="8" y="8" width="48" height="48" rx="8" stroke="currentColor" stroke-width="2" opacity="0.3"/>
-        <path d="M22 36 L32 18 L42 36" stroke="currentColor" stroke-width="2" fill="none" opacity="0.5"/>
-        <circle cx="27" cy="42" r="3" fill="currentColor" opacity="0.25"/>
-        <circle cx="37" cy="42" r="3" fill="currentColor" opacity="0.25"/>
-      </svg>
+      <img class="placeholder-image" src="assets/WASP.jpg" alt="WASP wavelet system prediction workflow">
       <h3>WASP — WAvelet System Prediction</h3>
       <p>
-        Run the full WASP prediction pipeline.
-        Upload a CSV file where:
-          - **First column** = predictand (target variable, e.g., streamflow anomaly)
-          - **Remaining columns** = predictors (e.g., SST indices, climate variables)
-
-        The pipeline will:
-          1. Decompose each predictor using wavelet transform
-          2. Identify predictive frequency bands via correlation
-          3. Modulate variance to amplify signal, attenuate noise
-          4. Reconstruct spectrally refined predictors
-          5. Fit Ridge regression model and evaluate
+        Load the demo or upload a CSV, choose one predictand (Y), one or more predictors (X),
+        a Daubechies wavelet and a regression model, then run the WASP pipeline.
       </p>
       <p style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;">
-        Returns metrics comparing **WASP** vs **baseline** (raw predictors).
+        Results compare spectrally refined WASP predictors with the same model fitted to raw predictors.
       </p>
     </div>
 
@@ -298,6 +327,10 @@ const API_BASE = window.WASP_API_BASE || (
 
 let uploadedFile = null;
 let activeFileName = null;
+let variableSelection = null;
+let interfaceBusy = false;
+const dataLoadGate = WaspDataSelection.createOperationGate();
+const predictionGate = WaspDataSelection.createOperationGate();
 
 // --- DOM refs ---
 const $ = id => document.getElementById(id);
@@ -312,8 +345,14 @@ function handleSourceChange() {
   const mode = $('sourceSelect').value;
   $('uploadGroup').style.display = mode === 'upload' ? 'block' : 'none';
   if (mode === 'demo') {
-    loadDemoData();
+    void loadDemoData();
+  } else {
+    clearData();
   }
+}
+
+function openFilePicker() {
+  if (!interfaceBusy) $('fileInput').click();
 }
 
 const dropZone = $('dropZone');
@@ -322,62 +361,182 @@ dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover
 dropZone.addEventListener('drop', e => {
   e.preventDefault();
   dropZone.classList.remove('dragover');
-  if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
+  if (interfaceBusy) return;
+  if (e.dataTransfer.files.length) void setFile(e.dataTransfer.files[0]);
 });
 
-function handleFileSelect(e) { if (e.target.files.length) setFile(e.target.files[0]); }
-
-function setFile(file) {
-  uploadedFile = file;
-  activeFileName = file.name;
-  $('fileName').textContent = '📄 ' + file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)';
-  dropZone.classList.add('active');
-  $('btnRun').disabled = false;
-  $('btnClear').style.display = '';
-  $('statusText').textContent = 'File loaded. Ready to run.';
-  $('statusDot').className = 'status-dot success';
+function handleFileSelect(e) {
+  if (!interfaceBusy && e.target.files.length) void setFile(e.target.files[0]);
 }
 
-async function loadDemoData() {
-  $('btnLoadDemo').disabled = true;
-  $('btnLoadDemo').textContent = '⏳ Loading…';
-  $('statusDot').className = 'status-dot running';
-  $('statusText').textContent = 'Fetching demo dataset…';
-  try {
-    const resp = await fetch(API_BASE + '/api/demo-data', { signal: AbortSignal.timeout(10000) });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const blob = await resp.blob();
-    uploadedFile = new File([blob], 'wasp_demo.csv', { type: 'text/csv' });
-    activeFileName = 'wasp_demo.csv';
-    $('fileName').textContent = '📄 wasp_demo.csv (Demo — 360 rows)';
-    dropZone.classList.add('active');
-    $('btnRun').disabled = false;
-    $('btnClear').style.display = '';
-    $('statusDot').className = 'status-dot success';
-    $('statusText').textContent = 'Demo data loaded. Ready to run.';
-  } catch (e) {
-    $('statusDot').className = 'status-dot error';
-    $('statusText').textContent = 'Failed to load demo: ' + e.message;
-    showError('Cannot reach the WASP backend' + (API_BASE ? ' at ' + API_BASE : '') + '. Please try again shortly.');
-  } finally {
-    $('btnLoadDemo').disabled = false;
-    $('btnLoadDemo').textContent = '📥 Load Demo Data';
+function updateRunAvailability() {
+  $('btnRun').disabled = interfaceBusy || !uploadedFile
+    || !WaspDataSelection.isSelectionValid(variableSelection);
+}
+
+function setInterfaceBusy(busy) {
+  interfaceBusy = busy;
+  ['sourceSelect', 'fileInput', 'btnLoadDemo', 'btnClear', 'targetColumn',
+   'wavelet', 'level', 'testSize', 'model'].forEach(id => {
+    $(id).disabled = busy;
+  });
+  document.querySelectorAll('#predictorList input, .predictor-toolbar button')
+    .forEach(control => { control.disabled = busy; });
+  dropZone.classList.toggle('locked', busy);
+  dropZone.setAttribute('aria-disabled', String(busy));
+  updateRunAvailability();
+}
+
+function renderVariableSelectors() {
+  if (!variableSelection) {
+    $('variablePanel').classList.remove('show');
+    $('targetColumn').replaceChildren();
+    $('predictorList').replaceChildren();
+    updateRunAvailability();
+    return;
   }
+
+  const targetSelect = $('targetColumn');
+  targetSelect.replaceChildren();
+  variableSelection.columns.forEach(column => {
+    const option = document.createElement('option');
+    option.value = column;
+    option.textContent = column;
+    option.selected = column === variableSelection.targetColumn;
+    targetSelect.appendChild(option);
+  });
+
+  const selectedPredictors = new Set(variableSelection.predictorColumns);
+  const predictorList = $('predictorList');
+  predictorList.replaceChildren();
+  variableSelection.columns
+    .filter(column => column !== variableSelection.targetColumn)
+    .forEach(column => {
+      const label = document.createElement('label');
+      label.className = 'predictor-option';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.checked = selectedPredictors.has(column);
+      checkbox.disabled = interfaceBusy;
+      checkbox.addEventListener('change', () => {
+        const updated = new Set(variableSelection.predictorColumns);
+        if (checkbox.checked) updated.add(column); else updated.delete(column);
+        variableSelection = {
+          ...variableSelection,
+          predictorColumns: variableSelection.columns.filter(name => updated.has(name)),
+        };
+        updateRunAvailability();
+      });
+      const name = document.createElement('span');
+      name.textContent = column;
+      label.append(checkbox, name);
+      predictorList.appendChild(label);
+    });
+
+  $('variablePanel').classList.add('show');
+  updateRunAvailability();
 }
 
-function clearData() {
-  uploadedFile = null; activeFileName = null;
+function handleTargetChange() {
+  variableSelection = WaspDataSelection.changeTarget(variableSelection, $('targetColumn').value);
+  renderVariableSelectors();
+}
+
+function selectAllPredictors() {
+  variableSelection = WaspDataSelection.selectAllPredictors(variableSelection);
+  renderVariableSelectors();
+}
+
+function clearPredictors() {
+  variableSelection = WaspDataSelection.clearPredictors(variableSelection);
+  renderVariableSelectors();
+}
+
+function resetLoadedData() {
+  uploadedFile = null;
+  activeFileName = null;
+  variableSelection = null;
   $('fileName').textContent = '';
   $('fileInput').value = '';
   dropZone.classList.remove('active');
-  $('btnRun').disabled = true;
   $('btnClear').style.display = 'none';
-  $('statusDot').className = 'status-dot';
-  $('statusText').textContent = 'Ready. Load data to begin.';
   $('resultSection').classList.remove('show');
   $('resultSection').innerHTML = '';
   $('placeholder').style.display = '';
   $('errorBanner').classList.remove('show');
+  renderVariableSelectors();
+}
+
+function beginDataLoad(statusText) {
+  const loadToken = dataLoadGate.begin();
+  predictionGate.invalidate();
+  resetLoadedData();
+  setInterfaceBusy(true);
+  $('statusDot').className = 'status-dot running';
+  $('statusText').textContent = statusText;
+  return loadToken;
+}
+
+async function setFile(file, loadToken = null) {
+  const ownsLoad = loadToken === null;
+  if (ownsLoad) loadToken = beginDataLoad('Reading CSV variables…');
+  try {
+    const columns = WaspDataSelection.parseCsvHeader(await file.text());
+    if (!dataLoadGate.isCurrent(loadToken)) return false;
+    uploadedFile = file;
+    activeFileName = file.name;
+    variableSelection = WaspDataSelection.createSelection(columns);
+    $('fileName').textContent = '📄 ' + file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)';
+    dropZone.classList.add('active');
+    $('btnClear').style.display = '';
+    $('statusText').textContent = 'File loaded. Choose Y and X, then run.';
+    $('statusDot').className = 'status-dot success';
+    $('errorBanner').classList.remove('show');
+    renderVariableSelectors();
+    return true;
+  } catch (error) {
+    if (!dataLoadGate.isCurrent(loadToken)) return false;
+    $('statusDot').className = 'status-dot error';
+    $('statusText').textContent = 'Could not read CSV variables.';
+    showError(error.message);
+    return false;
+  } finally {
+    if (ownsLoad && dataLoadGate.isCurrent(loadToken)) setInterfaceBusy(false);
+  }
+}
+
+async function loadDemoData() {
+  const loadToken = beginDataLoad('Fetching demo dataset…');
+  $('btnLoadDemo').textContent = '⏳ Loading…';
+  try {
+    const resp = await fetch(API_BASE + '/api/demo-data', { signal: AbortSignal.timeout(10000) });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const blob = await resp.blob();
+    if (!dataLoadGate.isCurrent(loadToken)) return;
+    const demoFile = new File([blob], 'wasp_demo.csv', { type: 'text/csv' });
+    if (!await setFile(demoFile, loadToken)) return;
+    $('fileName').textContent = '📄 wasp_demo.csv (Built-in demo)';
+    $('statusText').textContent = 'Demo loaded. Choose Y and X, then run.';
+  } catch (e) {
+    if (!dataLoadGate.isCurrent(loadToken)) return;
+    $('statusDot').className = 'status-dot error';
+    $('statusText').textContent = 'Failed to load demo: ' + e.message;
+    showError('Cannot reach the WASP backend' + (API_BASE ? ' at ' + API_BASE : '') + '. Please try again shortly.');
+  } finally {
+    if (dataLoadGate.isCurrent(loadToken)) {
+      setInterfaceBusy(false);
+      $('btnLoadDemo').textContent = '📥 Load Demo Data';
+    }
+  }
+}
+
+function clearData() {
+  dataLoadGate.invalidate();
+  predictionGate.invalidate();
+  setInterfaceBusy(false);
+  resetLoadedData();
+  $('statusDot').className = 'status-dot';
+  $('statusText').textContent = 'Ready. Load data to begin.';
 }
 
 function showError(msg) {
@@ -388,8 +547,13 @@ function showError(msg) {
 // --- Run WASP ---
 async function runWasp() {
   if (!uploadedFile) { showError('Please load data first.'); return; }
+  if (!WaspDataSelection.isSelectionValid(variableSelection)) {
+    showError('Select one predictand (Y) and at least one predictor (X).');
+    return;
+  }
 
-  $('btnRun').disabled = true;
+  const runToken = predictionGate.begin();
+  setInterfaceBusy(true);
   $('btnRun').textContent = '⏳ Running…';
   $('statusDot').className = 'status-dot running';
   $('statusText').textContent = 'Running WASP pipeline…';
@@ -402,32 +566,36 @@ async function runWasp() {
     form.append('wavelet', $('wavelet').value);
     form.append('level', parseInt($('level').value) || 0);
     form.append('test_size', parseFloat($('testSize').value));
-    form.append('alpha', parseFloat($('alpha').value));
+    WaspDataSelection.appendPredictionFields(form, variableSelection, $('model').value);
 
     const resp = await fetch(API_BASE + '/api/wasp/predict', {
       method: 'POST', body: form,
       signal: AbortSignal.timeout(120000),
     });
     const data = await parseWaspResponse(resp);
+    if (!predictionGate.isCurrent(runToken)) return;
 
     renderResults(data);
     $('statusDot').className = 'status-dot success';
     $('statusText').textContent = `Done. WASP NSE: ${data.metrics.wasp.nse?.toFixed(3) || 'N/A'}`;
 
   } catch (e) {
+    if (!predictionGate.isCurrent(runToken)) return;
     $('statusDot').className = 'status-dot error';
     $('statusText').textContent = 'Error: ' + e.message;
     showError(e.message);
   } finally {
-    $('btnRun').disabled = false;
-    $('btnRun').textContent = '▶ Run WASP Prediction';
+    if (predictionGate.isCurrent(runToken)) {
+      setInterfaceBusy(false);
+      $('btnRun').textContent = '▶ Run WASP Prediction';
+    }
   }
 }
 
 // --- Render Results ---
 function renderResults(data) {
   const { metrics, predictions, band_energies, modulation_factors,
-          model_coefficients, predictor_columns, wavelet, level,
+          feature_attributions, model_label, predictor_columns, wavelet, level,
           n_samples, n_train, n_test, target_column } = data;
   const wasp = metrics.wasp;
   const baseline = metrics.baseline;
@@ -456,8 +624,9 @@ function renderResults(data) {
   const infoHTML = `
     <table class="info-table">
       <tr><th>Target</th><td>${escapeHTML(target_column)}</td><th>Predictors</th><td>${predictor_columns.map(escapeHTML).join(', ')}</td></tr>
-      <tr><th>Wavelet</th><td>${escapeHTML(wavelet)}</td><th>Level</th><td>${level}</td></tr>
+      <tr><th>Wavelet</th><td>${escapeHTML(wavelet)}</td><th>Model</th><td>${escapeHTML(model_label)}</td></tr>
       <tr><th>Samples</th><td>${n_samples} (train: ${n_train}, test: ${n_test})</td><th>Predictors</th><td>${predictor_columns.length}</td></tr>
+      <tr><th>Level</th><td>${level}</td><th>Split</th><td>Chronological holdout</td></tr>
     </table>`;
 
   // Time series chart
@@ -509,17 +678,22 @@ function renderResults(data) {
   }
   modHTML += '<p style="font-size:10px;color:var(--text-muted);">Green > 1 = amplified · Red < 1 = attenuated</p>';
 
-  // Coefficients
-  let coefHTML = '';
-  const maxAbsCoef = Math.max(...model_coefficients.map(c => Math.abs(c.coefficient)), 0.001);
-  for (const c of model_coefficients) {
-    const pct = Math.abs(c.coefficient) / maxAbsCoef * 100;
-    const color = c.coefficient >= 0 ? 'var(--blue)' : '#dc2626';
-    coefHTML += `<div class="mod-factor-bar">
-      <span class="mod-factor-label" style="width:auto;min-width:100px;">${escapeHTML(c.predictor)}</span>
-      <span class="mod-factor-fill" style="width:${Math.max(4, pct*2)}px;background:${color};"></span>
-      <span class="mod-factor-val">${c.coefficient.toFixed(4)}</span>
-    </div>`;
+  // Model-specific feature interpretation
+  const attribution = WaspDataSelection.attributionPresentation(feature_attributions, model_label);
+  let attributionHTML = '';
+  if (attribution.message) {
+    attributionHTML = `<p style="font-size:12px;color:var(--text-muted);">${escapeHTML(attribution.message)}</p>`;
+  } else {
+    const maxAbsValue = Math.max(...attribution.items.map(item => Math.abs(item.value)), 0.001);
+    for (const item of attribution.items) {
+      const pct = Math.abs(item.value) / maxAbsValue * 100;
+      const color = attribution.kind === 'coefficient' && item.value < 0 ? '#dc2626' : 'var(--blue)';
+      attributionHTML += `<div class="mod-factor-bar">
+        <span class="mod-factor-label" style="width:auto;min-width:100px;">${escapeHTML(item.predictor)}</span>
+        <span class="mod-factor-fill" style="width:${Math.max(4, pct*2)}px;background:${color};"></span>
+        <span class="mod-factor-val">${Number(item.value).toFixed(4)}</span>
+      </div>`;
+    }
   }
 
   // Assemble
@@ -538,7 +712,7 @@ function renderResults(data) {
     </div>
     <div class="chart-row">
       <div class="chart-card"><div class="chart-card-header">🎚 Variance Modulation Factors</div>${modHTML}</div>
-      <div class="chart-card"><div class="chart-card-header">📐 Ridge Regression Coefficients</div>${coefHTML}</div>
+      <div class="chart-card"><div class="chart-card-header">📐 ${escapeHTML(attribution.title)}</div>${attributionHTML}</div>
     </div>
   `;
 
