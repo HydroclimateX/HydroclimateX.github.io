@@ -103,7 +103,7 @@ nav a:hover, .text-link:hover { color: var(--blue); }
   font-size: clamp(1.1rem, 2.2vw, 2.1rem);
   line-height: 1.2;
   letter-spacing: -.02em;
-  color: var(--muted);
+  color: var(--teal);
   font-style: normal;
 }
 .hero h1 em {
@@ -151,7 +151,7 @@ nav a:hover, .text-link:hover { color: var(--blue); }
   display: block;
   width: 100%;
   height: auto;
-  border: 8px solid var(--orange);
+  border: 8px solid var(--teal);
   box-shadow: 0 28px 60px rgba(0, 39, 102, 0.28);
 }
 .extreme-caption { padding: .8rem .4rem; }
