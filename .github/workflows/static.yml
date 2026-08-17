@@ -64,6 +64,8 @@ jobs:
           test -f _site/index.html
           test -f _site/showcase/wasp-web/index.html
           test -f "_site/figs/Flood&Drought.jpeg"
+          # The interactive application is deployed only to wasp.hydroclimatex.com.
+          test ! -e _site/wasp-app
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

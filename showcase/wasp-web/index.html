@@ -1,554 +1,225 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WASP-Web — WAvelet System Prediction</title>
-<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-<style>
-/* ================================================================
-   WASP-Web Demo — Design System (Hohai Blue)
-   Inspired by WASP-devel UI patterns, powered by FastAPI backend
-   ================================================================ */
-:root {
-  --blue: #0B5EA7; --blue-dark: #083D6E; --blue-light: #E8F0F8;
-  --gold: #C4922E; --gold-light: #F5E6C8;
-  --text: #1a1a2e; --text-secondary: #5a5a7a; --text-muted: #8a8aaa;
-  --bg: #f8f9fb; --card-bg: #ffffff; --border: #e2e6ed;
-  --radius: 10px; --radius-sm: 6px;
-  --shadow: 0 2px 12px rgba(0,0,0,0.06);
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
-  --sidebar-w: 300px;
-}
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body {
-  font-family: var(--font); font-size: 14px; background: var(--bg);
-  color: var(--text); line-height: 1.6; height: 100vh; display: flex; flex-direction: column;
-  overflow: hidden;
-}
-
-/* ---- Top Bar ---- */
-.topbar {
-  height: 50px; background: #0f172a; color: #fff;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 0 20px; flex-shrink: 0; z-index: 10;
-}
-.topbar-brand { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 10px; }
-.topbar-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; }
-.topbar-link { color: #94a3b8; font-size: 12px; text-decoration: none; transition: color 0.2s; }
-.topbar-link:hover { color: #fff; }
-
-/* ---- Main Layout ---- */
-.main-layout { display: flex; flex: 1; overflow: hidden; }
-
-/* ---- Sidebar ---- */
-.sidebar {
-  width: var(--sidebar-w); background: var(--card-bg); border-right: 1px solid var(--border);
-  overflow-y: auto; flex-shrink: 0; padding: 18px 16px;
-}
-.sidebar-title {
-  font-size: 11px; font-weight: 700; color: var(--text-muted);
-  text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 16px;
-}
-.param-section { margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-.param-section:last-child { border-bottom: none; margin-bottom: 0; }
-.param-group { margin-bottom: 12px; }
-.param-group:last-child { margin-bottom: 0; }
-.param-group label {
-  display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary);
-  margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.03em;
-}
-.param-group select, .param-group input[type="number"] {
-  width: 100%; height: 36px; padding: 0 10px; font-size: 13px;
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  background: #f8fafc; color: var(--text); outline: none; transition: border-color 0.2s;
-}
-.param-group select:focus, .param-group input:focus { border-color: var(--blue); }
-.file-upload-zone {
-  border: 2px dashed var(--border); border-radius: var(--radius-sm);
-  padding: 14px; text-align: center; cursor: pointer; transition: all 0.2s;
-  font-size: 12px; color: var(--text-muted);
-}
-.file-upload-zone:hover, .file-upload-zone.dragover { border-color: var(--blue); background: var(--blue-light); }
-.file-upload-zone.active { border-style: solid; border-color: #22c55e; background: #f0fdf4; }
-.file-name { font-weight: 600; color: var(--blue); margin-top: 4px; word-break: break-all; }
-input[type="file"] { display: none; }
-
-.btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  width: 100%; height: 40px; font-size: 13px; font-weight: 600;
-  border-radius: var(--radius-sm); border: none; cursor: pointer; transition: all 0.2s;
-}
-.btn-run { background: var(--blue); color: #fff; margin-top: 8px; }
-.btn-run:hover { background: var(--blue-dark); transform: translateY(-1px); }
-.btn-run:disabled { background: #cbd5e1; cursor: not-allowed; transform: none; }
-.btn-demo {
-  background: transparent; color: var(--blue); border: 2px solid var(--blue);
-  margin-top: 6px; height: 34px; font-size: 12px;
-}
-.btn-demo:hover { background: var(--blue-light); }
-.btn-clear { background: transparent; color: var(--text-muted); border: 1px solid var(--border); margin-top: 4px; height: 30px; font-size: 11px; }
-.btn-clear:hover { background: #fee2e2; color: #c41e1e; border-color: #fecaca; }
-
-.status-box {
-  display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 10px 12px;
-  background: #f8fafc; border-radius: var(--radius-sm); border: 1px solid var(--border);
-  font-size: 12px; color: var(--text-muted);
-}
-.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #94a3b8; flex-shrink: 0; }
-.status-dot.running { background: #f59e0b; animation: pulse 1s infinite; }
-.status-dot.success { background: #22c55e; }
-.status-dot.error { background: #ef4444; }
-@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
-
-/* ---- Content Area ---- */
-.content-area { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 18px; }
-
-.placeholder-card {
-  background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 60px 40px; text-align: center; color: var(--text-muted);
-}
-.placeholder-card svg { margin-bottom: 12px; }
-.placeholder-card h3 { color: var(--text); font-size: 1.2rem; margin-bottom: 6px; }
-.placeholder-card p { font-size: 0.88rem; line-height: 1.6; }
-
-.error-banner {
-  display: none; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca;
-  padding: 12px 16px; border-radius: var(--radius-sm); font-size: 13px;
-}
-.error-banner.show { display: block; }
-
-/* Results */
-.result-section { display: none; }
-.result-section.show { display: contents; }
-
-.metrics-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px;
-}
-.metric-tile {
-  background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 14px 12px; text-align: center;
-}
-.metric-tile .m-val { font-size: 1.4rem; font-weight: 700; color: var(--blue); }
-.metric-tile .m-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.metric-tile .m-baseline { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; }
-.metric-tile.improved { background: #f0fdf4; border-color: #bbf7d0; }
-.metric-tile.improved .m-val { color: #16a34a; }
-.metric-tile.degraded { background: #fef2f2; border-color: #fecaca; }
-.metric-tile.degraded .m-val { color: #dc2626; }
-
-.chart-card {
-  background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 18px;
-}
-.chart-card-header { font-weight: 700; font-size: 13px; color: var(--text); margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
-.chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-@media (max-width: 800px) { .chart-row { grid-template-columns: 1fr; } }
-
-.info-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.info-table th, .info-table td { padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
-.info-table th { color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; width: 140px; }
-.info-table td { color: var(--text); }
-
-.mod-factor-bar {
-  display: flex; align-items: center; gap: 8px; margin-bottom: 3px; font-size: 12px;
-}
-.mod-factor-label { width: 100px; text-align: right; font-weight: 600; color: var(--text-muted); font-family: var(--mono); font-size: 11px; flex-shrink: 0; }
-.mod-factor-fill { height: 14px; border-radius: 3px; min-width: 4px; transition: width 0.4s; }
-.mod-factor-val { width: 36px; font-family: var(--mono); font-size: 11px; color: var(--text-secondary); }
-
-/* ---- Responsive ---- */
-@media (max-width: 720px) {
-  .main-layout { flex-direction: column; }
-  .sidebar { width: 100%; max-height: 40vh; border-right: none; border-bottom: 1px solid var(--border); }
-  .content-area { flex: 1; }
-}
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="WASP — WAvelet System Prediction methodology, software and interactive application from HydroclimateX Lab.">
+  <title>WASP | HydroclimateX Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../style.css">
+  <style>
+    .wasp-hero {
+      min-height: 590px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr);
+      gap: clamp(2rem, 7vw, 7rem);
+      align-items: center;
+      padding: clamp(4rem, 9vw, 8rem) clamp(1.2rem, 8vw, 8rem);
+      background: radial-gradient(circle at 85% 12%, #cae6ec, transparent 28%), linear-gradient(145deg, #f9fbfc 48%, #e7eef5);
+      border-bottom: 1px solid var(--line);
+    }
+    .wasp-hero h1 {
+      max-width: 850px;
+      margin: .55rem 0 1.3rem;
+      font: 700 clamp(3.4rem, 7vw, 6.7rem)/.98 'Playfair Display', Georgia, serif;
+      letter-spacing: -.055em;
+    }
+    .wasp-hero h1 em { color: var(--teal); }
+    .hero-note {
+      padding: 1.6rem;
+      color: #d6e4f8;
+      background: var(--ink);
+      border-top: 5px solid var(--cyan);
+    }
+    .hero-note strong { display: block; margin-bottom: .65rem; color: #fff; font: 600 1.15rem 'DM Sans'; }
+    .hero-note p { margin: 0; }
+    .intro-actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 2rem; }
+    .intro-actions .text-link { align-self: center; }
+    .workflow-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      margin-top: 2.2rem;
+      background: #1a3a78;
+      border: 1px solid #1a3a78;
+    }
+    .workflow-step { min-height: 240px; padding: 1.4rem; background: #003388; color: #fff; }
+    .workflow-step:nth-child(2) { background: #104e55; }
+    .workflow-step:nth-child(3) { background: #67351e; }
+    .workflow-step:nth-child(4) { background: #274d3e; }
+    .workflow-step span { color: #8cc9ea; font: 500 .75rem 'DM Mono'; }
+    .workflow-step h3 { margin: 3rem 0 .6rem; font-size: 1.25rem; }
+    .workflow-step p { color: #d2deef; font-size: .88rem; }
+    .spec-grid, .paper-grid, .software-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .spec-card, .paper-card, .software-card {
+      padding: 1.5rem;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+    .spec-card h3, .paper-card h3, .software-card h3 { margin-top: 0; color: var(--ink); }
+    .spec-card code { font: .78rem 'DM Mono'; color: #17375e; }
+    .spec-card ul { margin-bottom: 0; padding-left: 1.2rem; color: var(--muted); }
+    .paper-card { display: flex; flex-direction: column; }
+    .paper-card p { color: var(--muted); }
+    .paper-card .text-link { margin-top: auto; font-weight: 600; }
+    .software-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .software-card span { display: inline-block; margin-bottom: .7rem; padding: .2rem .45rem; color: #fff; background: var(--ink); font: 500 .7rem 'DM Mono'; }
+    .software-card p { min-height: 3.2rem; color: var(--muted); }
+    .launch-band {
+      display: flex;
+      justify-content: space-between;
+      gap: 2rem;
+      align-items: center;
+      padding: clamp(3rem, 7vw, 6rem) clamp(1.2rem, 8vw, 8rem);
+      color: #fff;
+      background: var(--ink);
+    }
+    .launch-band h2 { margin: 0 0 .7rem; color: #fff; }
+    .launch-band p { max-width: 670px; margin: 0; color: #c4d5f0; }
+    .launch-band .button { flex-shrink: 0; color: var(--ink); background: #fff; border-color: #fff; }
+    .launch-band .button:hover { color: #fff; background: var(--teal); border-color: var(--teal); }
+    @media (max-width: 850px) {
+      .wasp-hero, .workflow-grid, .software-grid { grid-template-columns: 1fr 1fr; }
+      .wasp-hero { grid-template-columns: 1fr; min-height: auto; }
+    }
+    @media (max-width: 600px) {
+      .workflow-grid, .spec-grid, .paper-grid, .software-grid { grid-template-columns: 1fr; }
+      .launch-band { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
 </head>
 <body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="/"><span>HX</span> HydroclimateX</a>
+    <button class="menu-button" type="button" aria-controls="wasp-nav" aria-expanded="false">Menu</button>
+    <nav id="wasp-nav" aria-label="WASP navigation">
+      <a href="#overview">Overview</a>
+      <a href="#methodology">Methodology</a>
+      <a href="#software">Software</a>
+      <a href="#publications">Publications</a>
+      <a href="https://wasp.hydroclimatex.com">Launch WASP</a>
+    </nav>
+  </header>
 
-<!-- Top Bar -->
-<div class="topbar">
-  <div class="topbar-brand">
-    <span class="topbar-dot"></span> WASP-Web · Interactive Demo
-  </div>
-  <a href="../../index.html" class="topbar-link">← HydroclimateX Lab</a>
-</div>
-
-<!-- Main Layout -->
-<div class="main-layout">
-
-  <!-- Sidebar -->
-  <aside class="sidebar">
-    <div class="sidebar-title">⚙ Parameter Settings</div>
-
-    <!-- Data Source -->
-    <div class="param-section">
-      <div class="param-group">
-        <label>Data Source</label>
-        <select id="sourceSelect" onchange="handleSourceChange()">
-          <option value="demo">Built-in Demo Dataset</option>
-          <option value="upload">Upload Local CSV</option>
-        </select>
-      </div>
-      <div id="uploadGroup" style="display:none;">
-        <div class="file-upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 16V4m0 0L8 8m4-4l4 4M4 20h16"/></svg>
-          <div style="margin-top:4px;">Drop CSV or click to browse</div>
-          <div class="file-name" id="fileName"></div>
+  <main id="main">
+    <section class="wasp-hero" id="overview">
+      <div>
+        <p class="eyebrow">WASP Overview · WAvelet System Prediction</p>
+        <h1>Find the signal <em>across scales.</em></h1>
+        <p class="lead">WASP refines a predictor's spectral representation before modelling. It isolates informative frequency bands, adjusts their influence, and reconstructs predictors that better express hydroclimatic predictability.</p>
+        <div class="intro-actions">
+          <a class="button" href="https://wasp.hydroclimatex.com">Launch WASP</a>
+          <a class="text-link" href="#methodology">Explore methodology ↓</a>
         </div>
-        <input type="file" id="fileInput" accept=".csv" onchange="handleFileSelect(event)">
       </div>
-      <button class="btn btn-demo" id="btnLoadDemo" onclick="loadDemoData()">📥 Load Demo Data</button>
-      <button class="btn btn-clear" id="btnClear" onclick="clearData()" style="display:none;">✕ Clear Uploaded Data</button>
-    </div>
+      <aside class="hero-note">
+        <strong>A research method and an open tool</strong>
+        <p>The online application offers a transparent demonstration of the WASP workflow. For reproducible research and larger studies, use the maintained R, Python, or MATLAB implementations below.</p>
+      </aside>
+    </section>
 
-    <!-- Parameters -->
-    <div class="param-section">
-      <div class="param-group">
-        <label>Wavelet Family</label>
-        <select id="wavelet">
-          <option value="db4">db4 (Daubechies 4)</option>
-          <option value="db8">db8 (Daubechies 8)</option>
-          <option value="sym8">sym8 (Symlet 8)</option>
-          <option value="coif3">coif3 (Coiflet 3)</option>
-          <option value="haar">haar (Haar)</option>
-          <option value="dmey">dmey (Discrete Meyer)</option>
-        </select>
+    <section class="section research-section" id="methodology">
+      <p class="eyebrow">Methodology</p>
+      <h2>Decompose → Identify → Modulate → Reconstruct.</h2>
+      <div class="workflow-grid">
+        <article class="workflow-step"><span>01</span><h3>Decompose</h3><p>Separate each predictor into time-localised frequency components with a discrete wavelet transform.</p></article>
+        <article class="workflow-step"><span>02</span><h3>Identify</h3><p>Estimate the predictive contribution of components at different scales using the target series.</p></article>
+        <article class="workflow-step"><span>03</span><h3>Modulate</h3><p>Amplify informative components and attenuate components that contribute little predictive signal.</p></article>
+        <article class="workflow-step"><span>04</span><h3>Reconstruct</h3><p>Combine the modulated components into spectrally refined predictors for downstream modelling.</p></article>
       </div>
-      <div class="param-group">
-        <label>Decomposition Level (0=Auto)</label>
-        <input type="number" id="level" value="0" min="0" max="10">
+    </section>
+
+    <section class="section" id="data">
+      <p class="eyebrow">Online workflow</p>
+      <h2>Prepare a transparent experiment.</h2>
+      <div class="spec-grid">
+        <article class="spec-card">
+          <h3>CSV input</h3>
+          <p>Upload a UTF-8 comma-separated file with 30–5000 complete observations.</p>
+          <ul>
+            <li>First column: predictand or target variable</li>
+            <li>Remaining columns: 1–50 numeric predictors</li>
+            <li>Every value must be finite; every column must vary</li>
+            <li>Maximum CSV file: 10 MiB (the proxy allows 11 MB including multipart overhead)</li>
+          </ul>
+        </article>
+        <article class="spec-card">
+          <h3>Run parameters</h3>
+          <ul>
+            <li><code>wavelet</code>: transform family such as db4 or sym8</li>
+            <li><code>level</code>: decomposition depth; 0 selects automatically</li>
+            <li><code>test_size</code>: held-out evaluation fraction</li>
+            <li><code>alpha</code>: ridge regularisation strength</li>
+          </ul>
+        </article>
       </div>
-    </div>
+    </section>
 
-    <div class="param-section">
-      <div class="param-group">
-        <label>Test Set Fraction</label>
-        <select id="testSize">
-          <option value="0.2">20%</option>
-          <option value="0.25">25%</option>
-          <option value="0.33">33%</option>
-        </select>
+    <section class="section methods" id="software">
+      <p class="eyebrow">Open-source software</p>
+      <h2>Choose your research environment.</h2>
+      <div class="software-grid">
+        <article class="software-card"><span>R</span><h3>WASP</h3><p>The reference research implementation and established workflow.</p><a class="text-link" href="https://github.com/HydroclimateX/WASP" target="_blank" rel="noreferrer">Open R repository ↗</a></article>
+        <article class="software-card"><span>Python</span><h3>WASP Python</h3><p>A Python implementation for scientific and machine-learning pipelines.</p><a class="text-link" href="https://github.com/HydroclimateX/WASP_python" target="_blank" rel="noreferrer">Open Python repository ↗</a></article>
+        <article class="software-card"><span>MATLAB</span><h3>WASP MATLAB</h3><p>A MATLAB implementation for signal-processing research workflows.</p><a class="text-link" href="https://github.com/HydroclimateX/WASP_matlab" target="_blank" rel="noreferrer">Open MATLAB repository ↗</a></article>
       </div>
-      <div class="param-group">
-        <label>Ridge Regularization (α)</label>
-        <input type="number" id="alpha" value="1.0" min="0.01" max="100" step="0.1">
+    </section>
+
+    <section class="section" id="publications">
+      <p class="eyebrow">Foundational publications</p>
+      <h2>Method and software.</h2>
+      <div class="paper-grid">
+        <article class="paper-card">
+          <p class="eyebrow">Water Resources Research · 2020</p>
+          <h3>Refining predictor spectral representation using wavelet theory for improved natural system modelling</h3>
+          <p>The methodological foundation for using wavelet-scale information to refine predictors.</p>
+          <a class="text-link" href="https://agupubs.onlinelibrary.wiley.com/doi/10.1029/2019WR026962" target="_blank" rel="noreferrer">Read the WRR method paper ↗</a>
+        </article>
+        <article class="paper-card">
+          <p class="eyebrow">Environmental Modelling &amp; Software · 2021</p>
+          <h3>WASP: a wavelet-based tool to modulate variance in predictors for improved prediction</h3>
+          <p>The software paper describes the open implementation and practical modelling workflow.</p>
+          <a class="text-link" href="https://www.sciencedirect.com/science/article/pii/S1364815220309646" target="_blank" rel="noreferrer">Read the software paper ↗</a>
+        </article>
       </div>
-    </div>
+    </section>
 
-    <button class="btn btn-run" id="btnRun" onclick="runWasp()" disabled>▶ Run WASP Prediction</button>
+    <section class="launch-band" aria-label="Launch WASP">
+      <div><h2>Run WASP in your browser.</h2><p>Load the demonstration data or upload a compatible CSV, select the transform settings, and compare WASP predictions with a raw-predictor baseline.</p></div>
+      <a class="button" href="https://wasp.hydroclimatex.com">Launch WASP →</a>
+    </section>
+  </main>
 
-    <div class="status-box">
-      <span class="status-dot" id="statusDot"></span>
-      <span id="statusText">Ready. Load data to begin.</span>
-    </div>
-
-    <div class="error-banner" id="errorBanner"></div>
-  </aside>
-
-  <!-- Content Area -->
-  <div class="content-area" id="contentArea">
-    <div class="placeholder-card" id="placeholder">
-      <svg viewBox="0 0 64 64" width="56" height="56" fill="none">
-        <rect x="8" y="8" width="48" height="48" rx="8" stroke="currentColor" stroke-width="2" opacity="0.3"/>
-        <path d="M22 36 L32 18 L42 36" stroke="currentColor" stroke-width="2" fill="none" opacity="0.5"/>
-        <circle cx="27" cy="42" r="3" fill="currentColor" opacity="0.25"/>
-        <circle cx="37" cy="42" r="3" fill="currentColor" opacity="0.25"/>
-      </svg>
-      <h3>WASP — WAvelet System Prediction</h3>
-      <p>
-        Upload a CSV file (or use the built-in demo dataset), configure wavelet
-        parameters, and run the WASP pipeline.<br>
-        The <strong>FastAPI backend</strong> will decompose your predictors using
-        Discrete Wavelet Transform, identify predictive frequency bands, modulate
-        variance, and return spectrally refined predictions with evaluation metrics.
-      </p>
-      <p style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;">
-        First column = predictand · Remaining columns = predictors · ≥ 30 rows required
-      </p>
-    </div>
-
-    <!-- Results (hidden until run) -->
-    <div class="result-section" id="resultSection"></div>
-  </div>
-
-</div>
-
-<script>
-// ================================================================
-// WASP-Web Demo — Client Logic
-// ================================================================
-
-// --- Config ---
-// `window.WASP_API_BASE` makes preview/staging deployments configurable without
-// rebuilding the page. Local development retains a convenient HTTP fallback;
-// every other host uses the TLS API to avoid browser mixed-content blocking.
-const API_BASE = window.WASP_API_BASE || (
-  ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname)
-    ? 'http://localhost:8000'
-    : 'https://wasp.hydroclimatex.com'
-);
-
-let uploadedFile = null;
-let activeFileName = null;
-
-// --- DOM refs ---
-const $ = id => document.getElementById(id);
-
-function escapeHTML(value) {
-  const entities = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-  return String(value).replace(/[&<>"']/g, character => entities[character]);
-}
-
-// --- Data Source ---
-function handleSourceChange() {
-  const mode = $('sourceSelect').value;
-  $('uploadGroup').style.display = mode === 'upload' ? 'block' : 'none';
-  if (mode === 'demo') {
-    loadDemoData();
-  }
-}
-
-const dropZone = $('dropZone');
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('dragover');
-  if (e.dataTransfer.files.length) setFile(e.dataTransfer.files[0]);
-});
-
-function handleFileSelect(e) { if (e.target.files.length) setFile(e.target.files[0]); }
-
-function setFile(file) {
-  uploadedFile = file;
-  activeFileName = file.name;
-  $('fileName').textContent = '📄 ' + file.name + ' (' + (file.size/1024).toFixed(1) + ' KB)';
-  dropZone.classList.add('active');
-  $('btnRun').disabled = false;
-  $('btnClear').style.display = '';
-  $('statusText').textContent = 'File loaded. Ready to run.';
-  $('statusDot').className = 'status-dot success';
-}
-
-async function loadDemoData() {
-  $('btnLoadDemo').disabled = true;
-  $('btnLoadDemo').textContent = '⏳ Loading…';
-  $('statusDot').className = 'status-dot running';
-  $('statusText').textContent = 'Fetching demo dataset…';
-  try {
-    const resp = await fetch(API_BASE + '/api/demo-data', { signal: AbortSignal.timeout(10000) });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const blob = await resp.blob();
-    uploadedFile = new File([blob], 'wasp_demo.csv', { type: 'text/csv' });
-    activeFileName = 'wasp_demo.csv';
-    $('fileName').textContent = '📄 wasp_demo.csv (Demo — 360 rows)';
-    dropZone.classList.add('active');
-    $('btnRun').disabled = false;
-    $('btnClear').style.display = '';
-    $('statusDot').className = 'status-dot success';
-    $('statusText').textContent = 'Demo data loaded. Ready to run.';
-  } catch (e) {
-    $('statusDot').className = 'status-dot error';
-    $('statusText').textContent = 'Failed to load demo: ' + e.message;
-    showError('Cannot reach backend at ' + API_BASE + '. Is the Alibaba Cloud ECS running?');
-  } finally {
-    $('btnLoadDemo').disabled = false;
-    $('btnLoadDemo').textContent = '📥 Load Demo Data';
-  }
-}
-
-function clearData() {
-  uploadedFile = null; activeFileName = null;
-  $('fileName').textContent = '';
-  $('fileInput').value = '';
-  dropZone.classList.remove('active');
-  $('btnRun').disabled = true;
-  $('btnClear').style.display = 'none';
-  $('statusDot').className = 'status-dot';
-  $('statusText').textContent = 'Ready. Load data to begin.';
-  $('resultSection').classList.remove('show');
-  $('resultSection').innerHTML = '';
-  $('placeholder').style.display = '';
-  $('errorBanner').classList.remove('show');
-}
-
-function showError(msg) {
-  $('errorBanner').textContent = '⚠ ' + msg;
-  $('errorBanner').classList.add('show');
-}
-
-// --- Run WASP ---
-async function runWasp() {
-  if (!uploadedFile) { showError('Please load data first.'); return; }
-
-  $('btnRun').disabled = true;
-  $('btnRun').textContent = '⏳ Running…';
-  $('statusDot').className = 'status-dot running';
-  $('statusText').textContent = 'Running WASP pipeline…';
-  $('errorBanner').classList.remove('show');
-  $('placeholder').style.display = 'none';
-
-  try {
-    const form = new FormData();
-    form.append('file', uploadedFile);
-    form.append('wavelet', $('wavelet').value);
-    form.append('level', parseInt($('level').value) || 0);
-    form.append('test_size', parseFloat($('testSize').value));
-    form.append('alpha', parseFloat($('alpha').value));
-
-    const resp = await fetch(API_BASE + '/api/wasp/predict', {
-      method: 'POST', body: form,
-      signal: AbortSignal.timeout(120000),
-    });
-    const data = await resp.json();
-
-    if (!data.success) {
-      throw new Error(data.message || 'Unknown error');
-    }
-
-    renderResults(data);
-    $('statusDot').className = 'status-dot success';
-    $('statusText').textContent = `Done. WASP NSE: ${data.metrics.wasp.nse?.toFixed(3) || 'N/A'}`;
-
-  } catch (e) {
-    $('statusDot').className = 'status-dot error';
-    $('statusText').textContent = 'Error: ' + e.message;
-    showError(e.message);
-  } finally {
-    $('btnRun').disabled = false;
-    $('btnRun').textContent = '▶ Run WASP Prediction';
-  }
-}
-
-// --- Render Results ---
-function renderResults(data) {
-  const { metrics, predictions, band_energies, modulation_factors,
-          model_coefficients, predictor_columns, wavelet, level,
-          n_samples, n_train, n_test, target_column } = data;
-  const wasp = metrics.wasp;
-  const baseline = metrics.baseline;
-
-  // Metric definitions: [key, label, higherIsBetter]
-  const metricDefs = [
-    ['nse', 'NSE ↑', true], ['kge', 'KGE ↑', true], ['correlation', 'Corr ↑', true],
-    ['rmse', 'RMSE ↓', false], ['mae', 'MAE ↓', false],
-    ['pod', 'POD ↑', true], ['far', 'FAR ↓', false], ['csi', 'CSI ↑', true],
-  ];
-
-  let metricsHTML = '';
-  for (const [key, label, higher] of metricDefs) {
-    const w = wasp[key], b = baseline[key];
-    if (w == null || b == null) continue;
-    const better = higher ? w > b : w < b;
-    const cls = better ? 'improved' : (Math.abs(w - b) < 0.001 ? '' : 'degraded');
-    metricsHTML += `<div class="metric-tile ${cls}">
-      <div class="m-val">${Number(w).toFixed(3)}</div>
-      <div class="m-label">${label}</div>
-      <div class="m-baseline">Raw: ${Number(b).toFixed(3)}</div>
-    </div>`;
-  }
-
-  // Info table
-  const infoHTML = `
-    <table class="info-table">
-      <tr><th>Target</th><td>${escapeHTML(target_column)}</td><th>Predictors</th><td>${predictor_columns.map(escapeHTML).join(', ')}</td></tr>
-      <tr><th>Wavelet</th><td>${escapeHTML(wavelet)}</td><th>Level</th><td>${level}</td></tr>
-      <tr><th>Samples</th><td>${n_samples} (train: ${n_train}, test: ${n_test})</td><th>Predictors</th><td>${predictor_columns.length}</td></tr>
-    </table>`;
-
-  // Time series chart
-  const obs = predictions.observed;
-  const waspPred = predictions.wasp_predicted;
-  const basePred = predictions.baseline_predicted;
-  const xIdx = Array.from({length: obs.length}, (_, i) => i + 1);
-
-  const tsTrace = [
-    { x: xIdx, y: obs, type: 'scatter', mode: 'lines+markers', name: 'Observed', line: {color: '#1a1a2e', width: 2}, marker: {size: 2} },
-    { x: xIdx, y: waspPred, type: 'scatter', mode: 'lines', name: 'WASP', line: {color: '#0B5EA7', width: 2.5} },
-    { x: xIdx, y: basePred, type: 'scatter', mode: 'lines', name: 'Baseline (raw)', line: {color: '#C4922E', width: 1.5, dash: 'dash'} },
-  ];
-
-  const tsLayout = {
-    margin: {t: 10, r: 10, b: 40, l: 50}, legend: {orientation: 'h', y: 1.12},
-    xaxis: {title: 'Time step'}, yaxis: {title: target_column},
-    paper_bgcolor: '#fff', plot_bgcolor: '#f8f9fb',
-  };
-
-  // Band energy chart
-  const firstPred = predictor_columns[0];
-  const bands = band_energies[firstPred] || {};
-  const bandKeys = Object.keys(bands).sort();
-  const bandTrace = [{
-    x: bandKeys.map(k => bands[k] * 100), y: bandKeys, type: 'bar', orientation: 'h',
-    marker: { color: bandKeys.map((_, i) => i < bandKeys.length - 1 ? '#0B5EA7' : '#C4922E') },
-    text: bandKeys.map(k => (bands[k] * 100).toFixed(1) + '%'), textposition: 'outside',
-  }];
-  const bandLayout = {
-    margin: {t: 10, r: 50, b: 30, l: 30}, xaxis: {title: 'Energy (%)'},
-    paper_bgcolor: '#fff', plot_bgcolor: '#f8f9fb',
-  };
-
-  // Modulation factors
-  let modHTML = '';
-  for (const [col, factors] of Object.entries(modulation_factors)) {
-    modHTML += `<div style="margin-bottom:10px;"><strong style="font-size:12px;">${escapeHTML(col)}</strong>`;
-    factors.forEach((f, i) => {
-      const pct = Math.max(4, f * 150);
-      const color = f > 1.1 ? '#16a34a' : f < 0.9 ? '#dc2626' : '#5a5a7a';
-      modHTML += `<div class="mod-factor-bar">
-        <span class="mod-factor-label">D${i+1}</span>
-        <span class="mod-factor-fill" style="width:${pct}px;background:${color};"></span>
-        <span class="mod-factor-val">${f.toFixed(2)}</span>
-      </div>`;
-    });
-    modHTML += '</div>';
-  }
-  modHTML += '<p style="font-size:10px;color:var(--text-muted);">Green > 1 = amplified · Red < 1 = attenuated</p>';
-
-  // Coefficients
-  let coefHTML = '';
-  const maxAbsCoef = Math.max(...model_coefficients.map(c => Math.abs(c.coefficient)), 0.001);
-  for (const c of model_coefficients) {
-    const pct = Math.abs(c.coefficient) / maxAbsCoef * 100;
-    const color = c.coefficient >= 0 ? 'var(--blue)' : '#dc2626';
-    coefHTML += `<div class="mod-factor-bar">
-      <span class="mod-factor-label" style="width:auto;min-width:100px;">${escapeHTML(c.predictor)}</span>
-      <span class="mod-factor-fill" style="width:${Math.max(4, pct*2)}px;background:${color};"></span>
-      <span class="mod-factor-val">${c.coefficient.toFixed(4)}</span>
-    </div>`;
-  }
-
-  // Assemble
-  $('resultSection').innerHTML = `
-    <div class="chart-card"><div class="chart-card-header">📊 Evaluation Metrics — WASP vs Baseline (raw predictors)</div>
-      <div class="metrics-grid">${metricsHTML}</div>
-    </div>
-    <div class="chart-card"><div class="chart-card-header">📋 Run Summary</div>${infoHTML}</div>
-    <div class="chart-row">
-      <div class="chart-card"><div class="chart-card-header">📈 Time Series — Observed vs Predicted</div>
-        <div id="chartTS" style="min-height:320px;"></div>
-      </div>
-      <div class="chart-card"><div class="chart-card-header">🔬 Frequency Band Energy — ${escapeHTML(firstPred)}</div>
-        <div id="chartBands" style="min-height:320px;"></div>
-      </div>
-    </div>
-    <div class="chart-row">
-      <div class="chart-card"><div class="chart-card-header">🎚 Variance Modulation Factors</div>${modHTML}</div>
-      <div class="chart-card"><div class="chart-card-header">📐 Ridge Regression Coefficients</div>${coefHTML}</div>
-    </div>
-  `;
-
-  $('resultSection').classList.add('show');
-
-  // Render Plotly charts after DOM update
-  setTimeout(() => {
-    Plotly.newPlot('chartTS', tsTrace, tsLayout, {responsive: true, displayModeBar: false});
-    Plotly.newPlot('chartBands', bandTrace, bandLayout, {responsive: true, displayModeBar: false});
-  }, 50);
-}
-</script>
+  <footer>
+    <div><strong>HydroclimateX Lab</strong><span>College of Hydrology &amp; Water Resources · Hohai University</span></div>
+    <a href="mailto:ze.jiang@hhu.edu.cn">ze.jiang@hhu.edu.cn</a>
+    <span><a href="/">Research team homepage</a> · <a href="https://github.com/HydroclimateX" target="_blank" rel="noreferrer">GitHub</a></span>
+  </footer>
+  <script>
+    (() => {
+      const header = document.querySelector('.site-header');
+      const button = document.querySelector('.menu-button');
+      const navigation = document.querySelector('#wasp-nav');
+      if (!header || !button || !navigation) return;
+      button.addEventListener('click', () => {
+        const open = header.classList.toggle('open');
+        button.setAttribute('aria-expanded', String(open));
+      });
+      navigation.addEventListener('click', (event) => {
+        if (event.target.closest('a')) {
+          header.classList.remove('open');
+          button.setAttribute('aria-expanded', 'false');
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

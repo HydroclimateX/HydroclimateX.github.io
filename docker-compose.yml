@@ -5,6 +5,7 @@
 services:
   # ---- FastAPI + WASP Engine ----
   wasp-api:
+    image: hydroclimatex/wasp-api:current
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -18,38 +19,66 @@ services:
     volumes:
       - wasp_uploads:/tmp/wasp_uploads
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 10s
     networks:
       - wasp-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ---- Nginx Reverse Proxy ----
   nginx:
-    image: nginx:1.27-alpine
+    image: hydroclimatex/wasp-nginx:current
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
     container_name: wasp-nginx
     restart: unless-stopped
+    environment:
+      - NGINX_CONFIG=${NGINX_CONFIG:-nginx.conf}
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./${NGINX_CONFIG:-nginx.conf}:/etc/nginx/conf.d/default.conf:ro
-      - ./certbot/www:/var/www/certbot:ro
-      - ./certbot/conf:/etc/letsencrypt:ro
+      - ${WASP_STATE_DIR:-./certbot}/www:/var/www/certbot:ro
+      - ${WASP_STATE_DIR:-./certbot}/conf:/etc/letsencrypt:ro
     depends_on:
       wasp-api:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          if [ "$${NGINX_CONFIG}" = "nginx.bootstrap.conf" ]; then
+            test -s /var/www/certbot/.well-known/acme-challenge/wasp-bootstrap-ready &&
+            wget -q -O - --header="Host: wasp.hydroclimatex.com" http://127.0.0.1/.well-known/acme-challenge/wasp-bootstrap-ready | grep -qx ready;
+          else
+            wget -q --no-check-certificate -O - --header="Host: wasp.hydroclimatex.com" https://127.0.0.1/api/health | grep -q healthy;
+          fi
+      interval: 5s
+      timeout: 4s
+      retries: 24
+      start_period: 5s
     networks:
       - wasp-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Invoked by deploy.sh (and the installed renewal command), not long-running.
   certbot:
     image: certbot/certbot:v2.11.0
     volumes:
-      - ./certbot/www:/var/www/certbot
-      - ./certbot/conf:/etc/letsencrypt
+      - ${WASP_STATE_DIR:-./certbot}/www:/var/www/certbot
+      - ${WASP_STATE_DIR:-./certbot}/conf:/etc/letsencrypt
     entrypoint: certbot
 
 volumes:

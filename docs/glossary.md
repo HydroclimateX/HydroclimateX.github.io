@@ -1,44 +1,59 @@
 # HydroclimateX Lab — Glossary
 
-## Research Terms
+## Research terms
 
 **WASP (WAvelet System Prediction)**
-A wavelet-based spectral transformation method that refines predictor representation for improved hydrologic prediction. Core innovation: modulating variance in predictors using wavelet theory before feeding into predictive models. Published in *Water Resources Research* (Jiang, Sharma & Johnson, 2020).
+A spectral-transformation method that decomposes predictors, identifies useful
+frequency bands, modulates their variance, and reconstructs refined predictors
+for hydrologic prediction.
+
+**Predictand / target**
+The first numeric column in a WASP CSV file: the quantity the model predicts.
+
+**Predictor**
+Any numeric input column after the target. At least one finite, non-constant
+predictor is required.
 
 **WQM (Wavelet-based Quantile Mapping)**
-Frequency-domain quantile mapping for post-processing numerical weather predictions. Corrects systematic bias in both trend and variability. Published in *Monthly Weather Review* (Jiang & Johnson, 2023).
+Frequency-domain quantile mapping for correcting systematic bias in numerical
+weather and climate simulations.
 
 **NPRED (Nonparametric PREDiction)**
-A predictor identification tool that selects optimal predictors without assuming linear relationships.
+A predictor-identification method that does not assume a linear relationship.
 
-**Spectral Transformation**
-The core WASP technique: decomposing climate predictors into frequency components via wavelet transform, selectively modulating variance, then reconstructing — producing predictors more strongly linked to the predictand.
+## System terms
 
-**Extreme Hydrometeorological Events**
-Heavy precipitation, drought, floods, and compound events studied at seasonal to decadal timescales.
+**Research-team homepage**
+`https://hydroclimatex.com`, published by GitHub Pages.
 
-## System Terms
+**WASP scientific introduction**
+`https://hydroclimatex.com/showcase/wasp-web/`, a static Pages document covering
+the method, publications, software implementations, and input contract.
 
-**GitHub Pages**
-Static site hosting. Serves the academic profile pages (About, Research, Publications, Team) and the Showcase page that embeds the interactive WASP-Web demo.
+**WASP application**
+`https://wasp.hydroclimatex.com`, served from the Alibaba Cloud Hong Kong
+Lightweight Application Server. Its browser code and API share the same origin.
 
-**Alibaba Cloud ECS (Elastic Compute Service)**
-Virtual machine running the FastAPI backend + WASP computation engine. Provisioned via the deploy script.
+**Same-origin API**
+The application calls `/api/health`, `/api/demo-data`, and
+`/api/wasp/predict`. Nginx forwards these paths to FastAPI without exposing
+container port 8000 on the host.
 
 **Docker Compose**
-Orchestrates two containers: (1) FastAPI + WASP Python, (2) Nginx reverse proxy with SSL.
+Defines the two long-lived services: `wasp-nginx` for static files, TLS, and
+proxying; and `wasp-api` for computation. Certbot runs only as an on-demand task.
 
-**WASP-Web Frontend**
-The interactive browser UI embedded in the Showcase page. Allows CSV upload, parameter selection, WASP computation trigger, and result visualization — all rendered in the browser talking to the FastAPI backend.
+**`scripts/bootstrap-hk-server.sh`**
+The host bootstrap. It installs Ubuntu dependencies and Docker, creates the
+persistent directories, synchronises the requested Git branch, and calls the
+deployment guard.
 
-**deploy.sh**
-One-click deployment script. On a fresh Alibaba Cloud ECS instance, running `bash deploy.sh` will: install Docker, pull images, start services, configure nginx, and obtain SSL cert.
+**`deploy.sh`**
+The application deployment guard. It validates DNS, coordinates the restricted
+ACME configuration and final TLS configuration, waits for health checks,
+verifies the HTTPS API, and installs certificate renewal.
 
-**GitHub Actions Pages deployment**
-The CI pipeline (`.github/workflows/static.yml`) that publishes the site to GitHub Pages. Runs on push to `main` (deploy), a daily schedule (refresh Scholar data + deploy), and manual dispatch. Requires Pages source = "GitHub Actions". See ADR-003.
-
-**Scholar sync pipeline**
-`scripts/sync_scholar.py` fetches the public Google Scholar profile and writes `data/scholar-stats.json` (citation metrics) and `data/scholar-publications.json` (full publication list), both committed to `main`. The site reads these JSON files at runtime; `main.js` falls back to curated data if they are unavailable.
-
-**Web-root artifact (`_site`)**
-The staged publish folder containing only the files the site serves (`index.html`, `main.js`, `style.css`, `assets/`, `showcase/`, `data/`). Everything else in the repo (backend, WASP-devel, docs, deploy scripts) is excluded from the deployed Pages site.
+**GitHub Pages artifact**
+The `_site` directory created by `.github/workflows/static.yml`. It contains the
+homepage, scientific introduction, figures, and public data, but not the actual
+WASP application, backend, certificates, or deployment scripts.

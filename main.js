@@ -153,19 +153,3 @@ function fmtDate(iso) {
     } catch (_) { /* keep curated fallback list */ }
   })();
 })();
-
-// ================================================================
-// 6. WASP iframe lazy-load
-// ================================================================
-(function () {
-  const iframe = document.getElementById('waspIframe');
-  if (!iframe) return;
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        observer.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.05 });
-  observer.observe(iframe);
-})();

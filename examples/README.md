@@ -1,35 +1,45 @@
-# WASP-Web Example Data
+# WASP example data
+
+The research-team homepage is `https://hydroclimatex.com`; methodology and file
+requirements are documented at
+`https://hydroclimatex.com/showcase/wasp-web/`; the interactive application runs
+at `https://wasp.hydroclimatex.com` on the Alibaba Cloud Hong Kong Lightweight
+Application Server.
 
 ## `demo.csv`
 
-Synthetic monthly hydrologic data (30 years × 12 months = 360 samples).
+This file contains 391 monthly observations. The first column is the target and
+the remaining four columns are predictors.
 
-### Columns
+| Column | Role |
+|---|---|
+| `streamflow_anomaly` | Target: standardised streamflow anomaly |
+| `sst_index` | Sea-surface-temperature predictor |
+| `soi` | Southern Oscillation Index predictor |
+| `pdo_index` | Pacific Decadal Oscillation predictor |
+| `precip_index` | Precipitation predictor |
 
-| Column | Description |
-|--------|-------------|
-| `streamflow_anomaly` | **Predictand** — standardized streamflow anomaly |
-| `sst_index` | Predictor — sea surface temperature index |
-| `soi` | Predictor — Southern Oscillation Index |
-| `pdo_index` | Predictor — Pacific Decadal Oscillation index |
-| `precip_index` | Predictor — precipitation index |
+All input columns must be numeric, finite, and non-constant. Files must contain
+30–5000 rows and 1–50 predictors. Nginx accepts an 11 MB multipart request, and
+FastAPI enforces a 10 MiB limit on the uploaded file itself. Supported wavelets
+are `db4`, `sym8`, `coif3`, and `haar`.
 
-### Expected Results
+## Use the example
 
-Running WASP on this demo dataset with `db4` wavelet, 20% test split:
+In the browser, choose **Load Demo Data** at `https://wasp.hydroclimatex.com`.
+The equivalent API request is:
 
-| Metric | Baseline (raw) | WASP (spectral) | Improvement |
-|--------|---------------|-----------------|-------------|
-| NSE | ~0.65–0.75 | ~0.78–0.88 | ✅ |
-| Correlation | ~0.82–0.87 | ~0.88–0.94 | ✅ |
-| RMSE | ~0.45–0.55 | ~0.32–0.42 | ✅ |
+```bash
+curl --fail --show-error \
+  -F "file=@examples/demo.csv" \
+  -F "wavelet=db4" \
+  -F "level=0" \
+  -F "test_size=0.2" \
+  -F "alpha=1.0" \
+  https://wasp.hydroclimatex.com/api/wasp/predict
+```
 
-WASP typically outperforms because the synthetic data has known frequency
-structure: a decadal oscillation (~120-month period) embedded in the
-predictand, which wavelet decomposition can isolate and amplify.
-
-### Usage
-
-1. Upload via WASP-Web UI, or
-2. Use the "Load Demo Data" button in the interactive demo, or
-3. API: `curl -F "file=@demo.csv" -F "wavelet=db4" http://YOUR_ECS_IP/api/wasp/predict`
+Check service readiness with
+`https://wasp.hydroclimatex.com/api/health`. A fresh Ubuntu 24.04 host is
+prepared by `scripts/bootstrap-hk-server.sh`; subsequent guarded application
+updates use `deploy.sh`.

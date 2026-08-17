@@ -26,7 +26,7 @@ from .wavelet import (
     get_band_energy,
     max_levels,
 )
-from .utils import compute_metrics, validate_data
+from .utils import compute_metrics, make_json_safe, validate_data, validate_wavelet
 
 
 def run_wasp_prediction(
@@ -61,7 +61,11 @@ def run_wasp_prediction(
         success, metrics, band_energies, modulation_factors,
         plots, message, n_samples, n_predictors, wavelet, level
     """
-    # 1. Validate & parse
+    # 1. Validate the bounded public parameter set, then parse the CSV.
+    wavelet_error = validate_wavelet(wavelet)
+    if wavelet_error:
+        return {'success': False, 'message': wavelet_error}
+
     df, error = validate_data(contents, filename)
     if error:
         return {'success': False, 'message': error}
@@ -72,10 +76,6 @@ def run_wasp_prediction(
 
     y = df[target_col].values.astype(float)
     X_raw = df[predictor_cols].values.astype(float)
-
-    # Fill NaN in predictors with column means
-    col_means = np.nanmean(X_raw, axis=0)
-    X_raw = np.where(np.isnan(X_raw), col_means, X_raw)
 
     n_samples = len(y)
     n_predictors = len(predictor_cols)
@@ -175,7 +175,7 @@ def run_wasp_prediction(
             'coefficient': round(float(model.coef_[i]), 4),
         })
 
-    return {
+    return make_json_safe({
         'success': True,
         'metrics': {
             'wasp': wasp_metrics,
@@ -197,4 +197,4 @@ def run_wasp_prediction(
             'wasp_predicted': [round(float(v), 4) for v in y_pred],
             'baseline_predicted': [round(float(v), 4) for v in y_baseline_pred],
         },
-    }
+    })
