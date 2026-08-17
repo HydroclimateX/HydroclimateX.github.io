@@ -97,6 +97,15 @@ nav a:hover, .text-link:hover { color: var(--blue); }
   font-size: clamp(3rem, 6vw, 5.8rem);
   letter-spacing: -.045em;
 }
+.hero h1 span {
+  display: block;
+  margin-top: .44rem;
+  font-size: clamp(1.1rem, 2.2vw, 2.1rem);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+  color: var(--muted);
+  font-style: normal;
+}
 .hero h1 em {
   font-style: italic;
   color: var(--teal);
@@ -135,13 +144,15 @@ nav a:hover, .text-link:hover { color: var(--blue); }
 .hero-visual { justify-self: end; }
 .extreme-card {
   position: relative;
-  max-width: 360px;
+  width: min(100%, 540px);
+  max-width: 540px;
 }
 .extreme-card img {
   display: block;
   width: 100%;
   height: auto;
   border: 8px solid #fff;
+  box-shadow: 0 24px 48px rgba(13, 37, 63, 0.12);
 }
 .extreme-caption { padding: .8rem .4rem; }
 .extreme-caption strong, .extreme-caption span { display: block; }
