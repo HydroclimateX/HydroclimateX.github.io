@@ -74,7 +74,7 @@ nav a:hover, .text-link:hover { color: var(--blue); }
 .hero {
   min-height: 620px;
   display: grid;
-  grid-template-columns: 1.35fr .65fr;
+  grid-template-columns: 1.28fr 1fr;
   gap: 3rem;
   align-items: center;
   padding: clamp(4rem, 9vw, 8rem) clamp(1.2rem, 8vw, 8rem);
@@ -144,8 +144,8 @@ nav a:hover, .text-link:hover { color: var(--blue); }
 .hero-visual { justify-self: end; }
 .extreme-card {
   position: relative;
-  width: min(100%, 540px);
-  max-width: 540px;
+  width: min(100%, 720px);
+  max-width: 720px;
 }
 .extreme-card img {
   display: block;
@@ -397,7 +397,7 @@ footer a { color: #fff; text-decoration: none; }
   .hero, .split, .team, .teaching, .methods { grid-template-columns: 1fr; }
   .hero { padding-top: 4rem; }
   .hero-visual { justify-self: start; }
-  .extreme-card { max-width: 280px; }
+  .extreme-card { max-width: 380px; }
   .facts, .research-grid, .recognition-grid { grid-template-columns: 1fr 1fr; }
   .publication { grid-template-columns: 1fr; gap: .4rem; }
   .section { padding: 4rem 1.3rem; }

@@ -20,6 +20,7 @@ build/
 .vscode/
 *.zip
 .playwright-cli/
+.playwright-mcp/
 docs/superpowers/
 
 # Local repositories and generated project metadata not published from this repo
