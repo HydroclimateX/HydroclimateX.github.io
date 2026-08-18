@@ -384,6 +384,7 @@ footer {
 }
 footer strong, footer > div span, footer > span { display: block; }
 footer a { color: #fff; text-decoration: none; }
+.footer-contacts { display: flex; flex-direction: column; gap: .4rem; }
 
 /* ---- Responsive ---- */
 @media (max-width: 850px) {
