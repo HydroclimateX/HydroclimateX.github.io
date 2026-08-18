@@ -162,42 +162,81 @@ def get_band_energy(
     return band_energy
 
 
-def variance_modulate(
-    details: List[np.ndarray],
-    factors: List[float]
-) -> List[np.ndarray]:
+def _band_components(
+    data: np.ndarray,
+    wavelet: str = 'db4',
+    level: Optional[int] = None,
+    mode: str = 'symmetric'
+) -> np.ndarray:
     """
-    Modulate the variance (energy) of each detail band by a multiplicative factor.
+    Reconstruct each wavelet band as an individual subseries.
 
-    This is the core WASP operation: amplify signal-carrying bands
-    and attenuate noise-dominated bands.
+    Returns a (n, level + 1) array whose columns are the separately
+    reconstructed subseries for the D1..D{level} detail bands followed by
+    the A{level} approximation band. Because the DWT reconstruction is
+    linear, the columns sum back to the original (centred) series.
 
     Parameters
     ----------
-    details : List[np.ndarray]
-        Detail coefficients at each level.
-    factors : List[float]
-        Multiplicative factors for each level. Must match len(details).
-        factor > 1.0 = amplify, factor < 1.0 = attenuate, factor = 1.0 = no change.
+    data : np.ndarray (n,)
+        1-D input time series.
+    wavelet : str
+        Wavelet name.
+    level : int, optional
+        Decomposition level.
+    mode : str
+        Boundary mode.
 
     Returns
     -------
-    List[np.ndarray]
-        Modulated detail coefficients.
+    np.ndarray
+        Band subseries with shape (n, level + 1), columns ordered
+        D1, D2, ..., D{level}, A{level}.
     """
-    if len(factors) != len(details):
-        raise ValueError(
-            f"factors length ({len(factors)}) must match details length ({len(details)})"
+    n = len(data)
+    approx, details = wavelet_decompose(data, wavelet=wavelet, level=level, mode=mode)
+
+    # Zero approximation array matching the coarsest-level coefficient shape.
+    # pywt.waverec requires a 1-D array here — a scalar or 0-d array raises AxisError.
+    zero_approx = np.zeros_like(approx[0])
+
+    components = []
+    for i, detail_coeffs in enumerate(details):
+        # Reconstruct this detail band only, with all other bands zeroed.
+        zero_details = [np.zeros_like(d) for d in details]
+        zero_details[i] = detail_coeffs
+        component = wavelet_reconstruct(
+            [zero_approx], zero_details, wavelet=wavelet, mode=mode
         )
+        components.append(component[:n])
 
-    modulated = []
-    for coeffs, factor in zip(details, factors):
-        # Apply sqrt(factor) because variance scales with square of amplitude
-        modulated.append(coeffs * np.sqrt(max(0, factor)))
-    return modulated
+    # Approximation band: reconstruct with all detail bands zeroed.
+    zero_details = [np.zeros_like(d) for d in details]
+    approx_comp = wavelet_reconstruct(approx, zero_details, wavelet=wavelet, mode=mode)
+    components.append(approx_comp[:n])
+
+    return np.column_stack(components)
 
 
-def find_optimal_bands(
+def _standardize_bands(B: np.ndarray) -> np.ndarray:
+    """
+    Standardize each band subseries to zero mean and unit variance.
+
+    Columns with zero variance are left as zeros (they carry no signal and
+    would otherwise produce NaN). Uses ddof=1 to match R's scale()/sd().
+    """
+    Bn = np.empty_like(B, dtype=float)
+    for j in range(B.shape[1]):
+        col = B[:, j]
+        sd = col.std(ddof=1)
+        if sd == 0:
+            Bn[:, j] = 0.0
+        else:
+            Bn[:, j] = (col - col.mean()) / sd
+    return Bn
+
+
+def covariance_modulation_factors(
     predictor: np.ndarray,
     predictand: np.ndarray,
     wavelet: str = 'db4',
@@ -205,11 +244,22 @@ def find_optimal_bands(
     mode: str = 'symmetric'
 ) -> List[float]:
     """
-    Identify which frequency bands carry predictive signal by computing
-    the correlation between each band's component and the predictand.
+    Compute variance modulation factors from the covariance between each
+    standardized frequency band of the predictor and the predictand.
 
-    Returns variance modulation factors: >1 for correlated bands,
-    <1 for uncorrelated bands.
+    Implements Equation 10 of Jiang, Sharma & Johnson (2020), Water Resources
+    Research, 56(3), e2019WR026962 — Refining predictor spectral representation
+    using wavelet theory for improved natural system modeling. Factors cover
+    every frequency band: the D1..D{level} detail bands AND the A{level}
+    approximation band.
+
+    The factor for band j is
+
+        alpha_j = cov(x, Bn_j) / ||cov(x, Bn)||_2
+
+    where Bn_j is the predictor's band-j subseries standardized to unit
+    variance. Because sum(alpha_j^2) = 1, applying the factors preserves the
+    total variance of the predictor while re-weighting it across bands.
 
     Parameters
     ----------
@@ -227,53 +277,75 @@ def find_optimal_bands(
     Returns
     -------
     List[float]
-        Modulation factors for each detail level.
+        Signed modulation factors for each band, ordered
+        D1, D2, ..., D{level}, A{level} (length level + 1).
     """
     # Align lengths
     min_len = min(len(predictor), len(predictand))
-    pred = predictor[:min_len]
+    dp_c = predictor[:min_len] - predictor[:min_len].mean()
     targ = predictand[:min_len]
 
-    # Decompose predictor
-    approx, details = wavelet_decompose(pred, wavelet=wavelet, level=level, mode=mode)
+    # Decompose and reconstruct each band, then standardize to unit variance.
+    B = _band_components(dp_c, wavelet=wavelet, level=level, mode=mode)
+    Bn = _standardize_bands(B)
 
-    # Zero approximation array matching the coarsest-level coefficient shape.
-    # pywt.waverec requires a 1-D array here — a scalar or 0-d array raises AxisError.
-    zero_approx = np.zeros_like(approx[0])
+    # Covariance of the predictand with each standardized band (cov auto-centers).
+    covs = np.array([
+        np.cov(targ, Bn[:, j])[0, 1] for j in range(Bn.shape[1])
+    ])
 
-    factors = []
-    for i, detail_coeffs in enumerate(details):
-        # Reconstruct the component corresponding to this detail band only
-        # Create zero arrays for other bands
-        zero_details = [np.zeros_like(d) for d in details]
-        zero_details[i] = detail_coeffs
+    norm2 = np.linalg.norm(covs)
+    if norm2 == 0:
+        # Degenerate case: no band covaries with the predictand. Uniform
+        # weights 1/sqrt(k) keep sum(alpha^2) = 1 so variance is preserved.
+        factors = np.full(Bn.shape[1], 1.0 / np.sqrt(Bn.shape[1]))
+    else:
+        factors = covs / norm2
 
-        component = wavelet_reconstruct(
-            [zero_approx],
-            zero_details,
-            wavelet=wavelet,
-            mode=mode
-        )
+    return [float(f) for f in factors]
 
-        # Trim to match length
-        component = component[:min_len]
 
-        # Compute correlation with predictand
-        corr = np.corrcoef(component, targ)[0, 1]
-        if np.isnan(corr):
-            corr = 0.0
+def variance_transform(
+    predictor: np.ndarray,
+    factors: List[float],
+    wavelet: str = 'db4',
+    level: Optional[int] = None,
+    mode: str = 'symmetric'
+) -> np.ndarray:
+    """
+    Apply the covariance-based variance transformation to a predictor.
 
-        # Convert correlation to modulation factor:
-        # |corr| > 0.15 → amplify (factor > 1)
-        # |corr| < 0.05 → attenuate (factor < 1)
-        abs_corr = abs(corr)
-        if abs_corr > 0.15:
-            factor = min(1.0 + abs_corr * 2, 3.0)
-        elif abs_corr < 0.05:
-            factor = max(1.0 - (0.05 - abs_corr) * 10, 0.1)
-        else:
-            factor = 1.0
+    Reconstructs the predictor's band subseries, standardizes each to unit
+    variance, and re-combines them weighted by the (calibration) factors:
 
-        factors.append(factor)
+        dp.n = Bn %*% (factors * sd(predictor)) + mean(predictor)
 
-    return factors
+    This is the variance transformation of Jiang et al. (2020), Equation 10.
+    For a held-out segment, pass the factors computed on calibration data —
+    the bands are re-standardized on the segment and scaled by its own
+    standard deviation, matching dwt.vt.val in the reference R package.
+
+    Parameters
+    ----------
+    predictor : np.ndarray
+        Predictor time series to transform.
+    factors : List[float]
+        Variance modulation factors (length level + 1), e.g. from
+        covariance_modulation_factors().
+    wavelet : str
+        Wavelet name.
+    level : int, optional
+        Decomposition level.
+    mode : str
+        Boundary mode.
+
+    Returns
+    -------
+    np.ndarray
+        Variance-transformed predictor of the same length as predictor.
+    """
+    dp_c = predictor - predictor.mean()
+    B = _band_components(dp_c, wavelet=wavelet, level=level, mode=mode)
+    Bn = _standardize_bands(B)
+    scale = float(np.std(predictor, ddof=1))
+    return Bn @ (np.asarray(factors, dtype=float) * scale) + predictor.mean()

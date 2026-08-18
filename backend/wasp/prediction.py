@@ -19,8 +19,8 @@ from sklearn.preprocessing import StandardScaler
 from .wavelet import (
     wavelet_decompose,
     wavelet_reconstruct,
-    find_optimal_bands,
-    variance_modulate,
+    covariance_modulation_factors,
+    variance_transform,
     get_band_energy,
     max_levels,
 )
@@ -134,33 +134,29 @@ def run_wasp_prediction(
     modulation_factors = {}
 
     for i, col in enumerate(predictor_cols):
-        # Find optimal modulation factors from training data
-        factors = find_optimal_bands(
+        # Covariance-based variance modulation factors (Equation 10, Jiang
+        # et al. 2020) fitted on training data, covering ALL bands D1..D{level}
+        # and the A{level} approximation band.
+        factors = covariance_modulation_factors(
             X_train_raw[:, i], y_train,
             wavelet=wavelet, level=level
         )
-        modulation_factors[col] = [round(f, 3) for f in factors]
+        modulation_factors[col] = [round(float(f), 4) for f in factors]
 
-        # Transform training predictor
+        # Energy in each band of the raw predictor (for the band-energy panel).
         approx, details = wavelet_decompose(
             X_train_raw[:, i], wavelet=wavelet, level=level
         )
-        energies = get_band_energy(details, approx)
-        band_energies[col] = energies
+        band_energies[col] = get_band_energy(details, approx)
 
-        modulated_details = variance_modulate(details, factors)
-        X_train_transformed[:, i] = wavelet_reconstruct(
-            approx, modulated_details, wavelet=wavelet
-        )[:len(y_train)]
-
-        # Transform test predictor (using same factors from train)
-        approx_t, details_t = wavelet_decompose(
-            X_test_raw[:, i], wavelet=wavelet, level=level
+        # Apply the variance transformation; the test segment reuses the
+        # calibration factors (dwt.vt.val behavior).
+        X_train_transformed[:, i] = variance_transform(
+            X_train_raw[:, i], factors, wavelet=wavelet, level=level
         )
-        modulated_details_t = variance_modulate(details_t, factors)
-        X_test_transformed[:, i] = wavelet_reconstruct(
-            approx_t, modulated_details_t, wavelet=wavelet
-        )[:len(y_test)]
+        X_test_transformed[:, i] = variance_transform(
+            X_test_raw[:, i], factors, wavelet=wavelet, level=level
+        )
 
     # 5. Fit model on spectrally transformed data
     scaler_X = StandardScaler()
@@ -197,6 +193,22 @@ def run_wasp_prediction(
     wasp_metrics = compute_metrics(y_test, y_pred)
     baseline_metrics = compute_metrics(y_test, y_baseline_pred)
 
+    # 8b. In-sample (calibration) predictions and metrics on the training set.
+    # Both models are already fitted, so this only requires predicting back on
+    # the transformed/raw training features.
+    y_train_pred_scaled = fitted_model.predict(X_train_scaled)
+    y_train_pred = scaler_y.inverse_transform(
+        y_train_pred_scaled.reshape(-1, 1)
+    ).ravel()
+
+    y_train_base_pred_scaled = baseline_model.predict(X_train_raw_scaled)
+    y_train_base_pred = baseline_scaler_y.inverse_transform(
+        y_train_base_pred_scaled.reshape(-1, 1)
+    ).ravel()
+
+    wasp_cal_metrics = compute_metrics(y_train, y_train_pred)
+    baseline_cal_metrics = compute_metrics(y_train, y_train_base_pred)
+
     # 9. Estimator-specific feature information.
     attributions = feature_attributions(fitted_model, model, predictor_cols)
     coefficient_compat = [
@@ -212,6 +224,8 @@ def run_wasp_prediction(
         'metrics': {
             'wasp': wasp_metrics,
             'baseline': baseline_metrics,
+            'calibration_wasp': wasp_cal_metrics,
+            'calibration_baseline': baseline_cal_metrics,
         },
         'model': model,
         'model_label': MODEL_LABELS[model],
@@ -231,5 +245,10 @@ def run_wasp_prediction(
             'observed': [round(float(v), 4) for v in y_test],
             'wasp_predicted': [round(float(v), 4) for v in y_pred],
             'baseline_predicted': [round(float(v), 4) for v in y_baseline_pred],
+            'calibration': {
+                'observed': [round(float(v), 4) for v in y_train],
+                'wasp_predicted': [round(float(v), 4) for v in y_train_pred],
+                'baseline_predicted': [round(float(v), 4) for v in y_train_base_pred],
+            },
         },
     })

@@ -917,9 +917,8 @@ class HttpsPagesDeploymentTests(unittest.TestCase):
         self.assertIn("function escapeHTML(value)", source)
         self.assertIn("${escapeHTML(target_column)}", source)
         self.assertIn("${predictor_columns.map(escapeHTML).join(', ')}", source)
-        self.assertIn("${escapeHTML(firstPred)}", source)
+        # Predictor names are injected in the band-energy and modulation panels.
         self.assertIn("${escapeHTML(col)}", source)
-        self.assertIn("${escapeHTML(item.predictor)}", source)
         for supported in ("db1", "db2", "db4", "db8", "db16"):
             self.assertRegex(source, rf'<option value="{supported}"(?: selected)?>')
         self.assertNotIn('<option value="sym8">', source)

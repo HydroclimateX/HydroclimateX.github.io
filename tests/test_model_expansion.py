@@ -119,6 +119,33 @@ class ModelExpansionTests(unittest.TestCase):
         self.assertEqual(first["predictions"], second["predictions"])
         self.assertEqual(first["feature_attributions"], second["feature_attributions"])
 
+    def test_response_includes_calibration_and_full_band_factors(self) -> None:
+        result = run_wasp_prediction(
+            contents=make_demo_csv(),
+            filename="demo.csv",
+            wavelet="db4",
+            level=None,
+            test_size=0.2,
+            model="linear",
+        )
+
+        self.assertTrue(result["success"], result.get("message"))
+        level = result["level"]
+        for col in result["predictor_columns"]:
+            factors = result["modulation_factors"][col]
+            # One factor per frequency band: D1..D{level}, plus A{level}.
+            self.assertEqual(len(factors), level + 1)
+            # Equation-10 weights are L2-normalized covariances (factors are
+            # rounded to 4 dp, so allow a loose tolerance).
+            self.assertAlmostEqual(sum(f * f for f in factors), 1.0, places=2)
+        calibration = result["predictions"]["calibration"]
+        self.assertEqual(len(calibration["observed"]), result["n_train"])
+        self.assertEqual(len(calibration["wasp_predicted"]), result["n_train"])
+        self.assertEqual(len(calibration["baseline_predicted"]), result["n_train"])
+        self.assertIn("calibration_wasp", result["metrics"])
+        self.assertIn("calibration_baseline", result["metrics"])
+        json.dumps(result, allow_nan=False)
+
     def test_selected_variables_drive_the_prediction(self) -> None:
         values = np.arange(96, dtype=float)
         frame = pd.DataFrame({
