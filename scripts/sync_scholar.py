@@ -54,6 +54,55 @@ def _strip(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+# Venue substrings that mark a conference contribution (matched on lowercase
+# venue text). Conference venues on Google Scholar are formatted like
+# "EGU General Assembly Conference Abstracts, EGU25-7620" or
+# "2024 Hydrology and Water Resources Symposium (HWRS 2024), 371-374".
+_CONFERENCE_MARKERS = (
+    "conference",
+    "symposium",
+    "abstracts",
+    "assembly",
+    "meeting",
+    "proceedings",
+    "workshop",
+    "modsim",
+    "aogs",
+    "egu",
+    "agu",
+    "hwrs",
+    "hydroinformatics",
+    "simhydro",
+    "statistics in hydrology",
+)
+
+# Book titles whose chapters appear in the venue field.
+_BOOK_MARKERS = ("towards a resilient asean",)
+
+
+def classify_publication(venue: str, title: str) -> str:
+    """
+    Classify a publication into a reference type.
+
+    Returns one of: article, conference, software, thesis, book chapter.
+    Software is detected from a URL venue (CRAN/GitHub/etc.); a thesis from a
+    "(PhD Thesis)" title; conferences and book chapters from venue keywords;
+    everything else is treated as a journal article.
+    """
+    venue_l = (venue or "").lower()
+    title_l = (title or "").lower()
+
+    if venue_l.startswith("http"):
+        return "software"
+    if "thesis" in title_l:
+        return "thesis"
+    if any(marker in venue_l for marker in _CONFERENCE_MARKERS):
+        return "conference"
+    if any(marker in venue_l for marker in _BOOK_MARKERS):
+        return "book chapter"
+    return "article"
+
+
 def _get(url: str, retries: int, timeout: int) -> str:
     """GET a URL, retrying with backoff on transient failures."""
     last_err: Exception | None = None
@@ -128,7 +177,14 @@ def parse_rows(html_text: str) -> list[dict]:
         citations = int(cit_digits.group(1).replace(",", "")) if cit_digits else 0
 
         pubs.append(
-            {"title": title, "authors": authors, "venue": venue, "year": year, "citations": citations}
+            {
+                "title": title,
+                "authors": authors,
+                "venue": venue,
+                "year": year,
+                "citations": citations,
+                "type": classify_publication(venue, title),
+            }
         )
     return pubs
 

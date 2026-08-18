@@ -56,18 +56,18 @@
 // Curated fallback list, used when data/scholar-publications.json is
 // unavailable (offline or before the first sync).
 const FALLBACK_PUBLICATIONS = [
-  { year: 2025, title: 'Spectral transformation of covariates improves seasonal flood forecasting', authors: 'Jiang, Z., Merz, B. & Sharma, A.', venue: 'Geophysical Research Letters', tag: 'extreme' },
-  { year: 2025, title: 'Spectrally transformed CMIP6 decadal projections improve rainfall forecasts', authors: 'Jiang, Z., Choudhury, D. & Sharma, A.', venue: 'Journal of Hydrology', tag: 'drought' },
-  { year: 2025, title: 'Decadal drought prediction via spectral transformation of sea-surface temperatures', authors: 'Jiang, Z. & Sharma, A.', venue: 'Journal of Hydrology X', tag: 'drought' },
-  { year: 2023, title: 'Derived drought indices and future drought change under climate scenarios', authors: 'Jiang, Z., Johnson, F. & Sharma, A.', venue: "Earth's Future", tag: 'drought' },
-  { year: 2023, title: 'Frequency-domain quantile mapping: a signal processing approach to correct systematic bias', authors: 'Jiang, Z. & Johnson, F.', venue: 'Monthly Weather Review', tag: 'bias' },
-  { year: 2022, title: 'Investigating the linkage between extreme rainstorms and concurrent synoptic features', authors: 'Jiang, Z. et al.', venue: 'Journal of Hydrometeorology', tag: 'extreme' },
-  { year: 2022, title: 'Correcting systematic bias in climate model simulations in the time-frequency domain', authors: 'Jiang, Z. & Johnson, F.', venue: 'Geophysical Research Letters', tag: 'bias' },
-  { year: 2021, title: 'WASP: a wavelet-based tool to modulate variance in predictors for improved prediction', authors: 'Jiang, Z., Sharma, A. & Johnson, F.', venue: 'Environmental Modelling & Software', tag: 'method' },
-  { year: 2020, title: 'Refining predictor spectral representation using wavelet theory for improved natural system modelling', authors: 'Jiang, Z., Sharma, A. & Johnson, F.', venue: 'Water Resources Research', tag: 'method' },
-  { year: 2020, title: 'Using a regional climate model to develop index-based drought insurance for sovereign disaster risk transfer', authors: 'Rashid, M.M., Jiang, Z. et al.', venue: 'Agricultural and Forest Meteorology', tag: 'agri' },
-  { year: 2019, title: 'Future changes in rice yields over the Mekong River Delta due to climate change — alarming or alerting?', authors: 'Jiang, Z. et al.', venue: 'Theoretical and Applied Climatology', tag: 'agri' },
-  { year: 2019, title: 'Assessing the sensitivity of hydro-climatological change detection methods to model uncertainty and bias', authors: 'Jiang, Z. et al.', venue: 'Water Resources Management', tag: 'method' },
+  { year: 2025, title: 'Spectral transformation of covariates improves seasonal flood forecasting', authors: 'Jiang, Z., Merz, B. & Sharma, A.', venue: 'Geophysical Research Letters', type: 'article', tag: 'extreme' },
+  { year: 2025, title: 'Spectrally transformed CMIP6 decadal projections improve rainfall forecasts', authors: 'Jiang, Z., Choudhury, D. & Sharma, A.', venue: 'Journal of Hydrology', type: 'article', tag: 'drought' },
+  { year: 2025, title: 'Decadal drought prediction via spectral transformation of sea-surface temperatures', authors: 'Jiang, Z. & Sharma, A.', venue: 'Journal of Hydrology X', type: 'article', tag: 'drought' },
+  { year: 2023, title: 'Derived drought indices and future drought change under climate scenarios', authors: 'Jiang, Z., Johnson, F. & Sharma, A.', venue: "Earth's Future", type: 'article', tag: 'drought' },
+  { year: 2023, title: 'Frequency-domain quantile mapping: a signal processing approach to correct systematic bias', authors: 'Jiang, Z. & Johnson, F.', venue: 'Monthly Weather Review', type: 'article', tag: 'bias' },
+  { year: 2022, title: 'Investigating the linkage between extreme rainstorms and concurrent synoptic features', authors: 'Jiang, Z. et al.', venue: 'Journal of Hydrometeorology', type: 'article', tag: 'extreme' },
+  { year: 2022, title: 'Correcting systematic bias in climate model simulations in the time-frequency domain', authors: 'Jiang, Z. & Johnson, F.', venue: 'Geophysical Research Letters', type: 'article', tag: 'bias' },
+  { year: 2021, title: 'WASP: a wavelet-based tool to modulate variance in predictors for improved prediction', authors: 'Jiang, Z., Sharma, A. & Johnson, F.', venue: 'Environmental Modelling & Software', type: 'article', tag: 'method' },
+  { year: 2020, title: 'Refining predictor spectral representation using wavelet theory for improved natural system modelling', authors: 'Jiang, Z., Sharma, A. & Johnson, F.', venue: 'Water Resources Research', type: 'article', tag: 'method' },
+  { year: 2020, title: 'Using a regional climate model to develop index-based drought insurance for sovereign disaster risk transfer', authors: 'Rashid, M.M., Jiang, Z. et al.', venue: 'Agricultural and Forest Meteorology', type: 'article', tag: 'agri' },
+  { year: 2019, title: 'Future changes in rice yields over the Mekong River Delta due to climate change — alarming or alerting?', authors: 'Jiang, Z. et al.', venue: 'Theoretical and Applied Climatology', type: 'article', tag: 'agri' },
+  { year: 2019, title: 'Assessing the sensitivity of hydro-climatological change detection methods to model uncertainty and bias', authors: 'Jiang, Z. et al.', venue: 'Water Resources Management', type: 'article', tag: 'method' },
 ].sort((a, b) => (b.year || 0) - (a.year || 0));
 
 let PUBLICATIONS = FALLBACK_PUBLICATIONS;
@@ -113,7 +113,7 @@ function fmtDate(iso) {
       <article class="publication" data-tag="${escapeHtml(p.tag)}">
         <div class="meta">
           <strong>${escapeHtml(p.year || 'n/a')}</strong><br>
-          <span>${escapeHtml(p.venue ? p.venue.split(' ').slice(0, 2).join(' ') : '—')}</span>
+          <span>${escapeHtml(p.type || '—')}</span>
         </div>
         <div>
           <h3>${escapeHtml(p.title)}</h3>

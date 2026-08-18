@@ -4,342 +4,391 @@
     "authors": "Y Li, Z Jiang, S Wu, J Gao, A Sharma",
     "venue": "Geophysical Research Letters 53 (6), e2025GL119793",
     "year": 2026,
-    "citations": 1
+    "citations": 1,
+    "type": "article"
   },
   {
     "title": "A physics-informed data-driven framework for 30m soil moisture estimation from multi-source datasets",
     "authors": "Y Jiang, J Zhang, Z Cai, Y Chen, S Wei, M Liu, Z Jiang, YY Liu, W Ma",
     "venue": "Journal of Hydrology: Regional Studies 66, 103656",
     "year": 2026,
-    "citations": 0
+    "citations": 0,
+    "type": "article"
   },
   {
     "title": "Season-Ahead Flood Quantile Forecasting with Climate-Informed Models for Indian Catchments",
     "authors": "A Ganapathy, Z Jiang, A Agarwal",
     "venue": "Journal of Hydrologic Engineering 31 (3), 04026009",
     "year": 2026,
-    "citations": 0
+    "citations": 0,
+    "type": "article"
   },
   {
     "title": "Spectrally transformed CMIP6 decadal projections improve interannual rainfall forecasts",
     "authors": "Z Jiang, D Choudhury, A Sharma",
     "venue": "Journal of Hydrology 655, 132870",
     "year": 2025,
-    "citations": 5
+    "citations": 5,
+    "type": "article"
   },
   {
     "title": "Spectrally transformed hydroclimatic covariates improve seasonal flood forecasting",
     "authors": "Z Jiang, B Merz, A Sharma",
     "venue": "Geophysical Research Letters 52 (14), e2025GL115176",
     "year": 2025,
-    "citations": 1
+    "citations": 1,
+    "type": "article"
   },
   {
     "title": "Decadal drought prediction via spectral transformation of projected Sea Surface Temperatures",
     "authors": "Z Jiang, A Sharma",
     "venue": "Journal of Hydrology X 27, 100203",
     "year": 2025,
-    "citations": 1
+    "citations": 1,
+    "type": "article"
   },
   {
     "title": "Enhancing Seasonal Flood Forecasts through Spectral Transformation of Hydroclimatic Covariates",
     "authors": "Z Jiang, B Merz, A Sharma",
     "venue": "EGU General Assembly Conference Abstracts, EGU25-7620",
     "year": 2025,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Interannual to decadal drought forecasting framework for water resource management under climate change",
     "authors": "Z Jiang, G Kibria, A Sharma",
     "venue": "2024 Hydrology and Water Resources Symposium (HWRS 2024), 371-374",
     "year": 2024,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Enhanced daily streamflow simulation for future climates using a non-parametric method with variable selection and transformation",
     "authors": "Z Jiang, U Haberlandt, A Sharma",
     "venue": "Asia Oceania Geosciences Society (AOGS) 2024",
     "year": 2024,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Navigating Water Resource Management: A Forecasting Framework for Interannual Drought Projections",
     "authors": "Z Jiang, G Kibria, A Sharma",
     "venue": "EGU General Assembly 2024",
     "year": 2024,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Climate informed non-stationary simulation of daily streamflow – a comparison of three stochastic models",
     "authors": "U Haberlandt, Z Jiang, M Brunner, C Chartier-Rescan, A Brandt, ...",
     "venue": "EGU General Assembly 2024",
     "year": 2024,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Quantifying the Influence of Atmospheric Factors on Rainstorm Extremes Using ERA5: Implications for Flood Early Warning in Henan, China",
     "authors": "Y Lang, Z Jiang, X Wu",
     "venue": "15th International Conference on Hydroinformatics, 244",
     "year": 2024,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Machine Learning Prediction of Phosphate Adsorption on Six Different Metal-Containing Adsorbents",
     "authors": "Y Wu, Y Li, Z Jiang, Z Xu, M Yang, J Ding, C Zhang",
     "venue": "ACS ES&T Engineering",
     "year": 2023,
-    "citations": 21
+    "citations": 21,
+    "type": "article"
   },
   {
     "title": "Do Derived Drought Indices Better Characterize Future Drought Change?",
     "authors": "Z Jiang, F Johnson, A Sharma",
     "venue": "Earth's Future 11 (7)",
     "year": 2023,
-    "citations": 14
+    "citations": 14,
+    "type": "article"
   },
   {
     "title": "A new method for postprocessing numerical weather predictions using quantile mapping in the frequency domain",
     "authors": "Z Jiang, F Johnson",
     "venue": "Monthly Weather Review 151 (8), 1909-1925",
     "year": 2023,
-    "citations": 7
+    "citations": 7,
+    "type": "article"
   },
   {
     "title": "Stochastic Simulation of Daily Streamflow for Reservoir Planning Considering Climate Change-a Comparison of Methods",
     "authors": "U Haberlandt, Z Jiang, MI Brunner, A Brandt, A Sharma",
     "venue": "AGU Fall Meeting Abstracts 2023 (2076), H43B-2076",
     "year": 2023,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Towards resilient water supply management: Innovative forecasting techniques for medium to long-term rainfall anomalies",
     "authors": "Z Jiang, G Kibria, A Sharma",
     "venue": "HWRS2023: Hydrology & Water Resources Symposium, 268-271",
     "year": 2023,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Unlocking the Future of Rainfall: Enhancing Interannual Forecasts with Spectral Transformations of CMIP Decadal Predictions",
     "authors": "A Jiang, Z., Choudhury, D., and Sharma",
     "venue": "20th Asia Oceania Geosciences Society (AOGS) 2023",
     "year": 2023,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Could the 2019-20 Australia bushfires or 2020-22 floods be predicted using CMIP decadal prediction?",
     "authors": "Z Jiang, D Choudhury, A Sharma",
     "venue": "EGU General Assembly 2023",
     "year": 2023,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Wavelet-based post-processing of NWP precipitation forecasts",
     "authors": "F Johnson, Z Jiang",
     "venue": "EGU General Assembly 2023",
     "year": 2023,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Investigating the linkage between extreme rainstorms and concurrent synoptic features: A case study in Henan, Central China",
     "authors": "Y Lang, Z Jiang, X Wu",
     "venue": "Water 14 (7), 1065",
     "year": 2022,
-    "citations": 20
+    "citations": 20,
+    "type": "article"
   },
   {
     "title": "Correcting Systematic Bias in Climate Model Simulations in the Time‐Frequency Domain",
     "authors": "C Kusumastuti, Z Jiang, R Mehrotra, A Sharma",
     "venue": "Geophysical Research Letters, e2022GL100550",
     "year": 2022,
-    "citations": 19
+    "citations": 19,
+    "type": "article"
   },
   {
     "title": "On the quest for practicable decadal hydrologic projections: A spectrally transformed hybrid empirical-dynamical approach",
     "authors": "A Sharma, Z Jiang, D Choudhury",
     "venue": "AGU Fall Meeting Abstracts 2022, H43F-03",
     "year": 2022,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Hydrologic forecasting over long lead times: A wavelet-based variance transformation approach",
     "authors": "Z Jiang, A Sharma, F Johnson",
     "venue": "19th Asia Oceania Geosciences Society (AOGS) 2022",
     "year": 2022,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Applications of the wavelet-based method for postprocessing rainfall forecasts – Implications for urban flood forecasting",
     "authors": "Z Jiang, F Johnson",
     "venue": "19th Asia Oceania Geosciences Society (AOGS) 2022",
     "year": 2022,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Investigating the Linkage between Extreme Rainstorms and Concurrent Synoptic Features: A Case Study in Henan, Central China. Water 2022, 14, 1065",
     "authors": "Y Lang, Z Jiang, X Wu",
     "venue": "Statistics in Hydrology, 37",
     "year": 2022,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "A signal processing approach to correct systematic bias in trend and variability in climate model simulations",
     "authors": "C Kusumastuti, Z Jiang, R Mehrotra, A Sharma",
     "venue": "Geophysical Research Letters 48 (13), e2021GL092953",
     "year": 2021,
-    "citations": 21
+    "citations": 21,
+    "type": "article"
   },
   {
     "title": "Variable transformations in the spectral domain – Implications for hydrologic forecasting",
     "authors": "Z Jiang, A Sharma, F Johnson",
     "venue": "Journal of Hydrology 603, 126816",
     "year": 2021,
-    "citations": 16
+    "citations": 16,
+    "type": "article"
   },
   {
     "title": "WASP: WAvelet System Prediction",
     "authors": "Z Jiang, MM Rashid, A Sharma, F Johnson",
     "venue": "https://cran.r-project.org/web/packages/WASP/index.html",
     "year": 2021,
-    "citations": 2
+    "citations": 2,
+    "type": "software"
   },
   {
     "title": "Advanced wavelet-based variance transformation algorithms for ENSO forecasting over long lead times",
     "authors": "Z Jiang, A Sharma, F Johnson",
     "venue": "MODSIM 2021",
     "year": 2021,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "NPRED: Predictor Identifier: Nonparametric Prediction",
     "authors": "A Sharma, R Mehrotra, S Jha, J Li, Z Jiang",
     "venue": "https://cran.r-project.org/web/packages/NPRED/index.html",
     "year": 2021,
-    "citations": 0
+    "citations": 0,
+    "type": "software"
   },
   {
     "title": "Implications of spectral transformations in hydro-climatology (PhD Thesis)",
     "authors": "Z Jiang",
     "venue": "University of New South Wales, Sydney",
     "year": 2021,
-    "citations": 0
+    "citations": 0,
+    "type": "thesis"
   },
   {
     "title": "A wavelet-based tool to modulate variance in predictors: An application to predicting drought anomalies",
     "authors": "Z Jiang, MM Rashid, F Johnson, A Sharma",
     "venue": "Environmental Modelling & Software 135, 104907",
     "year": 2020,
-    "citations": 39
+    "citations": 39,
+    "type": "article"
   },
   {
     "title": "Refining predictor spectral representation using wavelet theory for improved natural system modelling",
     "authors": "Z Jiang, A Sharma, F Johnson",
     "venue": "Water Resources Research 56 (3), e2019WR026962",
     "year": 2020,
-    "citations": 39
+    "citations": 39,
+    "type": "article"
   },
   {
     "title": "Using a regional climate model to develop index-based drought insurance for sovereign disaster risk transfer",
     "authors": "R Hohl, Z Jiang, MT Vu, S Vijayaraghavan, SY Liong",
     "venue": "Agricultural Finance Review 81 (1), 151-168",
     "year": 2020,
-    "citations": 24
+    "citations": 24,
+    "type": "article"
   },
   {
     "title": "synthesis: Generate Synthetic Data from Statistical Models",
     "authors": "Z Jiang",
     "venue": "https://cran.r-project.org/web/packages/synthesis/index.html",
     "year": 2020,
-    "citations": 0
+    "citations": 0,
+    "type": "software"
   },
   {
     "title": "Forecasting drought revisited – the importance of spectral transformations to dominant atmospheric predictor variables",
     "authors": "A Sharma, Z Jiang, F Johnson",
     "venue": "EGU General Assembly 2020, 12334",
     "year": 2020,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Hydro-climatological forecasting: A view from the spectral domain",
     "authors": "Z Jiang, A Sharma, F Johnson",
     "venue": "AGU Fall Meeting 2020",
     "year": 2020,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Future changes in rice yields over the Mekong River Delta due to climate change - Alarming or alerting?",
     "authors": "Z Jiang, SV Raghavan, J Hur, Y Sun, SY Liong, VQ Nguyen, ...",
     "venue": "Theoretical and Applied Climatology 137 (1-2), 545-555",
     "year": 2019,
-    "citations": 45
+    "citations": 45,
+    "type": "article"
   },
   {
     "title": "Assessing the sensitivity of hydro-climatological change detection methods to model uncertainty and bias",
     "authors": "Z Jiang, A Sharma, F Johnson",
     "venue": "Advances in Water Resources 134, 103430",
     "year": 2019,
-    "citations": 15
+    "citations": 15,
+    "type": "article"
   },
   {
     "title": "ASEAN Food Security under the 2 C-4 C Global Warming Climate Change Scenarios",
     "authors": "SV Raghavan, Z Jiang, J Hur, J Liu, S Nguyen Ngoc",
     "venue": "Towards a Resilient ASEAN 1, 37-52",
     "year": 2019,
-    "citations": 14
+    "citations": 14,
+    "type": "book chapter"
   },
   {
     "title": "ASEAN Food Security Under Climate Change Scenarios: A 2° C-4° C Warming Assessment",
     "authors": "SV Raghavan, J Ze, J Hur, L Jiandong, NN Son, L Shie-Yui",
     "venue": "< bound method Organization. get_name_with_acronym of< Organization …",
     "year": 2019,
-    "citations": 0
+    "citations": 0,
+    "type": "article"
   },
   {
     "title": "Flood modelling framework for Kuching City, Malaysia: Overcoming the lack of data",
     "authors": "D Kim, Y Sun, D Wendi, Z Jiang, SY Liong, P Gourbesville",
     "venue": "Advances in Hydroinformatics: SimHydro 2017-Choosing The Right Model in …",
     "year": 2018,
-    "citations": 15
+    "citations": 15,
+    "type": "conference"
   },
   {
     "title": "Projected impacts of climate change on stream flow and groundwater of Nee Soon freshwater swamp forest, Singapore",
     "authors": "Y Sun, DY Kim, D Wendi, DC Doan, SV Raghavan, Z Jiang, SY Liong",
     "venue": "Gard. Bull. Singapore 70 (Suppl 1), 175-190",
     "year": 2018,
-    "citations": 13
+    "citations": 13,
+    "type": "article"
   },
   {
     "title": "Flood modelling framework for Kuching City, Malaysia",
     "authors": "D Kim, Y Sun, D Wendi, Z Jiang, SY Liong, P Gourbesville",
     "venue": "",
     "year": 2018,
-    "citations": 0
+    "citations": 0,
+    "type": "article"
   },
   {
     "title": "Distributional Impacts of Climate Change and Food Security in Southeast Asia",
     "authors": "SV Raghavan, Z Jiang, J Hur, J Liu, S Nguyen Ngoc, Y Sun, SY Liong",
     "venue": "The 9th ASAE International Conference: Transformation in agricultural and …",
     "year": 2017,
-    "citations": 0
+    "citations": 0,
+    "type": "conference"
   },
   {
     "title": "Urban surface characteristics study using time-area function model: a case study in Saudi Arabia",
     "authors": "Z Jiang, F Molkenthin, H Sieker",
     "venue": "Procedia Engineering 154, 911-918",
     "year": 2016,
-    "citations": 1
+    "citations": 1,
+    "type": "article"
   },
   {
     "title": "Bioconcentration, metabolism, and biomarker responses in freshwater fish Carassius auratus exposed to roxithromycin",
     "authors": "J Liu, G Lu, Y Wang, Z Yan, X Yang, J Ding, Z Jiang",
     "venue": "Chemosphere 99, 102-108",
     "year": 2014,
-    "citations": 95
+    "citations": 95,
+    "type": "article"
   },
   {
     "title": "Enhancing water supply management through improved rainfall anomaly forecasting over medium to long term",
     "authors": "Z Jiang, G Kibria, A Sharma",
     "venue": "",
     "year": null,
-    "citations": 0
+    "citations": 0,
+    "type": "article"
   }
 ]
