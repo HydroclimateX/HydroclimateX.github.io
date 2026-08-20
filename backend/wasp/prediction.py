@@ -13,16 +13,15 @@ Orchestrates the full WASP workflow:
 
 import numpy as np
 import pandas as pd
+import pywt
 from typing import Dict, List, Tuple, Optional, Any
 from sklearn.preprocessing import StandardScaler
 
 from .wavelet import (
-    wavelet_decompose,
-    wavelet_reconstruct,
+    _band_components,
     covariance_modulation_factors,
     variance_transform,
     get_band_energy,
-    max_levels,
 )
 from .utils import compute_metrics, make_json_safe, validate_data, validate_wavelet
 from .models import (
@@ -107,12 +106,16 @@ def run_wasp_prediction(
     X_train_raw, X_test_raw = X_raw[:split_idx], X_raw[split_idx:]
 
     # Choose a decomposition level that BOTH train and test can support.
-    # The test segment is shorter, so its max DWT level is the binding
-    # constraint. Using a level the test set can't reach would make the
-    # modulation factors (fit on train) mismatch the test decomposition.
-    max_level_train = max_levels(len(y_train), wavelet=wavelet)
-    max_level_test = max_levels(len(y_test), wavelet=wavelet)
-    available_level = min(max_level_train, max_level_test, 6)
+    # The default follows the Kaiser rule used by the reference R package
+    # (J = ceil(log2(n / (2v - 1))) - 1 with n = full length, v = vanishing
+    # moments), capped by the wavelet filter-length feasibility of the test
+    # segment so the decomposition stays well-defined. Segments too short to
+    # support even one level with the selected filter return a clear error.
+    n_vanish = pywt.Wavelet(wavelet).vanishing_moments_psi or 1
+    filter_len = pywt.Wavelet(wavelet).dec_len
+    level_cal = int(np.ceil(np.log2(n_samples / max(2 * n_vanish - 1, 1)))) - 1
+    level_feas = pywt.dwt_max_level(len(y_test), filter_len=filter_len)
+    available_level = min(level_cal, level_feas)
     if available_level < 1:
         return {
             'success': False,
@@ -143,11 +146,12 @@ def run_wasp_prediction(
         )
         modulation_factors[col] = [round(float(f), 4) for f in factors]
 
-        # Energy in each band of the raw predictor (for the band-energy panel).
-        approx, details = wavelet_decompose(
-            X_train_raw[:, i], wavelet=wavelet, level=level
+        # Energy in each band of the raw predictor (for the band-energy panel),
+        # computed from the same MRA bands used by the transformation.
+        band_energies[col] = get_band_energy(
+            _band_components(X_train_raw[:, i] - X_train_raw[:, i].mean(),
+                             wavelet=wavelet, level=level)
         )
-        band_energies[col] = get_band_energy(details, approx)
 
         # Apply the variance transformation; the test segment reuses the
         # calibration factors (dwt.vt.val behavior).
