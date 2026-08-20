@@ -222,17 +222,18 @@ def _standardize_bands(B: np.ndarray) -> np.ndarray:
     """
     Standardize each band subseries to zero mean and unit variance.
 
-    Columns with zero variance are left as zeros (they carry no signal and
-    would otherwise produce NaN). Uses ddof=1 to match R's scale()/sd().
+    Bands whose standard deviation is below EPS are treated as constant
+    (they carry no signal and would otherwise amplify noise). Uses ddof=0
+    (population standard deviation) with an epsilon guard, matching the
+    reference Python implementation (HydroclimateX/WASP_python, wasp()/
+    wasp_val()).
     """
+    EPS = 1e-8
     Bn = np.empty_like(B, dtype=float)
     for j in range(B.shape[1]):
         col = B[:, j]
-        sd = col.std(ddof=1)
-        if sd == 0:
-            Bn[:, j] = 0.0
-        else:
-            Bn[:, j] = (col - col.mean()) / sd
+        sd = col.std(ddof=0)
+        Bn[:, j] = (col - col.mean()) / (sd if sd >= EPS else 1.0)
     return Bn
 
 
