@@ -148,6 +148,11 @@ class FrontendModelExpansionTests(unittest.TestCase):
 
         for wavelet in ("db1", "db2", "db4", "db8", "db16"):
             self.assertIn(wavelet, introduction)
+        self.assertRegex(
+            " ".join(introduction.split()),
+            r"db16.*Python-only.*no upstream R/waveslim equivalent",
+            msg="showcase documentation must identify db16 as Python-only without an upstream R/waveslim equivalent",
+        )
         for model in ("Linear Regression", "K-Nearest Neighbors", "XGBoost"):
             self.assertIn(model, introduction)
         self.assertIn("select one predictand", introduction.lower())
@@ -158,7 +163,7 @@ class FrontendModelExpansionTests(unittest.TestCase):
         self.assertIn("51 total columns", introduction)
         self.assertIn("51 total columns", example)
         self.assertRegex(
-            example,
+            " ".join(example.split()),
             r"db16.*Python-only.*no upstream R/waveslim equivalent",
             msg="examples must document db16 as Python-only without an upstream R/waveslim equivalent",
         )
