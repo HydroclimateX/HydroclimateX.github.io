@@ -79,7 +79,7 @@ async def health():
 @app.post("/api/wasp/predict")
 async def predict(
     file: UploadFile = File(..., description="CSV containing selectable predictand and predictor columns"),
-    wavelet: str = Form("db4", description="Daubechies wavelet (db1, db2, db4, db8, db16)"),
+    wavelet: str = Form("db4", description="Daubechies wavelet (db1, db2, db4, db8, db16; db16 is Python-only — no upstream R/waveslim equivalent)"),
     level: int = Form(0, description="Decomposition level (0 = auto)"),
     test_size: float = Form(0.2, ge=0.1, le=0.5, description="Fraction of data for testing"),
     model: str = Form("linear", description="Regression model (linear, knn, xgboost)"),

@@ -25,8 +25,16 @@ date, or identifier columns are ignored. Files must contain 30–5000 rows and
 1–50 selected predictors, with a resource limit of 51 total columns including
 unused columns. Nginx accepts an 11 MB multipart request, and FastAPI enforces
 a 10 MiB limit on the uploaded file itself. Supported wavelets are
-`db1` (Haar), `db2`, `db4`, `db8`, and `db16`. Available models are Linear
-Regression, K-Nearest Neighbors, and XGBoost.
+`db1` (Haar), `db2`, `db4`, `db8`, and `db16` (Python-only — no upstream
+R/waveslim equivalent). Available models are Linear Regression, K-Nearest
+Neighbors, and XGBoost.
+
+## Canonical R parity benchmark
+
+`wasp_demo.csv` is the canonical 1,200-row parity fixture: use the first 600
+rows for training and the remaining 600 for testing. The shared Python/R
+wavelet mapping is `db1`→`haar`, `db2`→`d4`, `db4`→`d8`, and `db8`→`d16`;
+`db16` remains Python-only with no upstream R/waveslim equivalent.
 
 ## Use the example
 

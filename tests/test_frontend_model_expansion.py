@@ -115,6 +115,10 @@ class FrontendModelExpansionTests(unittest.TestCase):
         wavelets = re.findall(r'<option value="(db\d+)"', html)
         self.assertEqual(wavelets, ["db1", "db2", "db4", "db8", "db16"])
         self.assertIn('<option value="db4" selected>', html)
+        self.assertRegex(
+            html,
+            r'<option value="db16">[^<]*Python-only[^<]*no upstream R/waveslim equivalent',
+        )
         self.assertIn('<link rel="icon" href="data:,">', html)
         self.assertIn('<option value="0.5">50%</option>', html)
         for model in ("linear", "knn", "xgboost"):
@@ -153,6 +157,11 @@ class FrontendModelExpansionTests(unittest.TestCase):
         self.assertIn("selected predictand", glossary.lower())
         self.assertIn("51 total columns", introduction)
         self.assertIn("51 total columns", example)
+        self.assertRegex(
+            example,
+            r"db16.*Python-only.*no upstream R/waveslim equivalent",
+            msg="examples must document db16 as Python-only without an upstream R/waveslim equivalent",
+        )
         self.assertNotRegex(combined, r"(?i)ridge regularisation|ridge regression|sym8|coif3")
         self.assertNotIn('-F "alpha=', example)
 

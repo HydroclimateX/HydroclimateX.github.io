@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from io import BytesIO
 import asyncio
+import inspect
 import json
 from pathlib import Path
 import sys
@@ -246,6 +247,20 @@ class ApiInputValidationTests(unittest.TestCase):
     @staticmethod
     def upload(contents: bytes) -> "UploadFile":
         return UploadFile(file=BytesIO(contents), filename="input.csv")
+
+    def test_api_default_test_size_remains_twenty_percent(self) -> None:
+        test_size = inspect.signature(api_predict).parameters["test_size"].default
+        self.assertEqual(test_size.default, 0.2)
+
+    def test_api_wavelet_contract_documents_python_only_db16(self) -> None:
+        wavelet = inspect.signature(api_predict).parameters["wavelet"].default
+        self.assertEqual(wavelet.default, "db4")
+        self.assertIn("db1", wavelet.description)
+        self.assertIn("db2", wavelet.description)
+        self.assertIn("db4", wavelet.description)
+        self.assertIn("db8", wavelet.description)
+        self.assertIn("db16", wavelet.description)
+        self.assertRegex(wavelet.description, r"Python-only.*no upstream R/waveslim equivalent")
 
     def test_unsupported_wavelet_is_a_structured_400(self) -> None:
         rows = ["target,predictor"] + [f"{index},{index + 1}" for index in range(30)]
