@@ -76,10 +76,23 @@ def _r_live_script() -> str:
     """
 
 
-@unittest.skipUnless(run_wasp_prediction is not None, "scientific backend dependencies not installed")
+class WaspRParityContractTests(unittest.TestCase):
+    def test_golden_coverage_is_not_class_skipped(self) -> None:
+        source = Path(__file__).read_text(encoding="utf-8")
+        self.assertNotIn(
+            "@unittest.skipUnless(" + "run_wasp_prediction is not None",
+            source,
+        )
+
+
 class WaspRParityFixtureTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
+        if run_wasp_prediction is None:
+            raise RuntimeError(
+                "WASP parity tests require the scientific backend dependencies "
+                "from backend/requirements.txt"
+            )
         cls.fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
         cls.contents = DATASET_PATH.read_bytes()
         cls.results = {
