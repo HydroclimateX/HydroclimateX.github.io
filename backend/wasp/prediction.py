@@ -245,6 +245,13 @@ def run_wasp_prediction(
             'observed': [round(float(v), 4) for v in y_test],
             'wasp_predicted': [round(float(v), 4) for v in y_pred],
             'baseline_predicted': [round(float(v), 4) for v in y_baseline_pred],
+            'observed_full': [round(float(v), 4) for v in np.concatenate([y_train, y_test])],
+            'transformed_predictors': {
+                col: [round(float(v), 4) for v in np.concatenate(
+                    [X_train_transformed[:, i], X_test_transformed[:, i]]
+                )]
+                for i, col in enumerate(predictor_cols)
+            },
             'calibration': {
                 'observed': [round(float(v), 4) for v in y_train],
                 'wasp_predicted': [round(float(v), 4) for v in y_train_pred],

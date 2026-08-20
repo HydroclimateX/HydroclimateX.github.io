@@ -109,6 +109,9 @@ input[type="file"] { display: none; }
 .btn-demo:hover { background: var(--blue-light); }
 .btn-clear { background: transparent; color: var(--text-muted); border: 1px solid var(--border); margin-top: 4px; height: 30px; font-size: 11px; }
 .btn-clear:hover { background: #fee2e2; color: #c41e1e; border-color: #fecaca; }
+.btn-download { background: var(--gold); color: #fff; margin-top: 6px; }
+.btn-download:hover { background: #a67a1f; transform: translateY(-1px); }
+.btn-download:disabled { background: #e2d5ae; cursor: not-allowed; transform: none; }
 
 .status-box {
   display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 10px 12px;
@@ -146,24 +149,24 @@ input[type="file"] { display: none; }
 .result-section.show { display: contents; }
 
 .metrics-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px;
 }
 .metric-tile {
   background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
-  padding: 14px 12px; text-align: center;
+  padding: 10px 8px; text-align: center;
 }
-.metric-tile .m-val { font-size: 1.4rem; font-weight: 700; color: var(--blue); }
-.metric-tile .m-label { font-size: 0.68rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.metric-tile .m-baseline { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; }
+.metric-tile .m-val { font-size: 1.15rem; font-weight: 700; color: var(--blue); }
+.metric-tile .m-label { font-size: 0.6rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.metric-tile .m-baseline { font-size: 0.6rem; color: var(--text-muted); margin-top: 2px; }
 .metric-tile.improved { background: #f0fdf4; border-color: #bbf7d0; }
 .metric-tile.improved .m-val { color: #16a34a; }
 .metric-tile.degraded { background: #fef2f2; border-color: #fecaca; }
 .metric-tile.degraded .m-val { color: #dc2626; }
-.metrics-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin: 10px 0 6px; }
+.metrics-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin: 8px 0 4px; }
 
 .chart-card {
   background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 18px;
+  padding: 14px;
 }
 .chart-card-header { font-weight: 700; font-size: 13px; color: var(--text); margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
 .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; align-items: start; }
@@ -282,6 +285,7 @@ input[type="file"] { display: none; }
     </div>
 
     <button class="btn btn-run" id="btnRun" onclick="runWasp()" disabled>▶ Run WASP Prediction</button>
+    <button class="btn btn-download" id="btnDownload" onclick="downloadWaspPredictor()" disabled>⬇ Download WASP Predictor</button>
 
     <div class="status-box">
       <span class="status-dot" id="statusDot"></span>
@@ -332,6 +336,7 @@ let uploadedFile = null;
 let activeFileName = null;
 let variableSelection = null;
 let interfaceBusy = false;
+let lastResult = null;
 const dataLoadGate = WaspDataSelection.createOperationGate();
 const predictionGate = WaspDataSelection.createOperationGate();
 
@@ -375,6 +380,7 @@ function handleFileSelect(e) {
 function updateRunAvailability() {
   $('btnRun').disabled = interfaceBusy || !uploadedFile
     || !WaspDataSelection.isSelectionValid(variableSelection);
+  $('btnDownload').disabled = interfaceBusy || !lastResult;
 }
 
 function setInterfaceBusy(busy) {
@@ -459,6 +465,7 @@ function resetLoadedData() {
   uploadedFile = null;
   activeFileName = null;
   variableSelection = null;
+  lastResult = null;
   $('fileName').textContent = '';
   $('fileInput').value = '';
   dropZone.classList.remove('active');
@@ -597,6 +604,7 @@ async function runWasp() {
 
 // --- Render Results ---
 function renderResults(data) {
+  lastResult = data;
   const { metrics, predictions, band_energies, modulation_factors,
           model_label, predictor_columns, wavelet, level,
           n_samples, n_train, n_test, target_column } = data;
@@ -607,7 +615,6 @@ function renderResults(data) {
   const metricDefs = [
     ['correlation', 'Corr ↑', true], ['rmse', 'RMSE ↓', false],
     ['nse', 'NSE ↑', true], ['kge', 'KGE ↑', true], ['mae', 'MAE ↓', false],
-    ['pod', 'POD ↑', true], ['far', 'FAR ↓', false], ['csi', 'CSI ↑', true],
   ];
 
   const buildMetricsHTML = (waspM, baselineM) => {
@@ -658,26 +665,25 @@ function renderResults(data) {
     paper_bgcolor: '#fff', plot_bgcolor: '#f8f9fb',
   };
 
-  // Band energy charts — one per selected predictor, ordered D1..D{level}, A{level}
+  // Band energy rows — one per selected predictor, ordered D1..D{level}, A{level}.
+  // Same row markup as the Modulation Factors panel so both panels have equal height.
   const bandOrder = Array.from({length: level}, (_, i) => `D${i+1}`).concat([`A${level}`]);
-  const bandLayout = {
-    margin: {t: 4, r: 60, b: 24, l: 36}, xaxis: {title: 'Energy (%)', range: [0, 105]},
-    paper_bgcolor: '#fff', plot_bgcolor: '#f8f9fb',
-  };
-  const bandChartHeight = Math.max(110, 40 + bandOrder.length * 22);
-  const bandChartData = [];
   let bandChartsHTML = '';
-  predictor_columns.forEach((col, idx) => {
-    const bands = band_energies[col] || {};
-    const values = bandOrder.map(k => (bands[k] || 0) * 100);
-    bandChartData.push([{
-      x: values, y: bandOrder, type: 'bar', orientation: 'h',
-      marker: { color: bandOrder.map((_, i) => i < bandOrder.length - 1 ? '#0B5EA7' : '#C4922E') },
-      text: values.map(v => v.toFixed(1) + '%'), textposition: 'outside',
-    }]);
-    bandChartsHTML += `<div style="margin-bottom:14px;"><strong style="font-size:12px;">${escapeHTML(col)}</strong>` +
-      `<div id="chartBands-${idx}" style="height:${bandChartHeight}px;"></div></div>`;
-  });
+  for (const [col, bands] of Object.entries(band_energies)) {
+    bandChartsHTML += `<div style="margin-bottom:10px;"><strong style="font-size:12px;">${escapeHTML(col)}</strong>`;
+    bandOrder.forEach((band, i) => {
+      const pct = (bands[band] || 0) * 100;
+      const isApprox = i === bandOrder.length - 1;
+      const color = isApprox ? '#C4922E' : '#0B5EA7';
+      bandChartsHTML += `<div class="mod-factor-bar">
+        <span class="mod-factor-label">${band}</span>
+        <span class="mod-factor-fill" style="width:${Math.max(4, pct)}px;background:${color};"></span>
+        <span class="mod-factor-val">${pct.toFixed(1)}%</span>
+      </div>`;
+    });
+    bandChartsHTML += '</div>';
+  }
+  bandChartsHTML += '<p style="font-size:10px;color:var(--text-muted);">Share of total predictor energy per band (blue = detail D1..D{level}, gold = approximation A{level}).</p>';
 
   // Modulation factors — covariance-based band weights (Equation 10), one per
   // band D1..D{level}, with the final entry being the A{level} approximation.
@@ -704,15 +710,18 @@ function renderResults(data) {
         <div id="chartTSCal" style="min-height:300px;"></div>
       </div>` : '';
 
-  // Assemble
+  // Assemble — row 1: Evaluation Metrics + Run Summary; row 2: time series;
+  // row 3: Frequency Band Energy + Variance Modulation Factors.
   $('resultSection').innerHTML = `
-    <div class="chart-card"><div class="chart-card-header">📊 Evaluation Metrics — WASP vs Baseline (raw predictors)</div>
-      ${calMetricsHTML ? `<div class="metrics-section-title">Calibration (in-sample)</div>
-      <div class="metrics-grid">${calMetricsHTML}</div>` : ''}
-      <div class="metrics-section-title">Validation / Test (holdout)</div>
-      <div class="metrics-grid">${testMetricsHTML}</div>
+    <div class="chart-row">
+      <div class="chart-card"><div class="chart-card-header">📊 Evaluation Metrics — WASP vs Baseline (raw predictors)</div>
+        ${calMetricsHTML ? `<div class="metrics-section-title">Calibration (in-sample)</div>
+        <div class="metrics-grid">${calMetricsHTML}</div>` : ''}
+        <div class="metrics-section-title">Validation / Test (holdout)</div>
+        <div class="metrics-grid">${testMetricsHTML}</div>
+      </div>
+      <div class="chart-card"><div class="chart-card-header">📋 Run Summary</div>${infoHTML}</div>
     </div>
-    <div class="chart-card"><div class="chart-card-header">📋 Run Summary</div>${infoHTML}</div>
     <div class="chart-row">
       ${calCardHTML}
       <div class="chart-card" ${calP ? '' : 'style="grid-column:1 / -1;"'}><div class="chart-card-header">📈 Time Series — Validation / Test</div>
@@ -731,10 +740,36 @@ function renderResults(data) {
   setTimeout(() => {
     if (calTrace.length) Plotly.newPlot('chartTSCal', calTrace, tsLayout, {responsive: true, displayModeBar: false});
     Plotly.newPlot('chartTSVal', valTrace, tsLayout, {responsive: true, displayModeBar: false});
-    predictor_columns.forEach((col, idx) => {
-      Plotly.newPlot(`chartBands-${idx}`, bandChartData[idx], bandLayout, {responsive: true, displayModeBar: false});
-    });
   }, 50);
+}
+
+// --- Download transformed predictors ---
+function downloadWaspPredictor() {
+  if (!lastResult) return;
+  const { predictions, predictor_columns, target_column } = lastResult;
+  const observed = predictions.observed_full || [];
+  const transformed = predictions.transformed_predictors || {};
+  const csvCell = v => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const lines = [['time', target_column].concat(predictor_columns).map(csvCell).join(',')];
+  for (let i = 0; i < observed.length; i++) {
+    lines.push(
+      [String(i + 1), observed[i]].concat(
+        predictor_columns.map(col => (transformed[col] ? transformed[col][i] : ''))
+      ).map(csvCell).join(',')
+    );
+  }
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'wasp_predictors.csv';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 </script>
 </body>
