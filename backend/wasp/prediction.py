@@ -35,7 +35,7 @@ from .models import (
 def run_wasp_prediction(
     contents: bytes,
     filename: str,
-    wavelet: str = 'db4',
+    wavelet: str = 'db16',
     level: Optional[int] = None,
     test_size: float = 0.2,
     model: str = 'linear',

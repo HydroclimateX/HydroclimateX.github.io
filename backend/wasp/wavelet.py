@@ -39,7 +39,7 @@ def max_levels(n: int, wavelet: str = 'db4') -> int:
 
 def wavelet_decompose(
     data: np.ndarray,
-    wavelet: str = 'db4',
+    wavelet: str = 'db16',
     level: Optional[int] = None,
     mode: str = 'symmetric'
 ) -> Tuple[List[np.ndarray], List[np.ndarray]]:

@@ -214,7 +214,8 @@ input[type="file"] { display: none; }
       <div class="param-group">
         <label>Data Source</label>
         <select id="sourceSelect" onchange="handleSourceChange()">
-          <option value="demo">Built-in Demo Dataset</option>
+          <option value="demo_q">Demo Q (streamflow)</option>
+          <option value="demo_spi">Demo SPI12 (drought)</option>
           <option value="upload">Upload Local CSV</option>
         </select>
       </div>
@@ -253,9 +254,9 @@ input[type="file"] { display: none; }
         <select id="wavelet">
           <option value="db1">db1 (Haar)</option>
           <option value="db2">db2 (Daubechies 2)</option>
-          <option value="db4" selected>db4 (Daubechies 4)</option>
-          <option value="db8">db8 (Daubechies 8)</option>
-          <option value="db16">db16 (Daubechies 16; Python-only — no upstream R/waveslim equivalent)</option>
+          <option value="db4">db4 (Daubechies 4)</option>
+          <option value="db8" selected>db8 (Daubechies 8)</option>
+          <option value="db16">db16 (Daubechies 16)</option>
         </select>
       </div>
       <div class="param-group">
@@ -304,13 +305,13 @@ input[type="file"] { display: none; }
         (1) Load the demo or upload a CSV, choose one <strong>predictand (Y)</strong>, one or more <strong>predictors (X)</strong>,
       </p>
       <p>
-        (2) Choose a <strong>wavelet family</strong> and a <strong>prediction model</strong>, then click "<strong>Run WASP Prediction</strong>".
+        (2) Choose a <strong>wavelet family</strong> and a <strong>prediction model</strong>, then click <strong>Run WASP Prediction</strong>.
       </p>
       <p>
         (3) Results compare spectrally refined predictors with the same model fitted to raw predictors.
       </p>
       <p>
-        (4) Download the transformed predictors for further analysis with the "<strong>Download WASP Predictor</strong>".
+        (4) Download the transformed predictors for further analysis with the <strong>Download WASP Predictor</strong>.
       </p>
     </div>
 
@@ -355,10 +356,10 @@ function escapeHTML(value) {
 function handleSourceChange() {
   const mode = $('sourceSelect').value;
   $('uploadGroup').style.display = mode === 'upload' ? 'block' : 'none';
-  if (mode === 'demo') {
-    void loadDemoData();
-  } else {
+  if (mode === 'upload') {
     clearData();
+  } else {
+    void loadDemoData(mode);
   }
 }
 
@@ -518,17 +519,18 @@ async function setFile(file, loadToken = null) {
   }
 }
 
-async function loadDemoData() {
+async function loadDemoData(name) {
+  const demoName = name || 'demo_q';
   const loadToken = beginDataLoad('Fetching demo dataset…');
   $('btnLoadDemo').textContent = '⏳ Loading…';
   try {
-    const resp = await fetch(API_BASE + '/api/demo-data', { signal: AbortSignal.timeout(10000) });
+    const resp = await fetch(API_BASE + '/api/demo-data' + '?name=' + demoName, { signal: AbortSignal.timeout(10000) });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const blob = await resp.blob();
     if (!dataLoadGate.isCurrent(loadToken)) return;
-    const demoFile = new File([blob], 'wasp_demo.csv', { type: 'text/csv' });
+    const demoFile = new File([blob], demoName + '.csv', { type: 'text/csv' });
     if (!await setFile(demoFile, loadToken)) return;
-    $('fileName').textContent = '📄 wasp_demo.csv (Built-in demo)';
+    $('fileName').textContent = '📄 ' + demoName + '.csv (Built-in demo)';
     $('statusText').textContent = 'Demo loaded. Choose Y and X, then run.';
   } catch (e) {
     if (!dataLoadGate.isCurrent(loadToken)) return;

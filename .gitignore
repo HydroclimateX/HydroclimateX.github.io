@@ -22,9 +22,14 @@ build/
 .playwright-cli/
 .playwright-mcp/
 docs/superpowers/
+tests/
+examples/*.r
+examples/wasp_predictor.csv
 
 # Local repositories and generated project metadata not published from this repo
 WASP-devel/
 tanxuezhi.github.io/
 Task
 .codegraph/
+.gitignore
+

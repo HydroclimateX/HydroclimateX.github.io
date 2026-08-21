@@ -6,6 +6,7 @@ Data validation, metrics computation, and helper routines.
 
 import csv
 from io import BytesIO, StringIO
+from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
@@ -318,3 +319,23 @@ def make_demo_csv() -> bytes:
     buf = BytesIO()
     df.to_csv(buf, index=False)
     return buf.getvalue()
+
+
+# Bundled demo datasets served by GET /api/demo-data. Files live in
+# backend/wasp/data/ (copied into the API image) so the container can read
+# them without depending on the repo layout.
+DEMO_DATASETS = {
+    'demo_q': 'demo_q.csv',
+    'demo_spi': 'demo_spi.csv',
+}
+
+
+def get_demo_csv(name: str = 'demo_q') -> bytes:
+    """
+    Return the bytes of a bundled demo dataset by name (default demo_q).
+
+    Unknown names fall back to demo_q so a stale or malformed query param
+    never fails the request.
+    """
+    filename = DEMO_DATASETS.get(name, DEMO_DATASETS['demo_q'])
+    return (Path(__file__).parent / 'data' / filename).read_bytes()

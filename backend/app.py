@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
 from wasp.prediction import run_wasp_prediction
-from wasp.utils import make_demo_csv
+from wasp.utils import get_demo_csv
 
 # ---- App Setup ----
 app = FastAPI(
@@ -79,7 +79,7 @@ async def health():
 @app.post("/api/wasp/predict")
 async def predict(
     file: UploadFile = File(..., description="CSV containing selectable predictand and predictor columns"),
-    wavelet: str = Form("db4", description="Daubechies wavelet (db1, db2, db4, db8, db16; db16 is Python-only — no upstream R/waveslim equivalent)"),
+    wavelet: str = Form("db16", description="Daubechies wavelet (db1, db2, db4, db8, db16)"),
     level: int = Form(0, description="Decomposition level (0 = auto)"),
     test_size: float = Form(0.2, ge=0.1, le=0.5, description="Fraction of data for testing"),
     model: str = Form("linear", description="Regression model (linear, knn, xgboost)"),
@@ -148,14 +148,14 @@ async def predict(
 
 
 @app.get("/api/demo-data")
-async def get_demo_data():
-    """Download the demo CSV dataset for testing WASP-Web."""
-    csv_bytes = make_demo_csv()
+async def get_demo_data(name: str = "demo_q"):
+    """Download a bundled demo CSV dataset for testing WASP-Web."""
+    csv_bytes = get_demo_csv(name)
     return StreamingResponse(
         io.BytesIO(csv_bytes),
         media_type="text/csv",
         headers={
-            "Content-Disposition": "attachment; filename=wasp_demo.csv"
+            "Content-Disposition": f"attachment; filename={name}.csv"
         },
     )
 
