@@ -255,8 +255,8 @@ input[type="file"] { display: none; }
           <option value="db1">db1 (Haar)</option>
           <option value="db2">db2 (Daubechies 2)</option>
           <option value="db4">db4 (Daubechies 4)</option>
-          <option value="db8" selected>db8 (Daubechies 8)</option>
-          <option value="db16">db16 (Daubechies 16)</option>
+          <option value="db8">db8 (Daubechies 8)</option>
+          <option value="db16" selected>db16 (Daubechies 16)</option>
         </select>
       </div>
       <div class="param-group">
@@ -343,6 +343,12 @@ let interfaceBusy = false;
 let lastResult = null;
 const dataLoadGate = WaspDataSelection.createOperationGate();
 const predictionGate = WaspDataSelection.createOperationGate();
+
+// Default wavelet / test-fraction per built-in demo, applied on selection.
+const DEMO_METHODS = {
+  demo_q: { wavelet: 'db16', test: '0.2' },
+  demo_spi:  { wavelet: 'db2',  test: '0.5' },
+};
 
 // --- DOM refs ---
 const $ = id => document.getElementById(id);
@@ -521,6 +527,8 @@ async function setFile(file, loadToken = null) {
 
 async function loadDemoData(name) {
   const demoName = name || 'demo_q';
+  const method = DEMO_METHODS[demoName];
+  if (method) { $('wavelet').value = method.wavelet; $('testSize').value = method.test; }
   const loadToken = beginDataLoad('Fetching demo dataset…');
   $('btnLoadDemo').textContent = '⏳ Loading…';
   try {
