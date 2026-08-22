@@ -4,8 +4,8 @@ on:
   push:
     branches: [main]
   schedule:
-    # Daily Google Scholar refresh (GitHub Pages stays static between refreshes).
-    - cron: '0 3 * * *'
+    # Weekly Google Scholar refresh on Monday (GitHub Pages stays static between refreshes).
+    - cron: '0 3 * * 1'
   workflow_dispatch:
 
 permissions:

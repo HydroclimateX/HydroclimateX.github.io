@@ -25,6 +25,7 @@ docs/superpowers/
 tests/
 examples/*.r
 examples/wasp_predictors.csv
+docs/
 
 # Local repositories and generated project metadata not published from this repo
 WASP-devel/

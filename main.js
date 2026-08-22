@@ -45,7 +45,7 @@
     if (updatedEl) {
       updatedEl.textContent = s.updatedAt
         ? `Synced ${fmtDate(s.updatedAt)}`
-        : 'Synced daily from Google Scholar';
+        : 'Synced weekly from Google Scholar';
     }
   } catch (_) { /* keep the HTML fallback */ }
 })();

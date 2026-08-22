@@ -20,8 +20,8 @@ The HydroclimateX Lab site is a plain static site served from the repo root
 ### Deployment: GitHub Pages via GitHub Actions
 
 - Pages source is set to **GitHub Actions** (Settings → Pages → Source).
-- `.github/workflows/static.yml` runs on **push to `main`**, a **daily schedule**
-  (cron `0 3 * * *`), and **manual dispatch**.
+- `.github/workflows/static.yml` runs on **push to `main`**, a **weekly Monday schedule**
+  (cron `0 3 * * 1`), and **manual dispatch**.
 - Push runs deploy fast and deterministically: they stage the web root and
   publish. They do **not** touch the network (no Scholar call), so a routine
   edit never depends on Google Scholar availability.
@@ -32,7 +32,7 @@ The HydroclimateX Lab site is a plain static site served from the repo root
   Scholar profile, parses citation metrics and the full publication list, and
   writes `data/scholar-stats.json` + `data/scholar-publications.json`.
 - Those JSON files are **committed to `main`** and served with the site.
-- On the daily schedule (and manual dispatch), the workflow:
+- On the weekly schedule (and manual dispatch), the workflow:
 
   1. Re-runs the sync (`continue-on-error: true`);
   2. If Scholar is unavailable, logs a warning and **keeps the last verified
@@ -63,11 +63,11 @@ The HydroclimateX Lab site is a plain static site served from the repo root
 ## Rationale
 
 - **Actions mode** makes deployment explicit and scriptable, and lets us run the
-  daily refresh in the same pipeline that deploys.
+  weekly refresh in the same pipeline that deploys.
 - **Committed JSON** keeps the site fully static (no server-side rendering) and
   lets Pages serve real data with zero runtime dependencies.
 - **Date-only `updatedAt`** bounds repo churn to actual metric changes, so the
-  daily run doesn't generate a commit every night.
+  weekly run doesn't generate a commit every week.
 - **Web-root artifact** matches ADR-001's "flat structure" decision and keeps the
   published surface minimal.
 
@@ -79,7 +79,7 @@ The HydroclimateX Lab site is a plain static site served from the repo root
   tolerated; the site always serves the last verified snapshot.
 - The publication list now reflects the **full** Scholar profile (49 papers),
   not just the curated hydrology subset — the site intro already promises
-  "the full list synced daily from Google Scholar".
-- A push triggers a single deploy. The daily schedule run also refreshes and
+  "the full list synced weekly from Google Scholar".
+- A push triggers a single deploy. The weekly schedule run also refreshes and
   commits data, but a commit pushed with `GITHUB_TOKEN` does not re-trigger the
-  workflow — so at most one scheduled deploy per day plus any pushes.
+  workflow — so at most one scheduled deploy per week plus any pushes.
