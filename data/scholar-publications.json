@@ -100,7 +100,7 @@
     "authors": "Y Wu, Y Li, Z Jiang, Z Xu, M Yang, J Ding, C Zhang",
     "venue": "ACS ES&T Engineering",
     "year": 2023,
-    "citations": 21,
+    "citations": 22,
     "type": "article"
   },
   {
@@ -256,17 +256,17 @@
     "type": "thesis"
   },
   {
-    "title": "A wavelet-based tool to modulate variance in predictors: An application to predicting drought anomalies",
-    "authors": "Z Jiang, MM Rashid, F Johnson, A Sharma",
-    "venue": "Environmental Modelling & Software 135, 104907",
-    "year": 2020,
-    "citations": 39,
-    "type": "article"
-  },
-  {
     "title": "Refining predictor spectral representation using wavelet theory for improved natural system modelling",
     "authors": "Z Jiang, A Sharma, F Johnson",
     "venue": "Water Resources Research 56 (3), e2019WR026962",
+    "year": 2020,
+    "citations": 40,
+    "type": "article"
+  },
+  {
+    "title": "A wavelet-based tool to modulate variance in predictors: An application to predicting drought anomalies",
+    "authors": "Z Jiang, MM Rashid, F Johnson, A Sharma",
+    "venue": "Environmental Modelling & Software 135, 104907",
     "year": 2020,
     "citations": 39,
     "type": "article"
@@ -348,7 +348,7 @@
     "authors": "Y Sun, DY Kim, D Wendi, DC Doan, SV Raghavan, Z Jiang, SY Liong",
     "venue": "Gard. Bull. Singapore 70 (Suppl 1), 175-190",
     "year": 2018,
-    "citations": 13,
+    "citations": 14,
     "type": "article"
   },
   {
