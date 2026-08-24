@@ -149,7 +149,7 @@
             <li>Only selected Y/X columns must be numeric, finite, and non-constant</li>
             <li>Unused date, identifier, or text columns are ignored</li>
             <li>Resource limit: 51 total columns, including unused columns</li>
-            <li>Maximum CSV file: 10 MiB (the proxy allows 11 MB including multipart overhead)</li>
+            <li>Maximum CSV file: 10 MB (the proxy allows 11 MB including multipart overhead)</li>
           </ul>
         </article>
         <article class="spec-card">
@@ -201,10 +201,17 @@
 
   <footer>
     <div><strong>HydroclimateX Lab</strong><span>College of Hydrology &amp; Water Resources · Hohai University</span></div>
-    <a href="mailto:ze.jiang@hhu.edu.cn">ze.jiang@hhu.edu.cn</a>
-    <span><a href="/">Research team homepage</a> · <a href="https://github.com/HydroclimateX" target="_blank" rel="noreferrer">GitHub</a></span>
+    <div class="footer-contacts">
+      <a href="mailto:ze.jiang@hhu.edu.cn">ze.jiang@hhu.edu.cn</a>
+      <a href="mailto:ze.jiang@unsw.edu.au">ze.jiang@unsw.edu.au</a>
+    </div>
+    <span>© <span id="year"></span> · <a href="https://github.com/HydroclimateX" target="_blank" rel="noreferrer">GitHub</a> · <a href="https://scholar.google.com/citations?user=4iVouPYAAAAJ&hl=en" target="_blank" rel="noreferrer">Google Scholar</a> · <a href="https://orcid.org/0000-0002-3472-0829" target="_blank" rel="noreferrer">ORCID</a></span>
   </footer>
   <script>
+    (() => {
+      const yearEl = document.getElementById('year');
+      if (yearEl) yearEl.textContent = new Date().getFullYear();
+    })();
     (() => {
       const header = document.querySelector('.site-header');
       const button = document.querySelector('.menu-button');

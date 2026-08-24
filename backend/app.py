@@ -115,7 +115,7 @@ async def predict(
             status_code=413,
             content={
                 "success": False,
-                "message": f"File too large (max {MAX_UPLOAD_MB} MiB).",
+                "message": f"File too large (max {MAX_UPLOAD_MB} MB).",
             },
         )
 

@@ -12,19 +12,19 @@ This file contains 391 monthly observations. The browser initially selects the
 first column as Y and the remaining four columns as X, but those roles can be
 changed before a run.
 
-| Column | Role |
-|---|---|
+| Column                 | Role                                    |
+| ---------------------- | --------------------------------------- |
 | `streamflow_anomaly` | Target: standardised streamflow anomaly |
-| `sst_index` | Sea-surface-temperature predictor |
-| `soi` | Southern Oscillation Index predictor |
-| `pdo_index` | Pacific Decadal Oscillation predictor |
-| `precip_index` | Precipitation predictor |
+| `sst_index`          | Sea-surface-temperature predictor       |
+| `soi`                | Southern Oscillation Index predictor    |
+| `pdo_index`          | Pacific Decadal Oscillation predictor   |
+| `precip_index`       | Precipitation predictor                 |
 
 Selected Y/X columns must be numeric, finite, and non-constant; unused text,
 date, or identifier columns are ignored. Files must contain 30–5000 rows and
 1–50 selected predictors, with a resource limit of 51 total columns including
 unused columns. Nginx accepts an 11 MB multipart request, and FastAPI enforces
-a 10 MiB limit on the uploaded file itself. Supported wavelets are
+a 10 MB limit on the uploaded file itself. Supported wavelets are
 `db1` (Haar), `db2`, `db4`, `db8`, and `db16` (Python-only — no upstream
 R/waveslim equivalent). Available models are Linear Regression, K-Nearest
 Neighbors, and XGBoost.
