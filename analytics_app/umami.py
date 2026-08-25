@@ -62,6 +62,8 @@ class UmamiClient:
             "github_clicks": None,
             "file_downloads": None,
         }
+        if not all((self.settings.umami_username, self.settings.umami_password, self.settings.umami_website_id)):
+            return empty
         params = {
             "startAt": int(period.start.timestamp() * 1000),
             "endAt": int(period.end.timestamp() * 1000),

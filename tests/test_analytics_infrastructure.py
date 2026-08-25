@@ -74,6 +74,10 @@ def test_analytics_rollout_has_preflight_migration_certificates_and_gated_schedu
     assert "analytics_app.cli test-email" in deploy
     assert "backup-analytics-db.sh" in deploy
     assert "analytics-worker" not in deploy
+    required_line = next(line for line in deploy.splitlines() if line.startswith("required_keys="))
+    for deferred_umami_key in ("UMAMI_API_USERNAME", "UMAMI_API_PASSWORD", "UMAMI_WEBSITE_ID"):
+        assert deferred_umami_key not in required_line
+    assert "Website Analytics will remain unavailable" in deploy
     enable = read("scripts/enable-analytics-reports.sh")
     assert "smtp-test-verified" in enable
     assert "scheduled-reports" in enable

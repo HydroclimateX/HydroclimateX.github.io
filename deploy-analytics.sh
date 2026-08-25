@@ -29,7 +29,7 @@ restore_proxy() {
 
 [[ "$EUID" -eq 0 ]] || fail "run as root"
 [[ "$(nproc)" -ge 2 ]] || fail "at least 2 vCPU are required"
-required_keys=(POSTGRES_ADMIN_PASSWORD ANALYTICS_DB_PASSWORD UMAMI_DB_PASSWORD ANALYTICS_DATABASE_URL UMAMI_DATABASE_URL UMAMI_APP_SECRET UMAMI_API_USERNAME UMAMI_API_PASSWORD UMAMI_WEBSITE_ID ANALYTICS_ADMIN_PASSWORD_HASH ANALYTICS_INTERNAL_TOKEN ANALYTICS_SESSION_SECRET ANALYTICS_COLLECTED_SINCE ANALYTICS_SMTP_AUTHORIZATION_CODE)
+required_keys=(POSTGRES_ADMIN_PASSWORD ANALYTICS_DB_PASSWORD UMAMI_DB_PASSWORD ANALYTICS_DATABASE_URL UMAMI_DATABASE_URL UMAMI_APP_SECRET ANALYTICS_ADMIN_PASSWORD_HASH ANALYTICS_INTERNAL_TOKEN ANALYTICS_SESSION_SECRET ANALYTICS_COLLECTED_SINCE ANALYTICS_SMTP_AUTHORIZATION_CODE)
 for key in "${required_keys[@]}"; do
   if [[ -f "$SCRIPT_DIR/.env" ]]; then
     value="$(sed -n "s/^${key}=//p" "$SCRIPT_DIR/.env" | tail -1)"
@@ -40,6 +40,18 @@ for key in "${required_keys[@]}"; do
   fi
   [[ -n "$value" ]] || fail "$key must be set in $source_name"
 done
+if [[ -f "$SCRIPT_DIR/.env" ]]; then
+  umami_api_username="$(sed -n 's/^UMAMI_API_USERNAME=//p' "$SCRIPT_DIR/.env" | tail -1)"
+  umami_api_password="$(sed -n 's/^UMAMI_API_PASSWORD=//p' "$SCRIPT_DIR/.env" | tail -1)"
+  umami_website_id="$(sed -n 's/^UMAMI_WEBSITE_ID=//p' "$SCRIPT_DIR/.env" | tail -1)"
+else
+  umami_api_username="${UMAMI_API_USERNAME:-}"
+  umami_api_password="${UMAMI_API_PASSWORD:-}"
+  umami_website_id="${UMAMI_WEBSITE_ID:-}"
+fi
+if [[ -z "$umami_api_username" || -z "$umami_api_password" || -z "$umami_website_id" ]]; then
+  info "Umami read credentials are not configured; Website Analytics will remain unavailable."
+fi
 "$SCRIPT_DIR/scripts/install-dbip-country-lite.sh"
 [[ -s "$SCRIPT_DIR/geoip/dbip-country-lite.mmdb" ]] || fail "DB-IP Country Lite installation failed"
 [[ -s "$STATE_DIR/conf/live/wasp.hydroclimatex.com/fullchain.pem" ]] || fail "the existing WASP TLS certificate is required"

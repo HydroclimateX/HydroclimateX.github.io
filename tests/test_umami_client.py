@@ -68,3 +68,34 @@ def test_summary_marks_source_unavailable_instead_of_returning_zero() -> None:
     assert result["status"] == "unavailable"
     assert result["visitors"] is None
     assert result["pageviews"] is None
+
+
+def test_missing_read_credentials_are_deferred_and_do_not_call_umami(monkeypatch) -> None:
+    required = {
+        "ANALYTICS_ADMIN_PASSWORD_HASH": "$argon2id$unused",
+        "ANALYTICS_INTERNAL_TOKEN": "i" * 32,
+        "ANALYTICS_SESSION_SECRET": "s" * 32,
+        "ANALYTICS_DATABASE_URL": "postgresql://analytics:test@database/analytics",
+        "ANALYTICS_SMTP_AUTHORIZATION_CODE": "smtp-code",
+    }
+    for name, value in required.items():
+        monkeypatch.setenv(name, value)
+    for name in ("UMAMI_API_USERNAME", "UMAMI_API_PASSWORD", "UMAMI_WEBSITE_ID"):
+        monkeypatch.delenv(name, raising=False)
+
+    deferred = Settings.from_env()
+
+    assert deferred.umami_username == ""
+    assert deferred.umami_password == ""
+    assert deferred.umami_website_id == ""
+
+    def must_not_call_umami(_request: httpx.Request) -> httpx.Response:
+        raise AssertionError("Umami must not be called before read credentials are configured")
+
+    client = UmamiClient(
+        deferred,
+        http_client=httpx.Client(transport=httpx.MockTransport(must_not_call_umami)),
+    )
+    period = resolve_period("30d", now=datetime(2026, 8, 25, tzinfo=timezone.utc))
+
+    assert client.summary(period)["status"] == "unavailable"
