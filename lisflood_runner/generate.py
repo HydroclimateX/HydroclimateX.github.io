@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compile the private engine, run five storms, and atomically publish map assets."""
+"""Run five surface-flood scenarios and atomically publish map assets."""
 
 from __future__ import annotations
 
@@ -94,7 +94,8 @@ def assert_aligned(reference: dict[str, float], candidate: dict[str, float]) -> 
 
 def write_rainfall(path: Path, rates: np.ndarray) -> None:
     series = np.append(rates, 0.0)
-    series *= (rates.sum() / 60) / np.trapz(series, dx=1 / 60)
+    integrated = np.sum((series[:-1] + series[1:]) * 0.5) / 60
+    series *= (rates.sum() / 60) / integrated
     rows = [f"{len(series)}\tseconds"]
     rows.extend(f"{rate:.8f}\t{minute * 60}" for minute, rate in enumerate(series))
     path.write_text("\n".join(rows) + "\n", encoding="utf-8")
@@ -104,23 +105,6 @@ def set_parameter(text: str, key: str, value: str) -> str:
     line = f"{key:<18} {value}"
     pattern = re.compile(rf"^(?!\s*#)\s*{re.escape(key)}\b.*$", re.IGNORECASE | re.MULTILINE)
     return pattern.sub(line, text, count=1) if pattern.search(text) else text.rstrip() + "\n" + line + "\n"
-
-
-def compile_engine(source: Path, build: Path) -> Path:
-    searchable = "\n".join(
-        path.read_text(encoding="utf-8", errors="ignore")
-        for path in source.rglob("*")
-        if path.suffix.lower() in {".c", ".cc", ".cpp", ".h", ".hpp"}
-    )
-    for token in ("uniform_rules", "inpFile"):
-        if token not in searchable:
-            raise RuntimeError(f"private source lacks required SWMM feature: {token}")
-    subprocess.run(["cmake", "-S", str(source), "-B", str(build), "-DCMAKE_BUILD_TYPE=Release"], check=True)
-    subprocess.run(["cmake", "--build", str(build), "--parallel", "2"], check=True)
-    candidates = [path for path in build.rglob("lisflood") if path.is_file() and os.access(path, os.X_OK)]
-    if not candidates:
-        raise RuntimeError("CMake did not produce a lisflood executable")
-    return candidates[0]
 
 
 def locate_output(root: Path, suffix: str) -> Path:
@@ -183,27 +167,36 @@ def model_version(engine: Path) -> str:
         output = (result.stdout + result.stderr).strip()
         if output:
             match = re.search(r"LISFLOOD-FP version\s+([\d.]+)", output, re.IGNORECASE)
-            return match.group(1) if match else output.splitlines()[0][:120]
-    return "unknown"
+            version = match.group(1) if match else output.splitlines()[0][:120]
+            return f"{version} ACC"
+    return "unknown ACC"
 
 
-def parity_check(reference: Path, generated: np.ndarray, header: dict[str, float]) -> None:
-    ref_header, expected = read_ascii(reference)
-    assert_aligned(header, ref_header)
-    mask = np.isfinite(generated) & np.isfinite(expected)
-    if not np.any(mask):
-        raise RuntimeError("Windows reference has no comparable cells")
-    mae = float(np.mean(np.abs(generated[mask] - expected[mask])))
-    wet_generated, wet_expected = generated[mask] >= 0.10, expected[mask] >= 0.10
-    area_difference = abs(wet_generated.sum() - wet_expected.sum()) / max(int(wet_expected.sum()), 1)
-    if mae > 0.001 or area_difference > 0.01:
-        raise RuntimeError(f"Windows parity failed: MAE={mae:.6f}m, wet-area difference={area_difference:.2%}")
+def prepare_parameters(template: str, period: int) -> str:
+    """Create an official CPU ACC parameter file without drainage coupling."""
+    incompatible = (
+        "uniform_rules", "inpFile", "fv1", "dg2", "Roe", "Roe_slow",
+        "adaptoff", "qlim", "acceleration", "rainfall", "hazard",
+        "sim_time", "simtime", "resroot", "dirroot",
+    )
+    for key in incompatible:
+        pattern = re.compile(rf"^(?!\s*#)\s*{re.escape(key)}\b.*(?:\n|$)", re.IGNORECASE | re.MULTILINE)
+        template = pattern.sub("", template)
+    for key, value in (
+        ("acceleration", ""),
+        ("rainfall", "design.rain"),
+        ("hazard", ""),
+        ("sim_time", "43200"),
+        ("resroot", f"return-{period}"),
+        ("dirroot", "results"),
+    ):
+        template = set_parameter(template, key, value)
+    return template
 
 
-def run_all(private: Path, cache: Path) -> None:
-    source, model = private / "source", private / "model"
-    parameter_name = os.getenv("LISFLOOD_PARAMETER_FILE", "ft.par")
-    for required in (source / "CMakeLists.txt", model / parameter_name, model / "dem.asc", model / "population.asc"):
+def run_all(model: Path, cache: Path) -> None:
+    engine = Path(os.getenv("LISFLOOD_ENGINE", "/opt/lisflood/bin/lisflood"))
+    for required in (engine, model / "ft.par", model / "dem.asc", model / "population.asc"):
         if not required.is_file():
             raise FileNotFoundError(required)
     ensure_cache_space(cache)
@@ -213,7 +206,6 @@ def run_all(private: Path, cache: Path) -> None:
     try:
         with tempfile.TemporaryDirectory(prefix="lisflood-") as temporary:
             temporary_root = Path(temporary)
-            engine = compile_engine(source, temporary_root / "build")
             dem_header, dem = read_ascii(model / "dem.asc")
             population_header, population = read_ascii(model / "population.asc")
             assert_aligned(dem_header, population_header)
@@ -235,18 +227,14 @@ def run_all(private: Path, cache: Path) -> None:
                 },
                 "scenarios": {},
             }
-            parameter_template = (model / parameter_name).read_text(encoding="utf-8")
+            parameter_template = (model / "ft.par").read_text(encoding="utf-8")
             for period in RETURN_PERIODS:
                 scenario = temporary_root / str(period)
-                shutil.copytree(model, scenario, ignore=shutil.ignore_patterns("windows-reference"))
+                shutil.copytree(model, scenario, ignore=shutil.ignore_patterns("*.inp", "rules*.txt", "windows-reference"))
                 rates = design_storm(period)
                 write_rainfall(scenario / "design.rain", rates)
                 output = scenario / "results"
-                parameters = set_parameter(parameter_template, "rainfall", "design.rain")
-                parameters = set_parameter(parameters, "hazard", "")
-                parameters = set_parameter(parameters, "sim_time", "43200")
-                parameters = set_parameter(parameters, "resroot", f"return-{period}")
-                parameters = set_parameter(parameters, "dirroot", "results")
+                parameters = prepare_parameters(parameter_template, period)
                 (scenario / "web.par").write_text(parameters, encoding="utf-8")
                 subprocess.run([str(engine), "web.par"], cwd=scenario, check=True)
                 error = mass_balance_error(locate_output(output, ".mass"))
@@ -259,12 +247,6 @@ def run_all(private: Path, cache: Path) -> None:
                 assert_aligned(dem_header, hazard_header)
                 if np.nanmin(depth) < -1e-8:
                     raise RuntimeError(f"negative depth in {period}-year result")
-                reference = model / "windows-reference" / f"{period}.max"
-                if os.getenv("LISFLOOD_REQUIRE_PARITY", "1") != "0":
-                    if not reference.is_file():
-                        raise FileNotFoundError(reference)
-                    parity_check(reference, depth, depth_header)
-
                 risk, breaks = build_risk(depth, hazard, population)
                 flooded = np.isfinite(depth) & (depth >= 0.10)
                 manifest["populationBreaks"] = [round(value, 6) for value in breaks]
@@ -294,6 +276,6 @@ def run_all(private: Path, cache: Path) -> None:
 
 if __name__ == "__main__":
     run_all(
-        Path(os.getenv("LISFLOOD_PRIVATE_DIR", "/opt/lisflood/private")),
+        Path(os.getenv("LISFLOOD_MODEL_DIR", "/opt/lisflood/model")),
         Path(os.getenv("LISFLOOD_CACHE_DIR", "/opt/lisflood/cache")),
     )

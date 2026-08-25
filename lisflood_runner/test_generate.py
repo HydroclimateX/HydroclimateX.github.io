@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
+from lisflood_runner import generate
 from lisflood_runner.generate import (
     HAZARD_SUFFIX,
     RETURN_PERIODS,
@@ -14,6 +15,7 @@ from lisflood_runner.generate import (
     design_storm,
     ensure_cache_space,
     mass_balance_error,
+    model_version,
     publish_cache,
     run_all,
     write_rainfall,
@@ -37,7 +39,7 @@ class RainfallTests(unittest.TestCase):
             totals.append(expected)
         self.assertEqual(totals, sorted(totals))
 
-    def test_rain_file_matches_the_modified_engine_and_conserves_total(self) -> None:
+    def test_rain_file_matches_the_official_engine_and_conserves_total(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "design.rain"
             rates = design_storm(5)
@@ -45,11 +47,12 @@ class RainfallTests(unittest.TestCase):
             lines = path.read_text(encoding="utf-8").splitlines()
             self.assertEqual(lines[0], "181\tseconds")
             file_rates = np.array([float(line.split()[0]) for line in lines[1:]])
-            self.assertAlmostEqual(float(np.trapz(file_rates, dx=1 / 60)), float(rates.sum() / 60), places=7)
+            integrated = np.sum((file_rates[:-1] + file_rates[1:]) * 0.5) / 60
+            self.assertAlmostEqual(float(integrated), float(rates.sum() / 60), places=7)
 
 
 class RiskTests(unittest.TestCase):
-    def test_modified_v59_hazard_output_name_is_used(self) -> None:
+    def test_official_hazard_output_name_is_used(self) -> None:
         self.assertEqual(HAZARD_SUFFIX, ".maxHaz")
 
     def test_risk_matrix_and_dry_cells(self) -> None:
@@ -70,6 +73,44 @@ class RiskTests(unittest.TestCase):
         risk, _ = build_risk(depth, hazard, population)
         self.assertEqual(risk[0, 0], 0)
         self.assertEqual(risk[0, 1], 1)
+
+
+class ModelConfigurationTests(unittest.TestCase):
+    def test_surface_configuration_removes_swmm_and_forces_acc(self) -> None:
+        template = """\
+fv1
+uniform_rules rules2.txt
+inpFile swmm.inp
+infiltration 0.00001
+evaporation ft.evap
+fpfric 0.014
+bcifile ft.bci
+startfile depth.asc
+manningfile ft.n.asc
+"""
+
+        parameters = generate.prepare_parameters(template, 20)
+        active = [line.split()[0].lower() for line in parameters.splitlines() if line.strip() and not line.lstrip().startswith("#")]
+
+        self.assertNotIn("fv1", active)
+        self.assertNotIn("dg2", active)
+        self.assertNotIn("uniform_rules", active)
+        self.assertNotIn("inpfile", active)
+        self.assertEqual(active.count("acceleration"), 1)
+        for key in ("infiltration", "evaporation", "fpfric", "bcifile", "startfile", "manningfile"):
+            self.assertIn(key, active)
+        self.assertIn("rainfall           design.rain", parameters)
+        self.assertIn("sim_time           43200", parameters)
+        self.assertIn("resroot            return-20", parameters)
+        self.assertIn("dirroot            results", parameters)
+        self.assertIn("hazard", active)
+
+    def test_model_version_identifies_official_acc_solver(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            engine = Path(directory) / "lisflood"
+            engine.write_text("#!/bin/sh\necho 'LISFLOOD-FP version 8.0.3 (double)'\n", encoding="utf-8")
+            engine.chmod(0o755)
+            self.assertEqual(model_version(engine), "8.0.3 ACC")
 
 
 class PublishTests(unittest.TestCase):

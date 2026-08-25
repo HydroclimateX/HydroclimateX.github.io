@@ -27,6 +27,7 @@ class WebContractTests(unittest.TestCase):
 
     def test_compose_and_nginx_publish_only_cached_results(self) -> None:
         compose = read("docker-compose.yml")
+        environment = read(".env.example")
         nginx = read("nginx.analytics.conf")
         bootstrap = read("nginx.bootstrap.conf")
         dockerfile = read("nginx/Dockerfile")
@@ -34,6 +35,13 @@ class WebContractTests(unittest.TestCase):
         self.assertIn('profiles: ["lisflood-tools"]', compose)
         self.assertIn("mem_limit: 2560m", compose)
         self.assertIn("cpus: 2.0", compose)
+        self.assertIn("LISFLOOD_MODEL_DIR: /opt/lisflood/model", compose)
+        self.assertIn("${LISFLOOD_MODEL_DIR:-/opt/hydroclimatex-wasp/lisflood-private/model}:/opt/lisflood/model:ro", compose)
+        self.assertNotIn("LISFLOOD_PRIVATE_DIR", compose)
+        self.assertNotIn("LISFLOOD_REQUIRE_PARITY", compose)
+        self.assertIn("LISFLOOD_MODEL_DIR=/opt/hydroclimatex-wasp/lisflood-private/model", environment)
+        self.assertNotIn("LISFLOOD_PRIVATE_DIR", environment)
+        self.assertNotIn("LISFLOOD_REQUIRE_PARITY", environment)
         self.assertIn("${LISFLOOD_CACHE_DIR:-/opt/hydroclimatex-wasp/state/lisflood-cache}:/srv/lisflood-results:ro", compose)
         self.assertIn("server_name lisflood.hydroclimatex.com", nginx)
         self.assertIn("alias /srv/lisflood-results/", nginx)
@@ -48,6 +56,23 @@ class WebContractTests(unittest.TestCase):
         self.assertIn("--resolve", deploy)
         self.assertIn("PRIOR_NGINX_IMAGE", deploy)
         self.assertIn("docker image tag", deploy)
+        self.assertIn('MODEL_DIR="${LISFLOOD_MODEL_DIR:-/opt/hydroclimatex-wasp/lisflood-private/model}"', deploy)
+        self.assertIn('for required in ft.par dem.asc population.asc', deploy)
+        self.assertNotIn("missing private LISFLOOD-FP source", deploy)
+
+    def test_runner_image_builds_pinned_official_engine(self) -> None:
+        dockerfile = read("lisflood_runner/Dockerfile")
+        self.assertIn("https://zenodo.org/record/4073011/files/LISFLOOD-FP-8.zip", dockerfile)
+        self.assertIn("a64fce20557217c628ff2ee2641275fcc576dc209326bb3d7cd6d7edad6f5808", dockerfile)
+        self.assertIn("cmake --build", dockerfile)
+        self.assertIn("lisflood -version", dockerfile)
+        self.assertIn("testing/T025_Rain", dockerfile)
+        for suffix in (".max", ".maxHaz", ".mass"):
+            self.assertIn(f"res_rain{suffix}", dockerfile)
+
+    def test_page_discloses_that_drainage_is_not_modelled(self) -> None:
+        html = read("lisflood-app/index.html")
+        self.assertIn("Sewer networks and engineered drainage are not represented", html)
 
     def test_preparation_script_aligns_the_open_rasters(self) -> None:
         prepare = read("scripts/prepare-lisflood-data.sh")

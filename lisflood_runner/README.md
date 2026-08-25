@@ -1,34 +1,30 @@
 # LISFLOOD Web runner
 
-This one-shot container compiles the private model, runs the five fixed return
-periods, and publishes static assets only after every check passes.
+This one-shot container uses the official LISFLOOD-FP 8.0.3 CPU ACC engine,
+runs five surface-flood scenarios, and publishes static assets only after every
+check passes. Sewer networks and engineered drainage are not modelled.
 
 ## Private server layout
 
-Keep this outside the public repository at
-`/opt/hydroclimatex-wasp/lisflood-private/`:
+Keep model inputs outside the public repository at
+`/opt/hydroclimatex-wasp/lisflood-private/model/`:
 
 ```text
-source/                         modified source and CMakeLists.txt
-model/
-  ft.par                        validated parameter template
-  dem.asc                       30 m EPSG:32650 DEM
-  population.asc                aligned population-count grid
-  ...                           SWMM and other model inputs
-  windows-reference/
-    5.max  10.max  20.max  50.max  100.max
+ft.par          surface-model parameter template
+dem.asc         30 m EPSG:32650 DEM
+population.asc  aligned population-count grid
+ft.bci          boundary conditions
+depth.asc       initial depth
+ft.n.asc        Manning roughness
+ft.evap         evaporation series
 ```
 
-The source check refuses an engine without `uniform_rules` and `inpFile`.
-Production requires all five Windows references; each Linux result must have a
-depth MAE no greater than 1 mm and wet-area difference no greater than 1%.
-The runner also rejects mass-balance error above 3%. Generated rain files use
-the header-first format of the current SWMM-coupled executable.
+The runner removes active `uniform_rules`, `inpFile`, FV1 and DG2 settings from
+the generated scenario parameters, forces ACC, and retains surface infiltration,
+evaporation, roughness and boundary inputs. It rejects mass-balance errors above
+3% and publishes only when all five scenarios succeed.
 
 ## Prepare open rasters
-
-Provide a Qixia boundary buffered by 2 km, a Copernicus GLO-30 GeoTIFF and a
-WorldPop 2025 population-count GeoTIFF:
 
 ```bash
 scripts/prepare-lisflood-data.sh \
@@ -36,7 +32,7 @@ scripts/prepare-lisflood-data.sh \
   /opt/hydroclimatex-wasp/lisflood-private/model
 ```
 
-Review the cropped domain before generating the Windows reference results.
+Review the prepared domain and surface-model parameters before deployment.
 
 ## Generate or deploy
 
@@ -45,5 +41,5 @@ docker compose --profile lisflood-tools run --rm lisflood-runner
 sudo ./deploy-lisflood.sh
 ```
 
-`LISFLOOD_REQUIRE_PARITY=0` is only for local pipeline development. Production
-uses `1` and will not publish unverified results.
+The first image build downloads the pinned official source archive from Zenodo;
+Docker caches the compiled engine for later runs.

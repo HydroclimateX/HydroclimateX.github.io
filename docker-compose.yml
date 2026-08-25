@@ -142,12 +142,10 @@ services:
     cpus: 2.0
     mem_limit: 2560m
     environment:
-      LISFLOOD_PRIVATE_DIR: /opt/lisflood/private
+      LISFLOOD_MODEL_DIR: /opt/lisflood/model
       LISFLOOD_CACHE_DIR: /opt/lisflood/cache
-      LISFLOOD_PARAMETER_FILE: ${LISFLOOD_PARAMETER_FILE:-ft.par}
-      LISFLOOD_REQUIRE_PARITY: ${LISFLOOD_REQUIRE_PARITY:-1}
     volumes:
-      - ${LISFLOOD_PRIVATE_DIR:-/opt/hydroclimatex-wasp/lisflood-private}:/opt/lisflood/private:ro
+      - ${LISFLOOD_MODEL_DIR:-/opt/hydroclimatex-wasp/lisflood-private/model}:/opt/lisflood/model:ro
       - ${LISFLOOD_CACHE_DIR:-/opt/hydroclimatex-wasp/state/lisflood-cache}:/opt/lisflood/cache
 
   # ---- Nginx Reverse Proxy ----
