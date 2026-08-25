@@ -113,7 +113,7 @@ services:
       - ANALYTICS_INTERNAL_EVENTS_URL=http://analytics-api:8001/internal/v1/wasp-events
       - ANALYTICS_INTERNAL_TOKEN=${ANALYTICS_INTERNAL_TOKEN:-}
       - ANALYTICS_SESSION_SECRET=${ANALYTICS_SESSION_SECRET:-}
-      - ANALYTICS_GEOIP_DATABASE=/opt/geoip/GeoLite2-Country.mmdb
+      - ANALYTICS_GEOIP_DATABASE=/opt/geoip/dbip-country-lite.mmdb
     volumes:
       - wasp_uploads:/tmp/wasp_uploads
       - ./geoip:/opt/geoip:ro

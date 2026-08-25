@@ -40,7 +40,8 @@ for key in "${required_keys[@]}"; do
   fi
   [[ -n "$value" ]] || fail "$key must be set in $source_name"
 done
-[[ -s "$SCRIPT_DIR/geoip/GeoLite2-Country.mmdb" ]] || fail "install GeoLite2-Country.mmdb under geoip/"
+"$SCRIPT_DIR/scripts/install-dbip-country-lite.sh"
+[[ -s "$SCRIPT_DIR/geoip/dbip-country-lite.mmdb" ]] || fail "DB-IP Country Lite installation failed"
 [[ -s "$STATE_DIR/conf/live/wasp.hydroclimatex.com/fullchain.pem" ]] || fail "the existing WASP TLS certificate is required"
 
 for domain in "${DOMAINS[@]}"; do
@@ -53,8 +54,10 @@ cd "$SCRIPT_DIR"
 trap restore_proxy ERR
 docker compose config --quiet
 info "Building and starting private data services and Analytics API."
-docker compose build analytics-api nginx
-docker compose up -d --wait analytics-postgres umami analytics-api
+docker compose build analytics-api wasp-api nginx
+docker compose run --rm --no-deps wasp-api python -c \
+  'import maxminddb; reader=maxminddb.open_database("/opt/geoip/dbip-country-lite.mmdb"); code=reader.get("8.8.8.8")["country"]["iso_code"]; assert len(code) == 2; reader.close()'
+docker compose up -d --wait analytics-postgres umami analytics-api wasp-api
 docker compose run --rm analytics-api python -m analytics_app.cli migrate
 
 missing_certificate=0

@@ -15,11 +15,24 @@ def test_session_hash_is_stable_and_does_not_reveal_cookie() -> None:
 
 def test_country_lookup_returns_only_iso_code() -> None:
     class FakeReader:
-        def country(self, _ip):
-            return type("CountryResponse", (), {"country": type("Country", (), {"iso_code": "AU"})()})()
+        def get(self, _ip):
+            return {"country": {"iso_code": "au"}}
 
     assert country_from_ip("203.0.113.5", reader=FakeReader()) == "AU"
     assert country_from_ip("not-an-ip", reader=FakeReader()) == "ZZ"
+
+
+def test_country_lookup_fails_closed_for_missing_or_malformed_dbip_records() -> None:
+    class MissingReader:
+        def get(self, _ip):
+            return None
+
+    class MalformedReader:
+        def get(self, _ip):
+            return {"country": {"iso_code": "1A"}}
+
+    assert country_from_ip("203.0.113.5", reader=MissingReader()) == "ZZ"
+    assert country_from_ip("203.0.113.5", reader=MalformedReader()) == "ZZ"
 
 
 def test_tracker_sends_only_privacy_safe_event_fields() -> None:

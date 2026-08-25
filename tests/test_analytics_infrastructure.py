@@ -55,6 +55,7 @@ def test_database_backup_has_thirty_day_retention_and_no_secrets_are_committed()
     env_example = read(".env.example")
     assert "ANALYTICS_SMTP_AUTHORIZATION_CODE=" in env_example
     assert "ANALYTICS_SMTP_AUTHORIZATION_CODE=changeme" not in env_example
+    assert "MAXMIND_LICENSE_KEY" not in env_example
     ignore = read(".gitignore")
     assert ".env" in ignore
     assert "backups/" in ignore
@@ -77,3 +78,36 @@ def test_analytics_rollout_has_preflight_migration_certificates_and_gated_schedu
     assert "smtp-test-verified" in enable
     assert "scheduled-reports" in enable
     assert "analytics-worker" in enable
+
+
+def test_dbip_country_lite_is_keyless_validated_and_wired_into_wasp():
+    installer = read("scripts/install-dbip-country-lite.sh")
+    compose = read("docker-compose.yml")
+    deploy = read("deploy-analytics.sh")
+    backend_requirements = read("backend/requirements.txt")
+    analytics_requirements = read("analytics-requirements.txt")
+
+    assert "https://download.db-ip.com/free/dbip-country-lite-" in installer
+    assert 'date -u +%Y-%m' in installer
+    assert "date -u -v-1m +%Y-%m" in installer
+    assert "mmdb.gz" in installer
+    assert "gzip -dc" in installer
+    assert "MMDB metadata marker" in installer
+    assert "mv -f" in installer
+    assert "dbip-country-lite.mmdb" in installer
+    assert "MAXMIND_LICENSE_KEY" not in installer
+
+    assert "ANALYTICS_GEOIP_DATABASE=/opt/geoip/dbip-country-lite.mmdb" in compose
+    assert "geoip/dbip-country-lite.mmdb" in deploy
+    assert "maxminddb.open_database" in deploy
+    assert "docker compose build analytics-api wasp-api nginx" in deploy
+    assert "GeoLite2" not in compose + deploy
+    assert "maxminddb==3.1.1" in backend_requirements
+    assert "geoip2" not in backend_requirements + analytics_requirements
+
+
+def test_dashboard_attributes_country_geolocation_to_dbip():
+    dashboard = read("analytics_app/static/index.html")
+
+    assert '<a href="https://db-ip.com"' in dashboard
+    assert "IP Geolocation by DB-IP" in dashboard

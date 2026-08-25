@@ -161,6 +161,7 @@ class ReportService:
         <tr><td>Result downloads</td><td>{display(totals['downloads'])}</td></tr></table>
         <h3>Top countries</h3><ol>{top_rows}</ol>
         {('<img src="cid:usage-map" alt="Global WASP usage map" style="max-width:100%">' if wasp_available else '')}
+        <p style="font-size:12px;color:#60747a"><a href="https://db-ip.com">IP Geolocation by DB-IP</a></p>
         </body></html>
         """
 
@@ -170,7 +171,10 @@ class ReportService:
         message["To"] = self.settings.report_to
         message["Subject"] = f"HydroClimateX Monthly Analytics — {report.snapshot['label']}"
         message["Message-ID"] = make_msgid(domain="hydroclimatex.com")
-        message.set_content(f"HydroClimateX Monthly Analytics — {report.snapshot['label']}")
+        message.set_content(
+            f"HydroClimateX Monthly Analytics — {report.snapshot['label']}\n\n"
+            "IP Geolocation by DB-IP: https://db-ip.com"
+        )
         message.add_alternative(self._html(report), subtype="html")
         wasp = report.snapshot["wasp"]  # type: ignore[assignment]
         if wasp.get("status", "available") == "available":

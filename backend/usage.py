@@ -28,10 +28,13 @@ def country_from_ip(value: str | None, *, reader=None) -> str:
         return "ZZ"
     try:
         ipaddress.ip_address(value)
-        code = reader.country(value).country.iso_code
+        record = reader.get(value)
+        country = record.get("country") if isinstance(record, dict) else None
+        code = country.get("iso_code") if isinstance(country, dict) else None
     except Exception:
         return "ZZ"
-    return str(code).upper() if code and len(str(code)) == 2 else "ZZ"
+    normalized = str(code).upper() if code else ""
+    return normalized if len(normalized) == 2 and normalized.isascii() and normalized.isalpha() else "ZZ"
 
 
 def _post_json(endpoint: str, token: str, payload: dict[str, object]) -> None:
@@ -68,10 +71,10 @@ class UsageTracker:
         database_path = os.getenv("ANALYTICS_GEOIP_DATABASE", "").strip()
         if database_path:
             try:
-                import geoip2.database
-                reader = geoip2.database.Reader(database_path)
+                import maxminddb
+                reader = maxminddb.open_database(database_path)
             except Exception:
-                LOGGER.warning("GeoLite2 country database is unavailable")
+                LOGGER.warning("DB-IP country database is unavailable")
         return cls(
             endpoint=os.getenv(
                 "ANALYTICS_INTERNAL_EVENTS_URL",

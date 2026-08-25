@@ -85,6 +85,13 @@ def test_monthly_email_contains_html_inline_map_and_csv_attachment() -> None:
     assert "image/png" in payload_types
     assert "text/csv" in payload_types
     assert "Successful runs" in message.as_string()
+    report_bodies = "\n".join(
+        part.get_content()
+        for part in message.walk()
+        if part.get_content_type() in {"text/plain", "text/html"}
+    )
+    assert "IP Geolocation by DB-IP" in report_bodies
+    assert "https://db-ip.com" in report_bodies
     assert repository.get_report(date(2026, 7, 1)).status == "sent"
 
 
