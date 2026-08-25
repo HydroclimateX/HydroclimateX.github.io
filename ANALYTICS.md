@@ -22,7 +22,7 @@ No historical logs are imported. Set `ANALYTICS_COLLECTED_SINCE` to the UTC prod
 ## Operations
 
 - Apply migrations: `docker compose run --rm analytics-api python -m analytics_app.cli migrate`
-- Reset the admin password: run `docker compose run --rm analytics-api python -m analytics_app.cli reset-password` (it revokes every session), replace `ANALYTICS_ADMIN_PASSWORD_HASH` in `.env` with the printed hash, then recreate `analytics-api`.
+- Reset the admin password: run `docker compose run --rm analytics-api python -m analytics_app.cli reset-password` and enter a password containing at least 10 characters (it revokes every session), replace `ANALYTICS_ADMIN_PASSWORD_HASH` in `.env` with the printed hash, then recreate `analytics-api`.
 - Send a report manually: `docker compose run --rm analytics-api python -m analytics_app.cli send-report YYYY-MM` (add `--force` only for an intentional resend)
 - Test SMTP only: `docker compose run --rm analytics-api python -m analytics_app.cli test-email`
 - Back up now: `scripts/backup-analytics-db.sh`

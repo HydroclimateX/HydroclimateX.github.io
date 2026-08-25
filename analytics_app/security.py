@@ -10,11 +10,14 @@ from argon2.exceptions import InvalidHashError, VerifyMismatchError
 
 
 _PASSWORD_HASHER = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
+MIN_ADMIN_PASSWORD_LENGTH = 10
 
 
 def hash_password(password: str) -> str:
-    if len(password) < 16:
-        raise ValueError("administrator password must contain at least 16 characters")
+    if len(password) < MIN_ADMIN_PASSWORD_LENGTH:
+        raise ValueError(
+            f"administrator password must contain at least {MIN_ADMIN_PASSWORD_LENGTH} characters"
+        )
     return _PASSWORD_HASHER.hash(password)
 
 

@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from analytics_app.security import (
     LoginLimiter,
     create_session_credentials,
@@ -16,6 +18,14 @@ def test_argon2id_password_hash_round_trip() -> None:
     assert encoded.startswith("$argon2id$")
     assert verify_password(encoded, "correct horse battery staple") is True
     assert verify_password(encoded, "wrong") is False
+
+
+def test_administrator_password_accepts_ten_characters_and_rejects_nine() -> None:
+    encoded = hash_password("0123456789")
+
+    assert verify_password(encoded, "0123456789") is True
+    with pytest.raises(ValueError, match="at least 10 characters"):
+        hash_password("012345678")
 
 
 def test_session_credentials_store_only_token_hash() -> None:

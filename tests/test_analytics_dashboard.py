@@ -47,6 +47,7 @@ def test_dashboard_shell_is_served_without_exposing_data() -> None:
     assert "Monthly Reports" in response.text
     assert '<a href="https://db-ip.com"' in response.text
     assert "IP Geolocation by DB-IP" in response.text
+    assert 'minlength="10"' in response.text
     assert "1,245" not in response.text
 
 
