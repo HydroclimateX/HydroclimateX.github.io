@@ -131,6 +131,25 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # ---- One-shot LISFLOOD-FP cache generator ----
+  lisflood-runner:
+    profiles: ["lisflood-tools"]
+    image: hydroclimatex/lisflood-runner:current
+    build:
+      context: .
+      dockerfile: lisflood_runner/Dockerfile
+    init: true
+    cpus: 2.0
+    mem_limit: 2560m
+    environment:
+      LISFLOOD_PRIVATE_DIR: /opt/lisflood/private
+      LISFLOOD_CACHE_DIR: /opt/lisflood/cache
+      LISFLOOD_PARAMETER_FILE: ${LISFLOOD_PARAMETER_FILE:-ft.par}
+      LISFLOOD_REQUIRE_PARITY: ${LISFLOOD_REQUIRE_PARITY:-1}
+    volumes:
+      - ${LISFLOOD_PRIVATE_DIR:-/opt/hydroclimatex-wasp/lisflood-private}:/opt/lisflood/private:ro
+      - ${LISFLOOD_CACHE_DIR:-/opt/hydroclimatex-wasp/state/lisflood-cache}:/opt/lisflood/cache
+
   # ---- Nginx Reverse Proxy ----
   nginx:
     image: hydroclimatex/wasp-nginx:current
@@ -147,6 +166,7 @@ services:
     volumes:
       - ${WASP_STATE_DIR:-./certbot}/www:/var/www/certbot:ro
       - ${WASP_STATE_DIR:-./certbot}/conf:/etc/letsencrypt:ro
+      - ${LISFLOOD_CACHE_DIR:-/opt/hydroclimatex-wasp/state/lisflood-cache}:/srv/lisflood-results:ro
     depends_on:
       wasp-api:
         condition: service_healthy

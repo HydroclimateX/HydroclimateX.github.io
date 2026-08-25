@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Interactive LISFLOOD-FP flood risk maps for Qixia District, Nanjing.">
+  <title>LISFLOOD Web · Qixia District</title>
+  <link rel="stylesheet" href="vendor/leaflet.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="vendor/leaflet.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main>
+    <section class="panel" aria-label="Flood map controls">
+      <header>
+        <p class="eyebrow">HydroclimateX Lab</p>
+        <h1>LISFLOOD Web</h1>
+        <p>Population flood risk in Qixia District, Nanjing</p>
+      </header>
+
+      <fieldset>
+        <legend>Rainfall return period</legend>
+        <div class="periods">
+          <button type="button" data-period="5">5 yr</button>
+          <button type="button" data-period="10">10 yr</button>
+          <button type="button" data-period="20" class="active">20 yr</button>
+          <button type="button" data-period="50">50 yr</button>
+          <button type="button" data-period="100">100 yr</button>
+        </div>
+      </fieldset>
+
+      <fieldset class="layers">
+        <legend>Map layer</legend>
+        <label><input type="radio" name="layer" value="risk" checked> Population risk</label>
+        <label><input type="radio" name="layer" value="hazard"> Flood hazard</label>
+        <label><input type="radio" name="layer" value="depth"> Maximum depth</label>
+        <label><input type="radio" name="layer" value="population"> Population</label>
+        <label><input type="radio" name="layer" value="dem"> DEM</label>
+      </fieldset>
+
+      <label class="opacity">Layer opacity <input id="opacity" type="range" min="20" max="100" value="78"></label>
+
+      <dl class="metrics">
+        <div><dt>Flooded area</dt><dd id="floodedArea">—</dd></div>
+        <div><dt>Exposed population</dt><dd id="exposedPopulation">—</dd></div>
+        <div><dt>Maximum depth</dt><dd id="maximumDepth">—</dd></div>
+      </dl>
+
+      <div class="legend" id="legend" aria-label="Map legend">
+        <strong id="legendTitle">Population risk</strong>
+        <span><i class="low"></i><b>Low</b></span><span><i class="moderate"></i><b>Moderate</b></span>
+        <span><i class="high"></i><b>High</b></span><span><i class="extreme"></i><b>Extreme</b></span>
+      </div>
+
+      <footer>
+        <p id="status" role="status">Loading cached results…</p>
+        <p><strong>Research demonstration.</strong> Not for emergency response or engineering design.</p>
+        <p class="sources">Data: Copernicus DEM, WorldPop and OpenStreetMap contributors.</p>
+      </footer>
+    </section>
+    <div id="map" aria-label="Interactive flood risk map"></div>
+    <div id="error" role="alert" hidden>Results unavailable. Please try again later.</div>
+  </main>
+</body>
+</html>

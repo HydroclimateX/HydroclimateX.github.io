@@ -36,3 +36,6 @@ Task
 backups/
 geoip/*.mmdb
 .gitignore
+lisflood-private/
+lisflood-cache/
+lisflood-fp/
