@@ -64,6 +64,8 @@ def test_analytics_rollout_has_preflight_migration_certificates_and_gated_schedu
     deploy = read("deploy-analytics.sh")
     assert "nproc" in deploy
     assert "MemTotal" not in deploy
+    assert '[[ -f "$SCRIPT_DIR/.env" ]] || fail' not in deploy
+    assert 'value="${!key:-}"' in deploy
     assert "analytics.hydroclimatex.com" in deploy
     assert "telemetry.hydroclimatex.com" in deploy
     assert "8.210.252.61" in deploy

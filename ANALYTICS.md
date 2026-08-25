@@ -10,7 +10,7 @@ PostgreSQL, Umami administration and WASP event ingestion have no host ports. Ng
 ## Production rollout
 
 1. Provision at least approximately 2 vCPU and 4 GB RAM. Point both new A records to `8.210.252.61` and do not publish premature AAAA records.
-2. Copy `.env.example` to `.env`. Generate the administrator hash with `python -m analytics_app.cli hash-password`, and generate the two service secrets with a cryptographically secure password manager. Use URL-safe database passwords in both the init variables and database URLs.
+2. Supply the values listed in `.env.example`. They may be stored in a mode-0600 `.env`, or exported directly in the root deployment shell when no secrets file should remain on the server. Generate the administrator hash with `python -m analytics_app.cli hash-password`, and generate the service secrets with a cryptographically secure password manager. Use URL-safe database passwords in both the init variables and database URLs.
 3. In Umami, create one website whose allowed domains are exactly `hydroclimatex.com,www.hydroclimatex.com`. Put its public website ID and the private Umami API credentials in `.env`.
 4. Export the MaxMind license key only for the installation command, then run `scripts/install-geolite2-country.sh`. The key and database are runtime state and must not be committed.
 5. Run `sudo ./deploy-analytics.sh`. It performs the resource/DNS preflight, starts PostgreSQL and Umami, migrates Analytics, obtains separate certificates, starts the private Dashboard, installs the daily 30-day-retention backup job and sends one SMTP test from `zejiang_hydrology@126.com` to `ze.jiang@hhu.edu.cn`.
