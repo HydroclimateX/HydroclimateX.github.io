@@ -20,6 +20,12 @@ def test_argon2id_password_hash_round_trip() -> None:
     assert verify_password(encoded, "wrong") is False
 
 
+def test_malformed_argon2_hash_is_an_invalid_login_not_a_server_error() -> None:
+    malformed = "$argon2id$v=19$m=65536,t=3,p=4$short$salt"
+
+    assert verify_password(malformed, "0123456789") is False
+
+
 def test_administrator_password_accepts_ten_characters_and_rejects_nine() -> None:
     encoded = hash_password("0123456789")
 

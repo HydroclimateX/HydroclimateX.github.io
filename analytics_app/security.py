@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 from argon2 import PasswordHasher
-from argon2.exceptions import InvalidHashError, VerifyMismatchError
+from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
 
 _PASSWORD_HASHER = PasswordHasher(time_cost=3, memory_cost=65536, parallelism=4)
@@ -24,7 +24,7 @@ def hash_password(password: str) -> str:
 def verify_password(encoded: str, candidate: str) -> bool:
     try:
         return _PASSWORD_HASHER.verify(encoded, candidate)
-    except (VerifyMismatchError, InvalidHashError):
+    except (UnicodeEncodeError, VerificationError, VerifyMismatchError, InvalidHashError):
         return False
 
 
