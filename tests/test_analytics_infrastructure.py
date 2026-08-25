@@ -62,7 +62,8 @@ def test_database_backup_has_thirty_day_retention_and_no_secrets_are_committed()
 
 def test_analytics_rollout_has_preflight_migration_certificates_and_gated_scheduler():
     deploy = read("deploy-analytics.sh")
-    assert "nproc" in deploy and "MemTotal" in deploy
+    assert "nproc" in deploy
+    assert "MemTotal" not in deploy
     assert "analytics.hydroclimatex.com" in deploy
     assert "telemetry.hydroclimatex.com" in deploy
     assert "8.210.252.61" in deploy

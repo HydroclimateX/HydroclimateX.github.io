@@ -29,8 +29,6 @@ restore_proxy() {
 
 [[ "$EUID" -eq 0 ]] || fail "run as root"
 [[ "$(nproc)" -ge 2 ]] || fail "at least 2 vCPU are required"
-memory_kb="$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
-[[ "$memory_kb" -ge 3800000 ]] || fail "at least approximately 4 GB RAM are required"
 [[ -f "$SCRIPT_DIR/.env" ]] || fail "create .env from .env.example"
 required_keys=(POSTGRES_ADMIN_PASSWORD ANALYTICS_DB_PASSWORD UMAMI_DB_PASSWORD ANALYTICS_DATABASE_URL UMAMI_DATABASE_URL UMAMI_APP_SECRET UMAMI_API_USERNAME UMAMI_API_PASSWORD UMAMI_WEBSITE_ID ANALYTICS_ADMIN_PASSWORD_HASH ANALYTICS_INTERNAL_TOKEN ANALYTICS_SESSION_SECRET ANALYTICS_COLLECTED_SINCE ANALYTICS_SMTP_AUTHORIZATION_CODE)
 for key in "${required_keys[@]}"; do
