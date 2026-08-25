@@ -20,6 +20,13 @@ RENEWAL_SCRIPT="/usr/local/sbin/renew-wasp-cert"
 CRON_FILE="/etc/cron.d/wasp-cert-renew"
 API_IMAGE="hydroclimatex/wasp-api:current"
 NGINX_IMAGE="hydroclimatex/wasp-nginx:current"
+TLS_CONFIG="nginx.conf"
+if [ -s "$WASP_STATE_DIR/conf/live/analytics.hydroclimatex.com/fullchain.pem" ] &&
+  [ -s "$WASP_STATE_DIR/conf/live/analytics.hydroclimatex.com/privkey.pem" ] &&
+  [ -s "$WASP_STATE_DIR/conf/live/telemetry.hydroclimatex.com/fullchain.pem" ] &&
+  [ -s "$WASP_STATE_DIR/conf/live/telemetry.hydroclimatex.com/privkey.pem" ]; then
+  TLS_CONFIG="nginx.analytics.conf"
+fi
 
 # Test-only path overrides keep deployment sequencing tests hermetic. Normal
 # direct invocations retain the production paths declared above.
@@ -148,7 +155,7 @@ rollback_after_failure() {
     info "Candidate deployment failed; restoring the previous API and Nginx images."
     if docker image tag "$PRIOR_API_IMAGE" "$API_IMAGE" &&
       docker image tag "$PRIOR_NGINX_IMAGE" "$NGINX_IMAGE" &&
-      WASP_ROLLBACK=1 NGINX_CONFIG=nginx.conf docker compose up -d --no-build \
+      WASP_ROLLBACK=1 NGINX_CONFIG="$TLS_CONFIG" docker compose up -d --no-build \
         --force-recreate --wait --wait-timeout 180 wasp-api nginx &&
       verify_https_health; then
       info "Previous WASP deployment restored and HTTPS health verified."
@@ -222,7 +229,7 @@ else
 fi
 
 info "Starting Nginx with the HTTPS configuration."
-NGINX_CONFIG=nginx.conf docker compose up -d --no-build --force-recreate \
+NGINX_CONFIG="$TLS_CONFIG" docker compose up -d --no-build --force-recreate \
   --wait --wait-timeout 180 wasp-api nginx
 info "Verifying the externally routed HTTPS API locally."
 verify_https_health

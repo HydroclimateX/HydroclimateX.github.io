@@ -335,6 +335,27 @@ const API_BASE = window.WASP_API_BASE || (
     ? 'http://localhost:8000'
     : ''
 );
+const USAGE_SESSION_ENDPOINT = '/api/usage/session';
+const USAGE_DOWNLOAD_ENDPOINT = '/api/usage/download';
+
+function startUsageSession() {
+  return fetch(API_BASE + USAGE_SESSION_ENDPOINT, {
+    method: 'POST', credentials: 'same-origin', keepalive: true,
+  }).catch(() => {});
+}
+
+function recordResultDownload(runId) {
+  if (!runId) return;
+  void fetch(API_BASE + USAGE_DOWNLOAD_ENDPOINT, {
+    method: 'POST',
+    credentials: 'same-origin',
+    keepalive: true,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ run_id: runId }),
+  }).catch(() => {});
+}
+
+void startUsageSession();
 
 let uploadedFile = null;
 let activeFileName = null;
@@ -781,6 +802,7 @@ function downloadWaspPredictor() {
   link.download = 'wasp_predictors.csv';
   document.body.appendChild(link);
   link.click();
+  recordResultDownload(lastResult.analytics_run_id);
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }

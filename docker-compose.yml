@@ -2,7 +2,101 @@
 # `NGINX_CONFIG=nginx.bootstrap.conf docker compose up -d nginx` is used only
 # during the first ACME webroot challenge. The normal configuration is TLS.
 
+x-analytics-environment: &analytics-environment
+  ANALYTICS_ADMIN_EMAIL: ${ANALYTICS_ADMIN_EMAIL:-ze.jiang@hhu.edu.cn}
+  ANALYTICS_ADMIN_PASSWORD_HASH: ${ANALYTICS_ADMIN_PASSWORD_HASH:-}
+  ANALYTICS_INTERNAL_TOKEN: ${ANALYTICS_INTERNAL_TOKEN:-}
+  ANALYTICS_SESSION_SECRET: ${ANALYTICS_SESSION_SECRET:-}
+  ANALYTICS_COLLECTED_SINCE: ${ANALYTICS_COLLECTED_SINCE:-}
+  ANALYTICS_DATABASE_URL: ${ANALYTICS_DATABASE_URL:-}
+  UMAMI_BASE_URL: http://umami:3000
+  UMAMI_API_USERNAME: ${UMAMI_API_USERNAME:-}
+  UMAMI_API_PASSWORD: ${UMAMI_API_PASSWORD:-}
+  UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
+  ANALYTICS_SMTP_HOST: ${ANALYTICS_SMTP_HOST:-smtp.126.com}
+  ANALYTICS_SMTP_PORT: ${ANALYTICS_SMTP_PORT:-465}
+  ANALYTICS_SMTP_USERNAME: ${ANALYTICS_SMTP_USERNAME:-zejiang_hydrology@126.com}
+  ANALYTICS_SMTP_AUTHORIZATION_CODE: ${ANALYTICS_SMTP_AUTHORIZATION_CODE:-}
+  ANALYTICS_REPORT_FROM: ${ANALYTICS_REPORT_FROM:-zejiang_hydrology@126.com}
+  ANALYTICS_REPORT_TO: ${ANALYTICS_REPORT_TO:-ze.jiang@hhu.edu.cn}
+
 services:
+  # ---- Private Analytics data plane (no host ports) ----
+  analytics-postgres:
+    image: postgres:16.4-alpine
+    restart: "unless-stopped"
+    expose:
+      - "5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-}
+      ANALYTICS_DB_PASSWORD: ${ANALYTICS_DB_PASSWORD:-}
+      UMAMI_DB_PASSWORD: ${UMAMI_DB_PASSWORD:-}
+    volumes:
+      - analytics_postgres:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - wasp-net
+
+  umami:
+    image: ghcr.io/umami-software/umami:3.0.1@sha256:fe2c0fd1a7d58ddf4774bf262952f09064178da36653ffe2f4608e9ff92a59fc
+    restart: "unless-stopped"
+    expose:
+      - "3000"
+    environment:
+      DATABASE_URL: ${UMAMI_DATABASE_URL:-}
+      APP_SECRET: ${UMAMI_APP_SECRET:-}
+      DISABLE_TELEMETRY: "1"
+    depends_on:
+      analytics-postgres:
+        condition: service_healthy
+    networks:
+      - wasp-net
+
+  analytics-api:
+    image: hydroclimatex/analytics:current
+    build:
+      context: .
+      dockerfile: analytics/Dockerfile
+    restart: "unless-stopped"
+    expose:
+      - "8001"
+    environment: *analytics-environment
+    depends_on:
+      analytics-postgres:
+        condition: service_healthy
+      umami:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - wasp-net
+
+  analytics-worker:
+    profiles: ["scheduled-reports"]
+    image: hydroclimatex/analytics:current
+    build:
+      context: .
+      dockerfile: analytics/Dockerfile
+    restart: "unless-stopped"
+    command: ["python", "-m", "analytics_app.worker"]
+    environment: *analytics-environment
+    depends_on:
+      analytics-postgres:
+        condition: service_healthy
+      umami:
+        condition: service_started
+    networks:
+      - wasp-net
+
   # ---- FastAPI + WASP Engine ----
   wasp-api:
     image: hydroclimatex/wasp-api:current
@@ -16,8 +110,13 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - WASP_MAX_UPLOAD_MB=10
+      - ANALYTICS_INTERNAL_EVENTS_URL=http://analytics-api:8001/internal/v1/wasp-events
+      - ANALYTICS_INTERNAL_TOKEN=${ANALYTICS_INTERNAL_TOKEN:-}
+      - ANALYTICS_SESSION_SECRET=${ANALYTICS_SESSION_SECRET:-}
+      - ANALYTICS_GEOIP_DATABASE=/opt/geoip/GeoLite2-Country.mmdb
     volumes:
       - wasp_uploads:/tmp/wasp_uploads
+      - ./geoip:/opt/geoip:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 30s
@@ -83,6 +182,7 @@ services:
 
 volumes:
   wasp_uploads:
+  analytics_postgres:
 
 networks:
   wasp-net:

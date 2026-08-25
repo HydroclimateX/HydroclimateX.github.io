@@ -33,4 +33,6 @@ tanxuezhi.github.io/
 Task
 .codegraph/
 .worktrees/
+backups/
+geoip/*.mmdb
 .gitignore

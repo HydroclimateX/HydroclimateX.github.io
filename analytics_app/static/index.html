@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <title>HydroClimateX Analytics</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/vendor/plotly-2.35.2.min.js"></script>
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+  <main>
+    <section id="authView" class="auth-shell" aria-labelledby="authTitle">
+      <div class="auth-panel">
+        <div class="brand-mark" aria-hidden="true">HX</div>
+        <p class="eyebrow">Private research infrastructure</p>
+        <h1 id="authTitle">Administrator sign in</h1>
+        <p class="muted">HydroClimateX Analytics is restricted to the configured administrator.</p>
+        <form id="loginForm">
+          <label for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="username" required>
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required minlength="16">
+          <button type="submit">Sign in</button>
+          <p id="loginError" class="error" role="alert"></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="dashboardView" class="dashboard" hidden>
+      <header class="topbar">
+        <div><p class="eyebrow">HydroClimateX Lab</p><h1>HydroClimateX Analytics</h1></div>
+        <div class="account"><span id="adminEmail"></span><button id="logoutButton" class="button-secondary">Sign out</button></div>
+      </header>
+
+      <section class="control-bar" aria-label="Analytics period">
+        <div><label for="periodSelect">Period</label><select id="periodSelect">
+          <option value="7d">Last 7 days</option><option value="30d" selected>Last 30 days</option>
+          <option value="12m">Last 12 months</option><option value="all">All time</option><option value="custom">Custom</option>
+        </select></div>
+        <div id="customDates" class="custom-dates" hidden>
+          <div><label for="startDate">Start</label><input id="startDate" type="date"></div>
+          <div><label for="endDate">End</label><input id="endDate" type="date"></div>
+          <button id="applyDates">Apply</button>
+        </div>
+        <div class="freshness"><span id="websiteStatus" class="status-pill">Website: checking</span><span id="waspStatus" class="status-pill">WASP: checking</span></div>
+      </section>
+      <p id="collectedSince" class="collected-since"></p>
+      <p id="dashboardError" class="error" role="alert"></p>
+
+      <section class="kpi-grid" aria-label="Impact summary">
+        <article><span>Visitors</span><strong id="kpiVisitors">—</strong></article>
+        <article><span>Page views</span><strong id="kpiPageviews">—</strong></article>
+        <article><span>Successful runs</span><strong id="kpiRuns">—</strong></article>
+        <article><span>Success rate</span><strong id="kpiSuccessRate">—</strong></article>
+        <article><span>Countries</span><strong id="kpiCountries">—</strong></article>
+      </section>
+
+      <section class="section-card usage-section" aria-labelledby="usageTitle">
+        <div class="section-heading"><div><p class="eyebrow">Scientific software usage</p><h2 id="usageTitle">Global WASP Usage</h2></div>
+          <div><label for="mapMetric">Map metric</label><select id="mapMetric">
+            <option value="successful_runs">Successful runs</option><option value="failed_runs">Failed runs</option>
+            <option value="downloads">Downloads</option><option value="sessions">Sessions</option>
+          </select></div>
+        </div>
+        <div class="map-layout">
+          <div id="usageMap" class="map" role="img" aria-label="World choropleth showing WASP usage by country"></div>
+          <aside id="countryDetail" class="country-detail" aria-live="polite">
+            <p class="eyebrow">Country detail</p><h3>Select a country</h3><p class="muted">Click a country on the map or choose a table row.</p>
+          </aside>
+        </div>
+        <div class="table-actions"><h3>Country usage</h3><a id="csvLink" class="button-link" href="/api/v1/wasp/export.csv?period=30d">Download CSV</a></div>
+        <div class="table-wrap"><table><thead><tr><th>Country</th><th>Successful runs</th><th>Failed runs</th><th>Downloads</th><th>Sessions</th><th>Last activity</th></tr></thead><tbody id="countryRows"></tbody></table></div>
+      </section>
+
+      <section class="section-card" aria-labelledby="websiteTitle">
+        <div class="section-heading"><div><p class="eyebrow">Public research presence</p><h2 id="websiteTitle">Website Analytics</h2></div></div>
+        <div class="table-wrap"><table><thead><tr><th>Metric</th><th>30 days</th><th>12 months</th><th>All time</th></tr></thead><tbody id="websiteRows"></tbody></table></div>
+      </section>
+
+      <section class="section-card" aria-labelledby="reportsTitle">
+        <div class="section-heading"><div><p class="eyebrow">Report archive</p><h2 id="reportsTitle">Monthly Reports</h2></div></div>
+        <div class="report-controls"><div><label for="reportMonth">Month</label><input id="reportMonth" type="month"></div>
+          <button id="previewReport" class="button-secondary">Preview snapshot</button><button id="sendReport">Send report</button></div>
+        <pre id="reportPreview" class="report-preview" aria-live="polite">Choose a month to inspect its immutable report snapshot.</pre>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

@@ -8,6 +8,9 @@ case "${NGINX_CONFIG:-nginx.conf}" in
   nginx.bootstrap.conf)
     cp /opt/wasp/nginx.bootstrap.conf /etc/nginx/conf.d/default.conf
     ;;
+  nginx.analytics.conf)
+    cp /opt/wasp/nginx.analytics.conf /etc/nginx/conf.d/default.conf
+    ;;
   *)
     printf 'Unsupported NGINX_CONFIG: %s\n' "$NGINX_CONFIG" >&2
     exit 1

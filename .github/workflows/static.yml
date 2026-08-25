@@ -57,6 +57,9 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html main.js style.css _site/
+          if [ -f analytics.js ]; then
+            cp analytics.js _site/
+          fi
           cp -r showcase data figs _site/
           if [ -d assets ]; then
             cp -r assets _site/
