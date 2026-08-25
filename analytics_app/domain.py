@@ -91,6 +91,19 @@ def country_name(code: str) -> str:
         return normalized
 
 
+def country_iso3(code: str) -> str | None:
+    """ISO 3166-1 alpha-3 code for the map's GeoJSON featureidkey."""
+    normalized = code.upper() if len(code) == 2 else "ZZ"
+    if normalized == "ZZ":
+        return None
+    try:
+        import pycountry
+        country = pycountry.countries.get(alpha_2=normalized)
+        return country.alpha_3 if country else None
+    except ImportError:
+        return None
+
+
 def aggregate_country_rows(rows: Iterable[Mapping[str, object]]) -> dict[str, object]:
     grouped: dict[str, dict[str, object]] = {}
     all_sessions: set[str] = set()
@@ -101,6 +114,7 @@ def aggregate_country_rows(rows: Iterable[Mapping[str, object]]) -> dict[str, ob
         bucket = grouped.setdefault(code, {
             "country_code": code,
             "country": country_name(code),
+            "country_iso3": country_iso3(code),
             "successful_runs": 0,
             "failed_runs": 0,
             "downloads": 0,

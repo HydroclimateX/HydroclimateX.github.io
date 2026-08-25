@@ -142,7 +142,7 @@ def test_smtp_test_uses_configured_sender_and_recipient() -> None:
     message = FakeSMTP.instances[0].messages[0]
     assert message["From"] == "zejiang_hydrology@126.com"
     assert message["To"] == "ze.jiang@hhu.edu.cn"
-    assert message["Subject"] == "HydroClimateX Analytics — SMTP test"
+    assert message["Subject"] == "HydroclimateX Analytics — SMTP test"
     assert "configuration test" in message.get_content()
 
 

@@ -3,10 +3,12 @@ from __future__ import annotations
 import csv
 import html
 import io
+import json
 import smtplib
 from datetime import date, datetime, timezone
 from email.message import EmailMessage
 from email.utils import make_msgid
+from pathlib import Path
 
 import plotly.graph_objects as go
 
@@ -35,10 +37,15 @@ def month_period(report_month: date) -> Period:
 
 
 def render_map_png(rows: list[dict[str, object]]) -> bytes:
+    geojson = json.loads(
+        (Path(__file__).with_name("static") / "vendor" / "world-countries.json").read_text(encoding="utf-8")
+    )
+    data_rows = [row for row in rows if row.get("country_iso3")]
     figure = go.Figure(go.Choropleth(
-        locations=[row["country"] for row in rows if row["country"] != "Unknown"],
-        locationmode="country names",
-        z=[row["successful_runs"] for row in rows if row["country"] != "Unknown"],
+        geojson=geojson,
+        featureidkey="properties.ISO_A3_EH",
+        locations=[row["country_iso3"] for row in data_rows],
+        z=[row["successful_runs"] for row in data_rows],
         colorscale=[[0, "#e6f2ef"], [1, "#0f766e"]],
         colorbar_title="Successful runs",
         marker_line_color="#ffffff",

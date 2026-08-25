@@ -46,6 +46,7 @@ def test_country_aggregation_calculates_totals_and_success_rate() -> None:
     assert result["countries"][0] == {
         "country_code": "AU",
         "country": "Australia",
+        "country_iso3": "AUS",
         "successful_runs": 1,
         "failed_runs": 1,
         "downloads": 1,
@@ -61,3 +62,16 @@ def test_country_aggregation_treats_missing_country_as_unknown() -> None:
 
     assert result["countries"][0]["country_code"] == "ZZ"
     assert result["countries"][0]["country"] == "Unknown"
+    assert result["countries"][0]["country_iso3"] is None
+
+
+def test_country_aggregation_emits_iso3_for_micro_territories() -> None:
+    result = aggregate_country_rows([
+        {"country_code": "HK", "event_type": "run_success", "session_hash": "s1", "occurred_at": "2026-08-01T01:00:00Z"},
+        {"country_code": "SG", "event_type": "run_success", "session_hash": "s2", "occurred_at": "2026-08-01T02:00:00Z"},
+    ])
+
+    by_code = {row["country_code"]: row for row in result["countries"]}
+    assert by_code["HK"]["country"] == "Hong Kong"
+    assert by_code["HK"]["country_iso3"] == "HKG"
+    assert by_code["SG"]["country_iso3"] == "SGP"

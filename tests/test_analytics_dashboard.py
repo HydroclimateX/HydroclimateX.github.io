@@ -40,7 +40,7 @@ def test_dashboard_shell_is_served_without_exposing_data() -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "HydroClimateX Analytics" in response.text
+    assert "HydroclimateX Analytics" in response.text
     assert "Administrator sign in" in response.text
     assert "Global WASP Usage" in response.text
     assert "Website Analytics" in response.text

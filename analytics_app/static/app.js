@@ -1,7 +1,16 @@
 (() => {
   'use strict';
   const byId = id => document.getElementById(id);
-  const state = { csrf: '', period: '30d', start: '', end: '', countries: [] };
+  const state = { csrf: '', period: '30d', start: '', end: '', countries: [], worldGeo: null };
+  let worldGeoPromise = null;
+  function loadWorldGeo() {
+    if (!state.worldGeo) {
+      worldGeoPromise ||= fetch('/static/vendor/world-countries.json')
+        .then(r => { if (!r.ok) throw new Error(`world map data failed (${r.status})`); return r.json(); })
+        .then(geo => { state.worldGeo = geo; return geo; });
+    }
+    return worldGeoPromise;
+  }
 
   async function api(path, options = {}) {
     const response = await fetch(path, { credentials: 'same-origin', ...options });
@@ -47,6 +56,7 @@
       setSourceStatus('websiteStatus','Website',summary.sources.website,summary.source_freshness?.website);
       setSourceStatus('waspStatus','WASP',summary.sources.wasp,summary.source_freshness?.wasp);
       state.countries = usage.countries;
+      try { await loadWorldGeo(); } catch (_) { state.worldGeo = null; }
       renderMap(); renderCountryTable(); renderWebsiteTable(website.metrics || []);
       byId('csvLink').href = `/api/v1/wasp/export.csv?${query}`;
     } catch (error) { if (error.message !== 'Authentication required') byId('dashboardError').textContent = error.message; }
@@ -54,12 +64,13 @@
 
   function renderMap() {
     if (!window.Plotly) { byId('usageMap').textContent = 'Map library unavailable. Country table remains available.'; return; }
+    if (!state.worldGeo) { byId('usageMap').textContent = 'World map data unavailable. Country table remains available.'; return; }
     const metric = byId('mapMetric').value;
     const labels = {successful_runs:'Successful runs',failed_runs:'Failed runs',downloads:'Downloads',sessions:'Sessions'};
-    const rows = state.countries.filter(row => row.country_code !== 'ZZ');
-    Plotly.newPlot('usageMap',[{type:'choropleth',locationmode:'country names',locations:rows.map(r=>r.country),z:rows.map(r=>r[metric]),text:rows.map(r=>r.country),hovertemplate:`%{text}<br>${labels[metric]}: %{z}<extra></extra>`,colorscale:[[0,'#e5f2ef'],[1,'#0f766e']],marker:{line:{color:'#fff',width:.5}},colorbar:{title:labels[metric]}}],{geo:{showframe:false,showcoastlines:false,projection:{type:'natural earth'},bgcolor:'#f9fbfa'},paper_bgcolor:'#f9fbfa',margin:{l:0,r:0,t:10,b:0}},{responsive:true,displayModeBar:false});
+    const rows = state.countries.filter(row => row.country_iso3);
+    Plotly.newPlot('usageMap',[{type:'choropleth',geojson:state.worldGeo,featureidkey:'properties.ISO_A3_EH',locations:rows.map(r=>r.country_iso3),z:rows.map(r=>r[metric]),text:rows.map(r=>r.country),hovertemplate:`%{text}<br>${labels[metric]}: %{z}<extra></extra>`,colorscale:[[0,'#e5f2ef'],[1,'#0f766e']],marker:{line:{color:'#fff',width:.5}},colorbar:{title:labels[metric]}}],{geo:{showframe:false,showcoastlines:false,projection:{type:'natural earth'},bgcolor:'#f9fbfa'},paper_bgcolor:'#f9fbfa',margin:{l:0,r:0,t:10,b:0}},{responsive:true,displayModeBar:false});
     const map = byId('usageMap'); map.removeAllListeners?.('plotly_click');
-    map.on('plotly_click', event => { const name = event.points[0]?.location; const row = state.countries.find(item=>item.country===name); if(row) void selectCountry(row.country_code); });
+    map.on('plotly_click', event => { const code = event.points[0]?.location; const row = state.countries.find(item=>item.country_iso3===code); if(row) void selectCountry(row.country_code); });
   }
 
   function renderCountryTable() {
