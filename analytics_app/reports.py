@@ -57,8 +57,8 @@ def send_test_email(settings: Settings, *, smtp_factory=smtplib.SMTP_SSL) -> Non
     message = EmailMessage()
     message["From"] = settings.report_from
     message["To"] = settings.report_to
-    message["Subject"] = "HydroClimateX Analytics — SMTP test"
-    message.set_content("HydroClimateX Analytics SMTP configuration test succeeded.")
+    message["Subject"] = "HydroclimateX Analytics — SMTP test"
+    message.set_content("HydroclimateX Analytics SMTP configuration test succeeded.")
     with smtp_factory(settings.smtp_host, settings.smtp_port, timeout=30) as smtp:
         smtp.login(settings.smtp_username, settings.smtp_password)
         smtp.send_message(message)

@@ -49,7 +49,7 @@ def parse_report_month(value: str) -> date:
 
 
 def create_app(*, settings: Settings, repository: Repository, umami, report_service=None) -> FastAPI:
-    app = FastAPI(title="HydroClimateX Analytics API", docs_url=None, redoc_url=None)
+    app = FastAPI(title="HydroclimateX Analytics API", docs_url=None, redoc_url=None)
     limiter = LoginLimiter()
     if report_service is None:
         from .reports import ReportService

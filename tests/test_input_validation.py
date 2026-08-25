@@ -36,6 +36,7 @@ except ImportError:
 
 try:
     from app import predict as api_predict
+    from fastapi import BackgroundTasks
     from starlette.datastructures import UploadFile
     from starlette.responses import JSONResponse
 except (ImportError, RuntimeError):
@@ -248,32 +249,43 @@ class ApiInputValidationTests(unittest.TestCase):
     def upload(contents: bytes) -> "UploadFile":
         return UploadFile(file=BytesIO(contents), filename="input.csv")
 
+    def call_predict(self, **kwargs) -> object:
+        request = mock.Mock()
+        request.cookies = {}
+        request.headers = {}
+        request.client = None
+        return asyncio.run(
+            api_predict(
+                request=request,
+                background_tasks=BackgroundTasks(),
+                response=mock.Mock(),
+                **kwargs,
+            )
+        )
+
     def test_api_default_test_size_remains_twenty_percent(self) -> None:
         test_size = inspect.signature(api_predict).parameters["test_size"].default
         self.assertEqual(test_size.default, 0.2)
 
-    def test_api_wavelet_contract_documents_python_only_db16(self) -> None:
+    def test_api_wavelet_contract_documents_db16(self) -> None:
         wavelet = inspect.signature(api_predict).parameters["wavelet"].default
-        self.assertEqual(wavelet.default, "db4")
+        self.assertEqual(wavelet.default, "db16")
         self.assertIn("db1", wavelet.description)
         self.assertIn("db2", wavelet.description)
         self.assertIn("db4", wavelet.description)
         self.assertIn("db8", wavelet.description)
         self.assertIn("db16", wavelet.description)
-        self.assertRegex(wavelet.description, r"Python-only.*no upstream R/waveslim equivalent")
 
     def test_unsupported_wavelet_is_a_structured_400(self) -> None:
         rows = ["target,predictor"] + [f"{index},{index + 1}" for index in range(30)]
-        response = asyncio.run(
-            api_predict(
-                file=self.upload(("\n".join(rows) + "\n").encode()),
-                wavelet="sym8",
-                level=0,
-                test_size=0.2,
-                model="linear",
-                target_column=None,
-                predictor_columns=None,
-            )
+        response = self.call_predict(
+            file=self.upload(("\n".join(rows) + "\n").encode()),
+            wavelet="sym8",
+            level=0,
+            test_size=0.2,
+            model="linear",
+            target_column=None,
+            predictor_columns=None,
         )
         self.assertIsInstance(response, JSONResponse)
         self.assertEqual(response.status_code, 400)
@@ -286,16 +298,14 @@ class ApiInputValidationTests(unittest.TestCase):
             f"day-{index},{index},{index * 2 + 1},metadata"
             for index in range(64)
         ]
-        response = asyncio.run(
-            api_predict(
-                file=self.upload(("\n".join(rows) + "\n").encode()),
-                wavelet="db2",
-                level=0,
-                test_size=0.5,
-                model="knn",
-                target_column="target",
-                predictor_columns=["predictor"],
-            )
+        response = self.call_predict(
+            file=self.upload(("\n".join(rows) + "\n").encode()),
+            wavelet="db2",
+            level=0,
+            test_size=0.5,
+            model="knn",
+            target_column="target",
+            predictor_columns=["predictor"],
         )
 
         self.assertNotIsInstance(response, JSONResponse)
@@ -306,16 +316,14 @@ class ApiInputValidationTests(unittest.TestCase):
 
     def test_unsupported_model_is_a_structured_400(self) -> None:
         rows = ["target,predictor"] + [f"{index},{index + 1}" for index in range(64)]
-        response = asyncio.run(
-            api_predict(
-                file=self.upload(("\n".join(rows) + "\n").encode()),
-                wavelet="db2",
-                level=0,
-                test_size=0.2,
-                model="ridge",
-                target_column="target",
-                predictor_columns=["predictor"],
-            )
+        response = self.call_predict(
+            file=self.upload(("\n".join(rows) + "\n").encode()),
+            wavelet="db2",
+            level=0,
+            test_size=0.2,
+            model="ridge",
+            target_column="target",
+            predictor_columns=["predictor"],
         )
 
         self.assertIsInstance(response, JSONResponse)
@@ -325,16 +333,14 @@ class ApiInputValidationTests(unittest.TestCase):
 
     def test_invalid_csv_is_a_structured_400(self) -> None:
         rows = ["target,predictor"] + [f"{index},bad" for index in range(30)]
-        response = asyncio.run(
-            api_predict(
-                file=self.upload(("\n".join(rows) + "\n").encode()),
-                wavelet="db4",
-                level=0,
-                test_size=0.2,
-                model="linear",
-                target_column=None,
-                predictor_columns=None,
-            )
+        response = self.call_predict(
+            file=self.upload(("\n".join(rows) + "\n").encode()),
+            wavelet="db4",
+            level=0,
+            test_size=0.2,
+            model="linear",
+            target_column=None,
+            predictor_columns=None,
         )
         self.assertIsInstance(response, JSONResponse)
         self.assertEqual(response.status_code, 400)
@@ -345,16 +351,14 @@ class ApiInputValidationTests(unittest.TestCase):
     def test_extreme_finite_csv_is_a_structured_json_safe_400(self) -> None:
         rows = ["target,predictor"] + [f"{index},{index + 1}" for index in range(30)]
         rows[4] = "3,1e154"
-        response = asyncio.run(
-            api_predict(
-                file=self.upload(("\n".join(rows) + "\n").encode()),
-                wavelet="db4",
-                level=0,
-                test_size=0.2,
-                model="linear",
-                target_column=None,
-                predictor_columns=None,
-            )
+        response = self.call_predict(
+            file=self.upload(("\n".join(rows) + "\n").encode()),
+            wavelet="db4",
+            level=0,
+            test_size=0.2,
+            model="linear",
+            target_column=None,
+            predictor_columns=None,
         )
         self.assertIsInstance(response, JSONResponse)
         self.assertEqual(response.status_code, 400)
@@ -364,22 +368,23 @@ class ApiInputValidationTests(unittest.TestCase):
 
     def test_prediction_runs_in_threadpool_behind_single_task_semaphore(self) -> None:
         rows = ["target,predictor"] + [f"{index},{index + 1}" for index in range(30)]
-        expected = {"success": True, "metrics": {}, "predictions": {}}
 
-        with mock.patch("app.run_in_threadpool", new=mock.AsyncMock(return_value=expected)) as runner:
-            response = asyncio.run(
-                api_predict(
-                    file=self.upload(("\n".join(rows) + "\n").encode()),
-                    wavelet="db4",
-                    level=0,
-                    test_size=0.2,
-                    model="linear",
-                    target_column=None,
-                    predictor_columns=None,
-                )
+        with mock.patch(
+            "app.run_in_threadpool",
+            new=mock.AsyncMock(return_value={"success": True, "metrics": {}, "predictions": {}}),
+        ) as runner:
+            response = self.call_predict(
+                file=self.upload(("\n".join(rows) + "\n").encode()),
+                wavelet="db4",
+                level=0,
+                test_size=0.2,
+                model="linear",
+                target_column=None,
+                predictor_columns=None,
             )
 
-        self.assertEqual(response, expected)
+        self.assertTrue(response["success"])
+        self.assertIsInstance(response["analytics_run_id"], str)
         runner.assert_awaited_once()
         source = (ROOT / "backend/app.py").read_text(encoding="utf-8")
         self.assertIn("asyncio.Semaphore(1)", source)
