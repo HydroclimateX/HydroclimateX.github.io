@@ -20,6 +20,7 @@ def build_parser() -> argparse.ArgumentParser:
     reset = commands.add_parser("reset-password", help="create a replacement hash and revoke every session")
     reset.add_argument("password", nargs="?", help="omit to enter without terminal echo")
     commands.add_parser("migrate", help="apply Analytics database migrations")
+    commands.add_parser("init-umami", help="ensure the Umami reader user and website exist and print their credentials")
     commands.add_parser("test-email", help="send a one-off SMTP configuration test")
     send = commands.add_parser("send-report", help="generate and send one monthly report")
     send.add_argument("month", help="month in YYYY-MM format")
@@ -32,6 +33,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "hash-password":
         secret = args.password or getpass.getpass("New administrator password: ")
         print(hash_password(secret))
+        return 0
+
+    if args.command == "init-umami":
+        from .umami_init import init_umami
+
+        for key, value in init_umami(Settings.from_env()).items():
+            print(f"{key}={value}")
         return 0
 
     settings = Settings.from_env()

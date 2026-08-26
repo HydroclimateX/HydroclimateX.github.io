@@ -51,9 +51,10 @@ class UmamiClient:
         response.raise_for_status()
         return response.json()
 
-    def summary(self, period: Period) -> dict[str, object]:
-        empty = {
-            "status": "unavailable",
+    @staticmethod
+    def _empty(status: str) -> dict[str, object]:
+        return {
+            "status": status,
             "visitors": None,
             "pageviews": None,
             "countries": None,
@@ -62,8 +63,10 @@ class UmamiClient:
             "github_clicks": None,
             "file_downloads": None,
         }
+
+    def summary(self, period: Period) -> dict[str, object]:
         if not all((self.settings.umami_username, self.settings.umami_password, self.settings.umami_website_id)):
-            return empty
+            return self._empty("configuration missing")
         params = {
             "startAt": int(period.start.timestamp() * 1000),
             "endAt": int(period.end.timestamp() * 1000),
@@ -74,7 +77,7 @@ class UmamiClient:
             countries = self._get(f"{base}/metrics", {**params, "type": "country", "limit": 500})
             events = self._get(f"{base}/metrics", {**params, "type": "event", "limit": 500})
         except (httpx.HTTPError, KeyError, TypeError, ValueError):
-            return empty
+            return self._empty("unavailable")
 
         event_counts = {str(row.get("x")): int(row.get("y", 0)) for row in events}  # type: ignore[union-attr]
         result = {

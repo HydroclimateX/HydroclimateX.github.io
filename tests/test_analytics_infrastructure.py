@@ -84,6 +84,17 @@ def test_analytics_rollout_has_preflight_migration_certificates_and_gated_schedu
     assert "analytics-worker" in enable
 
 
+def test_deploy_wires_umami_initializer_and_0600_secrets():
+    deploy = read("deploy-analytics.sh")
+    compose = read("docker-compose.yml")
+    assert "analytics_app.cli init-umami" in deploy
+    assert "chmod 600" in deploy
+    assert "UMAMI_API_USERNAME" in deploy
+    assert "UMAMI_WEBSITE_ID" in deploy
+    assert "UMAMI_ADMIN_USERNAME" in compose
+    assert "UMAMI_ADMIN_PASSWORD" in compose
+
+
 def test_dbip_country_lite_is_keyless_validated_and_wired_into_wasp():
     installer = read("scripts/install-dbip-country-lite.sh")
     compose = read("docker-compose.yml")

@@ -40,18 +40,6 @@ for key in "${required_keys[@]}"; do
   fi
   [[ -n "$value" ]] || fail "$key must be set in $source_name"
 done
-if [[ -f "$SCRIPT_DIR/.env" ]]; then
-  umami_api_username="$(sed -n 's/^UMAMI_API_USERNAME=//p' "$SCRIPT_DIR/.env" | tail -1)"
-  umami_api_password="$(sed -n 's/^UMAMI_API_PASSWORD=//p' "$SCRIPT_DIR/.env" | tail -1)"
-  umami_website_id="$(sed -n 's/^UMAMI_WEBSITE_ID=//p' "$SCRIPT_DIR/.env" | tail -1)"
-else
-  umami_api_username="${UMAMI_API_USERNAME:-}"
-  umami_api_password="${UMAMI_API_PASSWORD:-}"
-  umami_website_id="${UMAMI_WEBSITE_ID:-}"
-fi
-if [[ -z "$umami_api_username" || -z "$umami_api_password" || -z "$umami_website_id" ]]; then
-  info "Umami read credentials are not configured; Website Analytics will remain unavailable."
-fi
 "$SCRIPT_DIR/scripts/install-dbip-country-lite.sh"
 [[ -s "$SCRIPT_DIR/geoip/dbip-country-lite.mmdb" ]] || fail "DB-IP Country Lite installation failed"
 [[ -s "$STATE_DIR/conf/live/wasp.hydroclimatex.com/fullchain.pem" ]] || fail "the existing WASP TLS certificate is required"
@@ -69,8 +57,26 @@ info "Building and starting private data services and Analytics API."
 docker compose build analytics-api wasp-api nginx
 docker compose run --rm --no-deps wasp-api python -c \
   'import maxminddb; reader=maxminddb.open_database("/opt/geoip/dbip-country-lite.mmdb"); code=reader.get("8.8.8.8")["country"]["iso_code"]; assert len(code) == 2; reader.close()'
-docker compose up -d --wait analytics-postgres umami analytics-api wasp-api
+docker compose up -d --wait analytics-postgres umami
 docker compose run --rm analytics-api python -m analytics_app.cli migrate
+umami_init_output="$(docker compose run --rm analytics-api python -m analytics_app.cli init-umami)" || {
+  info "Umami initialization failed; Website Analytics will remain unavailable."
+  umami_init_output=""
+}
+if [[ -n "$umami_init_output" ]]; then
+  if [[ -f "$SCRIPT_DIR/.env" ]]; then
+    for key in UMAMI_API_USERNAME UMAMI_API_PASSWORD UMAMI_WEBSITE_ID; do
+      sed -i "/^${key}=/d" "$SCRIPT_DIR/.env"
+    done
+    printf '%s\n' "$umami_init_output" >> "$SCRIPT_DIR/.env"
+    chmod 600 "$SCRIPT_DIR/.env"
+    info "Umami credentials written to .env with mode 600."
+  else
+    info "No .env on the server; export these Umami credentials in the deployment shell:"
+    printf '%s\n' "$umami_init_output"
+  fi
+fi
+docker compose up -d --wait analytics-api wasp-api
 
 missing_certificate=0
 for domain in "${DOMAINS[@]}"; do

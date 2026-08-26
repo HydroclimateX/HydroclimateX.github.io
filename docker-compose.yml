@@ -13,6 +13,8 @@ x-analytics-environment: &analytics-environment
   UMAMI_API_USERNAME: ${UMAMI_API_USERNAME:-}
   UMAMI_API_PASSWORD: ${UMAMI_API_PASSWORD:-}
   UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID:-}
+  UMAMI_ADMIN_USERNAME: ${UMAMI_ADMIN_USERNAME:-admin}
+  UMAMI_ADMIN_PASSWORD: ${UMAMI_ADMIN_PASSWORD:-umami}
   ANALYTICS_SMTP_HOST: ${ANALYTICS_SMTP_HOST:-smtp.126.com}
   ANALYTICS_SMTP_PORT: ${ANALYTICS_SMTP_PORT:-465}
   ANALYTICS_SMTP_USERNAME: ${ANALYTICS_SMTP_USERNAME:-zejiang_hydrology@126.com}
@@ -55,6 +57,12 @@ services:
     depends_on:
       analytics-postgres:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - wasp-net
 
@@ -71,7 +79,7 @@ services:
       analytics-postgres:
         condition: service_healthy
       umami:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
       interval: 10s
@@ -93,7 +101,7 @@ services:
       analytics-postgres:
         condition: service_healthy
       umami:
-        condition: service_started
+        condition: service_healthy
     networks:
       - wasp-net
 

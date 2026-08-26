@@ -98,4 +98,4 @@ def test_missing_read_credentials_are_deferred_and_do_not_call_umami(monkeypatch
     )
     period = resolve_period("30d", now=datetime(2026, 8, 25, tzinfo=timezone.utc))
 
-    assert client.summary(period)["status"] == "unavailable"
+    assert client.summary(period)["status"] == "configuration missing"

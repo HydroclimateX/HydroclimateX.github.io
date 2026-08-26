@@ -24,6 +24,8 @@ class Settings:
     umami_username: str = ""
     umami_password: str = ""
     umami_website_id: str = ""
+    umami_admin_username: str = "admin"
+    umami_admin_password: str = "umami"
     session_hours: int = 12
     smtp_host: str = "smtp.126.com"
     smtp_port: int = 465
@@ -56,6 +58,8 @@ class Settings:
             umami_username=os.getenv("UMAMI_API_USERNAME", "").strip(),
             umami_password=os.getenv("UMAMI_API_PASSWORD", "").strip(),
             umami_website_id=os.getenv("UMAMI_WEBSITE_ID", "").strip(),
+            umami_admin_username=os.getenv("UMAMI_ADMIN_USERNAME", "admin").strip(),
+            umami_admin_password=os.getenv("UMAMI_ADMIN_PASSWORD", "umami").strip(),
             smtp_host=os.getenv("ANALYTICS_SMTP_HOST", "smtp.126.com"),
             smtp_port=int(os.getenv("ANALYTICS_SMTP_PORT", "465")),
             smtp_username=os.getenv("ANALYTICS_SMTP_USERNAME", "zejiang_hydrology@126.com"),
