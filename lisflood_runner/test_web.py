@@ -224,6 +224,7 @@ class WebContractTests(unittest.TestCase):
 
     def test_base_data_bundle_has_aligned_intact_grids(self) -> None:
         data_dir = ROOT / "lisflood_runner" / "data"
+        self.assertIn("lisflood_runner/data/DATA-SOURCES.md", read("lisflood_runner/README.md"))
         checksums = {}
         for line in (data_dir / "SHA256SUMS").read_text(encoding="ascii").splitlines():
             digest, name = line.split()

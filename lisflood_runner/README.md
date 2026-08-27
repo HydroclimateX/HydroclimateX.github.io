@@ -42,6 +42,8 @@ The image contains the aligned, compressed grids in `lisflood_runner/data/`:
 - `population.asc.gz`: WorldPop 2025 population counts on the same grid;
 - `SHA256SUMS`: checksums verified before deployment and at service startup.
 
+See `lisflood_runner/data/DATA-SOURCES.md` for provenance, licensing and processing details.
+
 Verify the bundle from the repository root with:
 
 ```bash
