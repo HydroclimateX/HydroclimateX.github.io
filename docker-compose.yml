@@ -163,6 +163,11 @@ services:
       retries: 12
     networks:
       - wasp-net
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ---- Nginx Reverse Proxy ----
   nginx:

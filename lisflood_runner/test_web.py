@@ -163,6 +163,11 @@ class WebContractTests(unittest.TestCase):
         self.assertIn("limit_req zone=lisflood_submit burst=1 nodelay;", lisflood)
         self.assertIn("location /api/lisflood/", lisflood)
         self.assertLess(lisflood.index("location /api/lisflood/"), lisflood.rindex("location / {"))
+        self.assertIn("client_max_body_size 4k;", lisflood)
+        self.assertIn(
+            'logging:\n      driver: "json-file"\n      options:\n        max-size: "10m"\n        max-file: "3"',
+            runner,
+        )
         self.assertIn("COPY lisflood_runner/data /opt/lisflood/data", runner_dockerfile)
         self.assertIn("EXPOSE 8080", runner_dockerfile)
         self.assertIn('ENTRYPOINT ["python", "-m", "lisflood_runner.service"]', runner_dockerfile)
