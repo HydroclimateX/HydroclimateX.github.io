@@ -68,19 +68,21 @@
     return worldMap;
   }
 
+  function paintMap(svg) {
+    const runs = new Map(state.countries.map(row => [row.country_iso3, row.successful_runs]));
+    const max = Math.max(0, ...runs.values());
+    svg.querySelectorAll('path[data-iso3]').forEach(path => {
+      const value = runs.get(path.dataset.iso3) || 0;
+      path.setAttribute('fill', value > 0 ? tealColor(Math.pow(value / max, 0.7)) : '#dce4e1');
+    });
+  }
+
   function renderStaticMap() {
     const container = byId('usageMap');
+    const existing = container.querySelector('svg');
+    if (existing) { paintMap(existing); return; }
     loadWorldMap()
-      .then(svg => {
-        const view = svg.cloneNode(true);
-        const runs = new Map(state.countries.map(row => [row.country_iso3, row.successful_runs]));
-        const max = Math.max(0, ...runs.values());
-        view.querySelectorAll('path[data-iso3]').forEach(path => {
-          const value = runs.get(path.dataset.iso3) || 0;
-          path.setAttribute('fill', value > 0 ? tealColor(Math.pow(value / max, 0.7)) : '#dce4e1');
-        });
-        container.replaceChildren(view);
-      })
+      .then(svg => { container.replaceChildren(svg.cloneNode(true)); paintMap(container.querySelector('svg')); })
       .catch(() => { container.textContent = 'World map unavailable. Country table remains available.'; });
   }
 

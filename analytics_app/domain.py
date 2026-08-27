@@ -104,6 +104,13 @@ def country_iso3(code: str) -> str | None:
         return None
 
 
+def format_timestamp_seconds(value) -> str:
+    """UTC ISO-8601 timestamp at second resolution for display (no fractional seconds)."""
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
+    return str(value or "")
+
+
 def aggregate_country_rows(rows: Iterable[Mapping[str, object]]) -> dict[str, object]:
     grouped: dict[str, dict[str, object]] = {}
     all_sessions: set[str] = set()
@@ -134,11 +141,7 @@ def aggregate_country_rows(rows: Iterable[Mapping[str, object]]) -> dict[str, ob
             session_key = str(session)
             bucket["_sessions"].add(session_key)  # type: ignore[union-attr]
             all_sessions.add(session_key)
-        raw_occurred_at = row.get("occurred_at")
-        if isinstance(raw_occurred_at, datetime):
-            occurred_at = raw_occurred_at.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
-        else:
-            occurred_at = str(raw_occurred_at or "")
+        occurred_at = format_timestamp_seconds(row.get("occurred_at"))
         if occurred_at and (bucket["last_activity"] is None or occurred_at > str(bucket["last_activity"])):
             bucket["last_activity"] = occurred_at
 

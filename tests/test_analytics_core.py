@@ -55,6 +55,15 @@ def test_country_aggregation_calculates_totals_and_success_rate() -> None:
     }
 
 
+def test_country_aggregation_truncates_fractional_seconds() -> None:
+    result = aggregate_country_rows([
+        {"country_code": "AU", "event_type": "run_success", "session_hash": "s1",
+         "occurred_at": datetime(2026, 8, 1, 1, 0, 0, 123456, tzinfo=timezone.utc)},
+    ])
+
+    assert result["countries"][0]["last_activity"] == "2026-08-01T01:00:00Z"
+
+
 def test_country_aggregation_treats_missing_country_as_unknown() -> None:
     result = aggregate_country_rows([
         {"country_code": None, "event_type": "session_start", "session_hash": "s1", "occurred_at": "2026-08-01T00:00:00Z"},

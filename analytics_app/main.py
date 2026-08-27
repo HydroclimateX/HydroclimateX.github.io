@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .config import Settings
-from .domain import PeriodError, aggregate_country_rows, resolve_period
+from .domain import PeriodError, aggregate_country_rows, format_timestamp_seconds, resolve_period
 from .repository import AdminSession, EventConflict, Repository, UsageEvent
 from .security import LoginLimiter, create_session_credentials, hash_token, verify_password
 
@@ -189,10 +189,11 @@ def create_app(*, settings: Settings, repository: Repository, umami, report_serv
             wasp = aggregate_country_rows(event_rows)
             totals = wasp["totals"]
             wasp_status = "available"
-            wasp_last_activity = max(
-                (str(row.get("occurred_at")) for row in event_rows if row.get("occurred_at")),
+            raw_last_activity = max(
+                (row.get("occurred_at") for row in event_rows if row.get("occurred_at")),
                 default=None,
             )
+            wasp_last_activity = format_timestamp_seconds(raw_last_activity) if raw_last_activity is not None else None
         except Exception:
             totals = {"successful_runs": None, "success_rate": None, "countries": None}
             wasp_status = "unavailable"
