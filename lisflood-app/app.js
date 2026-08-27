@@ -50,11 +50,15 @@ function boundsWithin(bounds, available) {
     && bounds[1][1] <= available[1][1];
 }
 
-function canRun() {
-  if (!state.config || state.running || !state.bounds) return false;
+function geometryIsValid() {
+  if (!state.config || !state.bounds) return false;
   const available = asBounds(state.config.availableBounds);
   const area = rectangleAreaKm2(state.bounds);
   return boundsWithin(state.bounds, available) && area > 0 && area <= Number(state.config.maxAreaKm2);
+}
+
+function canRun() {
+  return geometryIsValid() && !state.running;
 }
 
 function setRectangle(bounds) {
@@ -81,7 +85,7 @@ function updateSelectionDisplay() {
   }
   const area = rectangleAreaKm2(state.bounds);
   $('selectedArea').textContent = `Approx. ${areaLabel(area)} selected`;
-  if (!canRun()) {
+  if (!geometryIsValid()) {
     $('selectedArea').textContent += ' (outside the available model area or too large)';
   }
 }

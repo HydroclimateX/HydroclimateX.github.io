@@ -43,6 +43,13 @@ class WebContractTests(unittest.TestCase):
         self.assertIn("effectiveBounds", script)
         self.assertIn("returnPeriod: Number(state.period)", script)
 
+    def test_geometry_validation_is_separate_from_running_state(self) -> None:
+        script = read("lisflood-app/app.js")
+        self.assertIn("function geometryIsValid()", script)
+        self.assertIn("function canRun()", script)
+        self.assertIn("return geometryIsValid() && !state.running;", script)
+        self.assertIn("if (!geometryIsValid())", script)
+
     def test_compose_and_nginx_publish_only_cached_results(self) -> None:
         compose = read("docker-compose.yml")
         environment = read(".env.example")
