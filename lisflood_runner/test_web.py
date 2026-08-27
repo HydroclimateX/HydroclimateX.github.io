@@ -130,7 +130,7 @@ class WebContractTests(unittest.TestCase):
                     for value in values:
                         number = float(value)
                         self.assertTrue(math.isfinite(number))
-                        if name == "population" and number != header["nodata_value"]:
+                        if name == "population.asc.gz" and number != header["nodata_value"]:
                             self.assertGreaterEqual(number, 0.0)
                     row_count += 1
                 self.assertEqual(row_count, int(header["nrows"]))
