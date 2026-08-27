@@ -1,3 +1,5 @@
+import gzip
+import hashlib
 import unittest
 from pathlib import Path
 
@@ -87,6 +89,52 @@ class WebContractTests(unittest.TestCase):
         self.assertIn("-t_srs EPSG:32650", prepare)
         self.assertIn("-tr 30 30", prepare)
         self.assertIn("-r sum", prepare)
+
+    def test_base_data_bundle_has_aligned_intact_grids(self) -> None:
+        data_dir = ROOT / "lisflood_runner" / "data"
+        checksums = {}
+        for line in (data_dir / "SHA256SUMS").read_text(encoding="ascii").splitlines():
+            digest, name = line.split()
+            checksums[name] = digest
+        self.assertEqual(set(checksums), {"dem.asc.gz", "population.asc.gz"})
+
+        expected = {
+            "ncols": 1498.0,
+            "nrows": 825.0,
+            "xllcorner": 665955.77,
+            "yllcorner": 3546538.43,
+            "cellsize": 30.0,
+            "nodata_value": -9999.0,
+        }
+        headers = []
+        for name, digest in checksums.items():
+            path = data_dir / name
+            hasher = hashlib.sha256()
+            with path.open("rb") as binary:
+                for chunk in iter(lambda: binary.read(1024 * 1024), b""):
+                    hasher.update(chunk)
+            self.assertEqual(hasher.hexdigest(), digest)
+
+            with gzip.open(path, "rt", encoding="ascii") as source:
+                header = {}
+                for _ in range(6):
+                    key, value = source.readline().split()[:2]
+                    header[key.lower()] = float(value)
+                row_count = 0
+                for line in source:
+                    values = line.split()
+                    self.assertEqual(len(values), int(header["ncols"]))
+                    for value in values:
+                        float(value)
+                    row_count += 1
+                self.assertEqual(row_count, int(header["nrows"]))
+                self.assertGreater(row_count, 0)
+
+            for key, value in expected.items():
+                self.assertAlmostEqual(header[key], value, places=6)
+            headers.append(header)
+
+        self.assertEqual(headers[0], headers[1])
 
 
 if __name__ == "__main__":
