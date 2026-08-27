@@ -149,7 +149,10 @@ class WebContractTests(unittest.TestCase):
         )
         self.assertNotIn("LISFLOOD_PRIVATE_DIR", compose)
         self.assertNotIn("LISFLOOD_REQUIRE_PARITY", compose)
-        self.assertIn("LISFLOOD_MODEL_DIR=/opt/hydroclimatex-wasp/lisflood-private/model", environment)
+        self.assertIn("LISFLOOD_MAX_AREA_KM2=300", environment)
+        self.assertIn("LISFLOOD_JOB_TIMEOUT_SECONDS=7200", environment)
+        self.assertIn("LISFLOOD_CACHE_DIR=/opt/hydroclimatex-wasp/state/lisflood-cache", environment)
+        self.assertNotIn("LISFLOOD_MODEL_DIR", environment)
         self.assertNotIn("LISFLOOD_PRIVATE_DIR", environment)
         self.assertNotIn("LISFLOOD_REQUIRE_PARITY", environment)
         self.assertIn("${LISFLOOD_CACHE_DIR:-/opt/hydroclimatex-wasp/state/lisflood-cache}:/srv/lisflood-results:ro", compose)
@@ -177,17 +180,25 @@ class WebContractTests(unittest.TestCase):
         self.assertIn("COPY nginx/lisflood.conf /opt/wasp/lisflood.conf", dockerfile)
         self.assertIn("cat /opt/wasp/lisflood.conf >> /etc/nginx/conf.d/default.conf", selector)
 
-    def test_deploy_script_guards_dns_cache_and_https(self) -> None:
+    def test_deploy_script_guards_data_service_and_https(self) -> None:
         deploy = read("deploy-lisflood.sh")
+        environment = read(".env.example")
         self.assertIn('EXPECTED_IP="8.210.252.61"', deploy)
-        self.assertIn("docker compose --profile lisflood-tools run --rm lisflood-runner", deploy)
-        self.assertIn("/results/manifest.json", deploy)
+        for filename in ("dem.asc.gz", "population.asc.gz", "SHA256SUMS"):
+            self.assertIn(f"lisflood_runner/data/{filename}", deploy)
+        self.assertNotIn("ft.par", deploy)
+        self.assertNotIn("LISFLOOD_MODEL_DIR", deploy)
+        self.assertNotIn("--profile lisflood-tools", deploy)
+        self.assertIn("docker compose up -d --build --wait lisflood-runner", deploy)
         self.assertIn("--resolve", deploy)
         self.assertIn("PRIOR_NGINX_IMAGE", deploy)
         self.assertIn("docker image tag", deploy)
-        self.assertIn('MODEL_DIR="${LISFLOOD_MODEL_DIR:-/opt/hydroclimatex-wasp/lisflood-private/model}"', deploy)
-        self.assertIn('for required in ft.par dem.asc population.asc', deploy)
-        self.assertNotIn("missing private LISFLOOD-FP source", deploy)
+        self.assertIn("/api/lisflood/config", deploy)
+        self.assertIn('grep -q \'"maxAreaKm2"\'', deploy)
+        self.assertIn("LISFLOOD_MAX_AREA_KM2=300", environment)
+        self.assertIn("LISFLOOD_JOB_TIMEOUT_SECONDS=7200", environment)
+        self.assertIn("LISFLOOD_CACHE_DIR=/opt/hydroclimatex-wasp/state/lisflood-cache", environment)
+        self.assertNotIn("LISFLOOD_MODEL_DIR", environment)
 
     def test_runner_image_builds_pinned_official_engine(self) -> None:
         dockerfile = read("lisflood_runner/Dockerfile")

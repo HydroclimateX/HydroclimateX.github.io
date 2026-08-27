@@ -6,11 +6,10 @@ EXPECTED_IP="8.210.252.61"
 CERTBOT_EMAIL="ze.jiang@hhu.edu.cn"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 STATE_DIR="${WASP_STATE_DIR:-/opt/hydroclimatex-wasp/state}"
-MODEL_DIR="${LISFLOOD_MODEL_DIR:-/opt/hydroclimatex-wasp/lisflood-private/model}"
 CACHE_DIR="${LISFLOOD_CACHE_DIR:-$STATE_DIR/lisflood-cache}"
 NGINX_IMAGE="hydroclimatex/wasp-nginx:current"
 PRIOR_NGINX_IMAGE=""
-export WASP_STATE_DIR="$STATE_DIR" LISFLOOD_MODEL_DIR="$MODEL_DIR" LISFLOOD_CACHE_DIR="$CACHE_DIR"
+export WASP_STATE_DIR="$STATE_DIR" LISFLOOD_CACHE_DIR="$CACHE_DIR"
 
 fail() { printf '[lisflood] error: %s\n' "$*" >&2; exit 1; }
 info() { printf '[lisflood] %s\n' "$*"; }
@@ -27,17 +26,16 @@ restore_proxy() {
 
 [[ "$EUID" -eq 0 ]] || fail "run as root"
 [[ "$(nproc)" -ge 2 ]] || fail "at least 2 vCPU are required"
-for required in ft.par dem.asc population.asc; do
-  [[ -f "$MODEL_DIR/$required" ]] || fail "missing model file: $required"
+for required in \
+  "$SCRIPT_DIR/lisflood_runner/data/dem.asc.gz" \
+  "$SCRIPT_DIR/lisflood_runner/data/population.asc.gz" \
+  "$SCRIPT_DIR/lisflood_runner/data/SHA256SUMS"; do
+  [[ -s "$required" ]] || fail "missing tracked LISFLOOD data: $required"
 done
-while read -r key value _; do
-  [[ -z "$key" || "$key" == \#* ]] && continue
-  case "${key,,}" in
-    demfile|bcifile|startfile|manningfile|evaporation)
-      [[ -f "$MODEL_DIR/$value" ]] || fail "missing model file referenced by ft.par: $value"
-      ;;
-  esac
-done < "$MODEL_DIR/ft.par"
+(
+  cd "$SCRIPT_DIR/lisflood_runner/data"
+  sha256sum -c SHA256SUMS
+) || fail "tracked LISFLOOD data checksum verification failed"
 for existing_domain in wasp.hydroclimatex.com analytics.hydroclimatex.com telemetry.hydroclimatex.com; do
   [[ -s "$STATE_DIR/conf/live/$existing_domain/fullchain.pem" ]] || fail "missing existing certificate for $existing_domain"
 done
@@ -53,10 +51,9 @@ PRIOR_NGINX_IMAGE="$(docker inspect --format '{{.Image}}' wasp-nginx 2>/dev/null
 [[ -n "$PRIOR_NGINX_IMAGE" ]] || fail "a running WASP Nginx image is required for rollback"
 [[ "$(docker inspect --format '{{.State.Health.Status}}' wasp-nginx 2>/dev/null || true)" == "healthy" ]] || fail "the existing WASP Nginx container must be healthy"
 info "Building the model runner and static web image."
-docker compose --profile lisflood-tools build lisflood-runner nginx
-info "Generating all five cached scenarios before changing the public proxy."
-docker compose --profile lisflood-tools run --rm lisflood-runner
-[[ -s "$CACHE_DIR/manifest.json" ]] || fail "cache generator did not publish /results/manifest.json"
+docker compose build lisflood-runner nginx
+info "Starting the LISFLOOD service before changing the public proxy."
+docker compose up -d --build --wait lisflood-runner
 
 trap restore_proxy ERR
 if [[ ! -s "$STATE_DIR/conf/live/$DOMAIN/fullchain.pem" || ! -s "$STATE_DIR/conf/live/$DOMAIN/privkey.pem" ]]; then
@@ -68,6 +65,7 @@ fi
 
 NGINX_CONFIG=nginx.analytics.conf docker compose up -d --no-build --force-recreate --wait nginx
 curl --fail --silent --show-error --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/health" | grep -qx healthy
-curl --fail --silent --show-error --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/results/manifest.json" >/dev/null
+curl --fail --silent --show-error --resolve "$DOMAIN:443:127.0.0.1" \
+  "https://$DOMAIN/api/lisflood/config" | grep -q '"maxAreaKm2"'
 trap - ERR
 info "LISFLOOD Web is available at https://$DOMAIN/"
