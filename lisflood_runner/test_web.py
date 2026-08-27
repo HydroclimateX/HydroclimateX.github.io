@@ -96,6 +96,7 @@ class WebContractTests(unittest.TestCase):
         self.assertNotIn(".legend, footer p:not(#status)", css)
         self.assertIn('id="legend" aria-label="Map legend" hidden', html)
         self.assertIn("overflow: auto", css)
+        self.assertIn("[hidden] { display: none !important; }", css)
 
     def test_requests_have_bounded_timeout_and_selection_pane(self) -> None:
         script = read("lisflood-app/app.js")
