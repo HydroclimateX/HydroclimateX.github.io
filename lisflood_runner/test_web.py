@@ -61,7 +61,7 @@ class WebContractTests(unittest.TestCase):
         self.assertIn("west >= east", script)
         self.assertIn("function normalizeConfig(config)", script)
         self.assertIn("function sameOriginPath(value, pattern)", script)
-        self.assertIn("/results/[0-9a-f]{20}", script)
+        self.assertIn("new RegExp(`^/results/${jobId}/${name}", script)
         self.assertIn("normalizeStats(manifest.stats)", script)
         self.assertIn("schemaVersion !== 1", script)
         self.assertIn("POLL_DEADLINE_MS = 24 * 60 * 60 * 1000", script)
@@ -80,6 +80,22 @@ class WebContractTests(unittest.TestCase):
         self.assertIn('aria-pressed="false"', html)
         self.assertIn("setAttribute('aria-pressed'", script)
         self.assertNotIn("defaultBounds || config.availableBounds", script)
+
+    def test_result_is_bound_to_current_job_request_and_mobile_panel_stays_visible(self) -> None:
+        html = read("lisflood-app/index.html")
+        script = read("lisflood-app/app.js")
+        css = read("lisflood-app/style.css")
+        self.assertIn("function boundsMatch(actual, expected", script)
+        self.assertIn("function prepareManifest(manifest, jobId, expectedPeriod, expectedBounds, availableBounds)", script)
+        self.assertIn("returnPeriod !== expectedPeriod", script)
+        self.assertIn("boundsMatch(bounds, expectedBounds)", script)
+        self.assertIn("boundsWithin(bounds, availableBounds)", script)
+        self.assertIn("^/results/${jobId}/", script)
+        self.assertIn("pollJob(job.statusUrl, job.jobId, requestedPeriod, effectiveBounds", script)
+        self.assertNotIn("coordinate + 0", script)
+        self.assertNotIn(".legend, footer p:not(#status)", css)
+        self.assertIn('id="legend" aria-label="Map legend" hidden', html)
+        self.assertIn("overflow: auto", css)
 
     def test_compose_and_nginx_publish_only_cached_results(self) -> None:
         compose = read("docker-compose.yml")

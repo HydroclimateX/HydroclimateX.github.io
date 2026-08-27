@@ -40,7 +40,7 @@ function asBounds(value) {
   if (south < -90 || north > 90 || west < -180 || east > 180 || south >= north || west >= east) {
     throw new Error('Invalid bounds');
   }
-  return bounds.map(corner => corner.map(coordinate => coordinate + 0));
+  return bounds;
 }
 
 function rectangleAreaKm2(bounds) {
@@ -60,6 +60,13 @@ function boundsWithin(bounds, available) {
     && bounds[0][1] >= available[0][1]
     && bounds[1][0] <= available[1][0]
     && bounds[1][1] <= available[1][1];
+}
+
+function boundsMatch(actual, expected, tolerance = 1e-6) {
+  if (!actual || !expected) return false;
+  return actual.every((corner, cornerIndex) => corner.every((coordinate, coordinateIndex) => (
+    Math.abs(coordinate - expected[cornerIndex][coordinateIndex]) <= tolerance
+  )));
 }
 
 function geometryIsValid() {
@@ -93,8 +100,8 @@ function normalizeConfig(config) {
       ...config,
       availableBounds,
       defaultBounds,
-      maxAreaKm2: config.maxAreaKm2 + 0,
-      gridSizeM: config.gridSizeM + 0,
+      maxAreaKm2: config.maxAreaKm2,
+      gridSizeM: config.gridSizeM,
       returnPeriods: SUPPORTED_PERIODS.slice(),
       modelVersion: config.modelVersion,
     };
@@ -225,7 +232,7 @@ function applyEffectiveBounds(bounds) {
   try {
     const effective = asBounds(bounds);
     setBounds(effective, `Study area snapped to model grid · approx. ${areaLabel(rectangleAreaKm2(effective))}`);
-    return `snapped area ${areaLabel(rectangleAreaKm2(effective))}`;
+    return effective;
   } catch (error) {
     throw new Error('Invalid simulation result');
   }
@@ -310,21 +317,23 @@ function normalizeStats(stats) {
   return Object.fromEntries(STAT_NAMES.map(name => {
     const value = stats[name];
     if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) throw new Error('stat');
-    return [name, value + 0];
+    return [name, value];
   }));
 }
 
-function prepareManifest(manifest, jobId) {
+function prepareManifest(manifest, jobId, expectedPeriod, expectedBounds, availableBounds) {
   try {
     if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || manifest.schemaVersion !== 1) throw new Error('schema');
     const bounds = asBounds(manifest.bounds);
     const returnPeriod = manifest.returnPeriod;
-    if (typeof returnPeriod !== 'number' || !Number.isInteger(returnPeriod) || !SUPPORTED_PERIODS.includes(returnPeriod)) throw new Error('period');
+    if (typeof returnPeriod !== 'number' || !Number.isInteger(returnPeriod)
+      || !SUPPORTED_PERIODS.includes(returnPeriod) || returnPeriod !== expectedPeriod) throw new Error('period');
+    if (!boundsMatch(bounds, expectedBounds) || !boundsWithin(bounds, availableBounds)) throw new Error('bounds');
     if (!manifest.layers || typeof manifest.layers !== 'object' || Array.isArray(manifest.layers)
       || Object.keys(manifest.layers).sort().join(',') !== LAYER_NAMES.slice().sort().join(',')) throw new Error('layers');
     const layers = Object.fromEntries(LAYER_NAMES.map(name => {
       const path = manifest.layers[name];
-      if (!sameOriginPath(path, new RegExp(`^/results/[0-9a-f]{20}/${name}\\.png$`))) throw new Error('layer');
+      if (!sameOriginPath(path, new RegExp(`^/results/${jobId}/${name}\\.png$`))) throw new Error('layer');
       return [name, path];
     }));
     const populationBreaks = manifest.populationBreaks;
@@ -333,17 +342,17 @@ function prepareManifest(manifest, jobId) {
     return {
       ...manifest,
       bounds,
-      returnPeriod: returnPeriod + 0,
+      returnPeriod,
       layers,
       stats: normalizeStats(manifest.stats),
-      populationBreaks: populationBreaks.map(value => value + 0),
+      populationBreaks: populationBreaks.slice(),
     };
   } catch (error) {
     throw new Error('Invalid simulation result');
   }
 }
 
-async function pollJob(statusUrl, jobId, snappedNotice = '') {
+async function pollJob(statusUrl, jobId, expectedPeriod, expectedBounds, availableBounds, snappedNotice = '') {
   const deadline = Date.now() + POLL_DEADLINE_MS;
   let transientErrors = 0;
   let waitMs = POLL_INTERVAL_MS;
@@ -366,7 +375,17 @@ async function pollJob(statusUrl, jobId, snappedNotice = '') {
     if (!job || typeof job !== 'object') throw new Error('Invalid simulation status');
     if (job.status === 'failed') throw new Error(job.error || 'Simulation failed');
     if (!isStatusUrl(job.statusUrl, jobId)) throw new Error('Invalid simulation status');
-    if (job.effectiveBounds) snappedNotice = applyEffectiveBounds(job.effectiveBounds);
+    if (job.effectiveBounds) {
+      let statusBounds;
+      try {
+        statusBounds = asBounds(job.effectiveBounds);
+      } catch (error) {
+        throw new Error('Invalid simulation result');
+      }
+      if (!boundsMatch(statusBounds, expectedBounds)) throw new Error('Invalid simulation result');
+      applyEffectiveBounds(statusBounds);
+      snappedNotice = `snapped area ${areaLabel(rectangleAreaKm2(statusBounds))}`;
+    }
     if (job.status === 'completed') {
       if (!isManifestUrl(job.manifestUrl, jobId)) throw new Error('Invalid simulation result');
       let manifest;
@@ -375,7 +394,7 @@ async function pollJob(statusUrl, jobId, snappedNotice = '') {
       } catch (error) {
         throw new Error('Invalid simulation result');
       }
-      state.manifest = prepareManifest(manifest, jobId);
+      state.manifest = prepareManifest(manifest, jobId, expectedPeriod, expectedBounds, availableBounds);
       map.fitBounds(state.manifest.bounds, { padding: [20, 20] });
       render();
       return;
@@ -397,6 +416,8 @@ async function runSimulation() {
   $('error').hidden = true;
   $('status').textContent = 'Submitting simulation…';
   try {
+    const requestedPeriod = Number(state.period);
+    const availableBounds = state.config.availableBounds;
     const job = await fetchJson('/api/lisflood/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -406,8 +427,10 @@ async function runSimulation() {
       throw new Error('Invalid simulation job');
     }
     if (job.status === 'failed') throw new Error(job.error || 'Simulation failed');
-    const snappedNotice = job.effectiveBounds ? applyEffectiveBounds(job.effectiveBounds) : '';
-    await pollJob(job.statusUrl, job.jobId, snappedNotice);
+    if (!job.effectiveBounds) throw new Error('Invalid simulation result');
+    const effectiveBounds = applyEffectiveBounds(job.effectiveBounds);
+    const snappedNotice = `snapped area ${areaLabel(rectangleAreaKm2(effectiveBounds))}`;
+    await pollJob(job.statusUrl, job.jobId, requestedPeriod, effectiveBounds, availableBounds, snappedNotice);
   } catch (error) {
     console.error(error);
     $('status').textContent = error instanceof Error ? error.message : 'Simulation failed';
