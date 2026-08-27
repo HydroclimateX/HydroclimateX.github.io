@@ -1,6 +1,7 @@
 import gzip
 import hashlib
 import http.client
+import io
 import json
 import os
 import shutil
@@ -43,6 +44,9 @@ def manifest_for(*, layer="depth.png", **extra):
 
 def write_manifest(path: Path, manifest: dict) -> None:
     path.mkdir(parents=True, exist_ok=True)
+    for filename in manifest.get("layers", {}).values():
+        if isinstance(filename, str) and filename.endswith(".png"):
+            (path / Path(filename).name).write_bytes(b"png")
     (path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
@@ -96,6 +100,7 @@ class ServiceSubmissionTests(unittest.TestCase):
                 "data",
                 "model",
                 max_area=300,
+                runner=lambda *args: manifest_for(),
                 start_worker=False,
             )
 
@@ -206,6 +211,172 @@ class ServiceExecutionTests(unittest.TestCase):
             self.assertEqual(service.status(submitted["jobId"]), result)
             self.assertFalse((Path(directory) / f".{submitted['jobId']}.tmp").exists())
 
+    def test_worker_blocks_idle_and_processes_later_submission(self) -> None:
+        processed = threading.Event()
+
+        def runner(*args):
+            (args[8] / "depth.png").write_bytes(b"png")
+            processed.set()
+            return manifest_for()
+
+        with tempfile.TemporaryDirectory() as directory:
+            service = make_service(Path(directory), runner=runner, start_worker=False, minimum_free_gb=0)
+            original_get = service.queue.get
+            waiting = threading.Event()
+
+            def observed_get(*args, **kwargs):
+                waiting.set()
+                return original_get(*args, **kwargs)
+
+            service.queue.get = observed_get
+            worker = threading.Thread(target=service.worker, daemon=True)
+            worker.start()
+            service._worker_thread = worker
+            self.assertTrue(worker.daemon)
+            self.assertTrue(worker.is_alive())
+            self.assertTrue(waiting.wait(1))
+            self.assertFalse(processed.is_set())
+            with mock.patch(
+                "lisflood_runner.service.generate.snap_bounds",
+                return_value=((0, 0, 2, 2), [[1.0, 2.0], [3.0, 4.0]]),
+            ):
+                submitted = service.submit([[1, 2], [3, 4]], 20)
+            self.assertTrue(processed.wait(2))
+            service.queue.join()
+            self.assertEqual(service.status(submitted["jobId"])["status"], "completed")
+
+    def test_default_runner_engine_disappearance_is_rejected_before_queueing(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            engine = root / "lisflood"
+            engine.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            engine.chmod(0o755)
+            service = Service(
+                root / "cache",
+                engine,
+                HEADER,
+                np.ones((4, 4)),
+                np.ones((4, 4)),
+                "data",
+                "model",
+                minimum_free_gb=0,
+                start_worker=False,
+            )
+            engine.unlink()
+            with mock.patch(
+                "lisflood_runner.service.generate.snap_bounds",
+                return_value=((0, 0, 2, 2), [[1.0, 2.0], [3.0, 4.0]]),
+            ):
+                with self.assertRaises(EngineUnavailable):
+                    service.submit([[1, 2], [3, 4]], 20)
+            self.assertEqual(service.queue.qsize(), 0)
+
+    def test_completed_state_is_removed_after_disk_publish(self) -> None:
+        def runner(*args):
+            (args[8] / "depth.png").write_bytes(b"png")
+            return manifest_for()
+
+        with tempfile.TemporaryDirectory() as directory:
+            service = make_service(Path(directory), runner=runner, minimum_free_gb=0)
+            with mock.patch(
+                "lisflood_runner.service.generate.snap_bounds",
+                return_value=((0, 0, 2, 2), [[1.0, 2.0], [3.0, 4.0]]),
+            ):
+                submitted = service.submit([[1, 2], [3, 4]], 20)
+            self.assertEqual(service.run_next()["status"], "completed")
+            self.assertNotIn(submitted["jobId"], service.state)
+
+    def test_failed_state_is_bounded_without_evicting_newest(self) -> None:
+        def runner(*args):
+            raise RuntimeError("failure")
+
+        with tempfile.TemporaryDirectory() as directory:
+            service = make_service(Path(directory), runner=runner, minimum_free_gb=0)
+            windows = [((index, 0, index + 1, 1), [[1.0, 2.0], [3.0, 4.0]]) for index in range(70)]
+            with mock.patch(
+                "lisflood_runner.service.generate.snap_bounds",
+                side_effect=windows,
+            ):
+                submitted = []
+                for _ in range(70):
+                    submitted.append(service.submit([[1, 2], [3, 4]], 20))
+                    service.run_next()
+            failed = [value for value in service.state.values() if value.get("status") == "failed"]
+            self.assertLessEqual(len(failed), 64)
+            self.assertEqual(service.status(submitted[-1]["jobId"])["status"], "failed")
+
+    def test_invalid_final_manifest_is_discarded_and_job_can_publish(self) -> None:
+        def runner(*args):
+            (args[8] / "depth.png").write_bytes(b"new")
+            return manifest_for()
+
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory)
+            service = make_service(cache, runner=runner, minimum_free_gb=0)
+            with mock.patch(
+                "lisflood_runner.service.generate.snap_bounds",
+                return_value=((0, 0, 2, 2), [[1.0, 2.0], [3.0, 4.0]]),
+            ):
+                identifier = service.submit([[1, 2], [3, 4]], 20)["jobId"]
+            write_manifest(cache / identifier, manifest_for(schemaVersion=2))
+            self.assertEqual(service.status(identifier)["status"], "queued")
+            self.assertEqual(service.run_next()["status"], "completed")
+            self.assertEqual(json.loads((cache / identifier / "manifest.json").read_text())["schemaVersion"], 1)
+
+    def test_missing_or_unsafe_layer_cache_is_not_completed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory)
+            service = make_service(cache, minimum_free_gb=0)
+            with mock.patch(
+                "lisflood_runner.service.generate.snap_bounds",
+                return_value=((0, 0, 2, 2), [[1.0, 2.0], [3.0, 4.0]]),
+            ):
+                identifier = service.submit([[1, 2], [3, 4]], 20)["jobId"]
+            write_manifest(cache / identifier, manifest_for())
+            (cache / identifier / "depth.png").unlink()
+            self.assertEqual(service.status(identifier)["status"], "queued")
+            self.assertFalse((cache / identifier).exists())
+
+            write_manifest(cache / identifier, manifest_for(layer="../secret.png"))
+            self.assertEqual(service.status(identifier)["status"], "queued")
+            self.assertFalse((cache / identifier).exists())
+
+    def test_symlinked_job_cache_is_unlinked_without_following_target(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cache = root / "cache"
+            outside = root / "outside"
+            outside.mkdir()
+            write_manifest(outside, manifest_for())
+            service = make_service(cache, minimum_free_gb=0)
+            with mock.patch(
+                "lisflood_runner.service.generate.snap_bounds",
+                return_value=((0, 0, 2, 2), [[1.0, 2.0], [3.0, 4.0]]),
+            ):
+                identifier = service.submit([[1, 2], [3, 4]], 20)["jobId"]
+            try:
+                (cache / identifier).symlink_to(outside, target_is_directory=True)
+            except (OSError, NotImplementedError):
+                self.skipTest("symlinks unavailable")
+            self.assertEqual(service.status(identifier)["status"], "queued")
+            self.assertFalse((cache / identifier).exists())
+            self.assertTrue((outside / "manifest.json").is_file())
+
+    def test_initialization_cleans_only_exact_stale_temp_entries(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory)
+            exact = cache / ".0123456789abcdef0123.tmp"
+            exact.mkdir()
+            (exact / "old").write_text("old", encoding="utf-8")
+            unrelated = cache / ".not-a-job.tmp"
+            unrelated.mkdir()
+            short = cache / ".0123.tmp"
+            short.mkdir()
+            make_service(cache, minimum_free_gb=0)
+            self.assertFalse(exact.exists())
+            self.assertTrue(unrelated.is_dir())
+            self.assertTrue(short.is_dir())
+
 
 class ServiceHTTPTests(HTTPTestCase):
     def test_config_exposes_contract_and_wgs84_bounds(self) -> None:
@@ -292,6 +463,25 @@ class ServiceHTTPTests(HTTPTestCase):
             self.assertEqual(status, 400)
             self.assertEqual(payload["error"], "bounds outside available extent")
 
+    def test_incomplete_request_body_is_rejected_and_timeout_is_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            service = make_service(Path(directory))
+            handler_class = make_handler(service)
+            handler = handler_class.__new__(handler_class)
+            handler.headers = {
+                "Content-Type": "application/json",
+                "Content-Length": "4",
+            }
+            handler.rfile = io.BytesIO(b"{}")
+            with self.assertRaisesRegex(ValueError, "incomplete"):
+                handler._read_json()
+
+            handler.path = "/api/lisflood/run"
+            handler._read_json = mock.Mock(side_effect=TimeoutError("secret timeout"))
+            handler._send_json = mock.Mock()
+            handler_class.do_POST(handler)
+            handler._send_json.assert_called_once_with(408, {"error": "Request timeout"})
+
     def test_post_run_and_get_completed_job(self) -> None:
         def runner(*args):
             (args[8] / "depth.png").write_bytes(b"png")
@@ -324,6 +514,40 @@ class ServiceHTTPTests(HTTPTestCase):
             self.assertEqual(status, 200)
             self.assertEqual(completed["status"], "completed")
             self.assertEqual(completed["manifestUrl"], f"/results/{submitted['jobId']}/manifest.json")
+
+    def test_default_runner_engine_disappearance_maps_to_http_503(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            engine = root / "lisflood"
+            engine.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            engine.chmod(0o755)
+            service = Service(
+                root / "cache",
+                engine,
+                HEADER,
+                np.ones((4, 4)),
+                np.ones((4, 4)),
+                "data",
+                "model",
+                minimum_free_gb=0,
+                start_worker=False,
+            )
+            server = self.start_server(service)
+            engine.unlink()
+            with mock.patch(
+                "lisflood_runner.service.generate.snap_bounds",
+                return_value=((0, 0, 2, 2), [[1.0, 2.0], [3.0, 4.0]]),
+            ):
+                status, _, payload = self.request(
+                    server,
+                    "POST",
+                    "/api/lisflood/run",
+                    json.dumps({"bounds": [[1, 2], [3, 4]], "returnPeriod": 20}),
+                    {"Content-Type": "application/json"},
+                )
+            self.assertEqual(status, 503)
+            self.assertEqual(payload, {"error": "Simulation engine unavailable"})
+            self.assertEqual(service.queue.qsize(), 0)
 
     def test_cached_completed_post_returns_200(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

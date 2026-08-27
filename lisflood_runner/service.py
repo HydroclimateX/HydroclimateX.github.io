@@ -9,6 +9,7 @@ import os
 import queue
 import re
 import shutil
+import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from numbers import Integral
@@ -22,6 +23,9 @@ DEFAULT_WINDOW = (460, 124, 1037, 701)
 RETURN_PERIODS = (5, 10, 20, 50, 100)
 MAX_BODY_BYTES = 4096
 JOB_ID_PATTERN = re.compile(r"[0-9a-f]{20}\Z")
+STALE_TEMP_PATTERN = re.compile(r"\.[0-9a-f]{20}\.tmp\Z")
+EXPECTED_LAYER_NAMES = frozenset({"dem", "population", "depth", "hazard", "risk"})
+FAILED_STATE_LIMIT = 64
 
 
 class QueueFull(Exception):
@@ -110,11 +114,13 @@ class Service:
             raise ValueError("invalid LISFLOOD service settings")
         self.minimum_free_gb = minimum_free_gb
         self.runner = runner
+        self._uses_default_runner = runner is generate.run_job
         self.queue: queue.Queue = queue.Queue(maxsize=8)
         self.state: dict[str, dict] = {}
         self.lock = threading.Lock()
         self._run_gate = threading.Lock()
         self._worker_thread: threading.Thread | None = None
+        self._cleanup_stale_temps()
         if start_worker:
             self._worker_thread = threading.Thread(
                 target=self.worker,
@@ -214,24 +220,10 @@ class Service:
 
     def _grid_shape(self) -> tuple[int, int, float, float, float]:
         try:
-            ncols_float = float(self.header["ncols"])
-            nrows_float = float(self.header["nrows"])
-            xllcorner = float(self.header["xllcorner"])
-            yllcorner = float(self.header["yllcorner"])
-            cellsize = float(self.header["cellsize"])
+            header, ncols, nrows, cell = generate._normalise_grid_header(self.header)
         except (KeyError, TypeError, ValueError, OverflowError) as error:
             raise ValueError("base header is incomplete or invalid") from error
-        if (
-            not ncols_float.is_integer()
-            or not nrows_float.is_integer()
-            or ncols_float <= 0
-            or nrows_float <= 0
-            or cellsize <= 0
-            or not all(math.isfinite(value) for value in (xllcorner, yllcorner, cellsize))
-        ):
-            raise ValueError("base header is incomplete or invalid")
-        ncols, nrows = int(ncols_float), int(nrows_float)
-        return ncols, nrows, xllcorner, yllcorner, cellsize
+        return ncols, nrows, header["xllcorner"], header["yllcorner"], cell
 
     def _bounds_for_window(self, window) -> list[list[float]]:
         ncols, nrows, origin_x, origin_y, cell = self._grid_shape()
@@ -282,8 +274,37 @@ class Service:
             "modelVersion": str(self.model_version),
         }
 
-    def _manifest_path(self, job_id: str) -> Path:
-        return self.cache_dir / job_id / "manifest.json"
+    def _remove_cache_entry(self, name: str) -> None:
+        cache = self.cache_dir.resolve()
+        target = self.cache_dir / name
+        if target.name != name or target.parent.resolve() != cache:
+            return
+        try:
+            if target.is_symlink() or target.is_file():
+                target.unlink(missing_ok=True)
+            elif target.is_dir():
+                shutil.rmtree(target)
+            elif target.exists():
+                target.unlink()
+        except OSError:
+            pass
+
+    def _cleanup_stale_temps(self) -> None:
+        try:
+            children = tuple(self.cache_dir.iterdir())
+        except OSError:
+            return
+        for child in children:
+            if STALE_TEMP_PATTERN.fullmatch(child.name):
+                self._remove_cache_entry(child.name)
+
+    def _require_engine(self) -> None:
+        if not self._uses_default_runner:
+            return
+        try:
+            generate._resolve_engine(self.engine)
+        except Exception as error:
+            raise EngineUnavailable("Engine unavailable") from error
 
     @staticmethod
     def _load_manifest(path: Path) -> dict | None:
@@ -296,10 +317,80 @@ class Service:
             return None
         return manifest if isinstance(manifest, dict) else None
 
-    def _completed_response_locked(self, identifier: str) -> dict | None:
-        if self._load_manifest(self._manifest_path(identifier)) is None:
+    def _job_dir(self, identifier: str) -> Path | None:
+        cache = self.cache_dir.resolve()
+        job_dir = self.cache_dir / identifier
+        try:
+            if (
+                job_dir.name != identifier
+                or job_dir.is_symlink()
+                or not job_dir.is_dir()
+                or job_dir.parent.resolve() != cache
+                or job_dir.resolve().parent != cache
+            ):
+                return None
+        except OSError:
             return None
-        state = self.state.get(identifier, {})
+        return job_dir
+
+    @staticmethod
+    def _layer_filename(identifier: str, value) -> str | None:
+        if not isinstance(value, str):
+            return None
+        prefix = f"/results/{identifier}/"
+        if value.startswith(prefix):
+            value = value[len(prefix) :]
+        elif value.startswith("/"):
+            return None
+        if not _safe_filename(value) or not value.lower().endswith(".png"):
+            return None
+        return value
+
+    def _valid_manifest(self, identifier: str, job_dir: Path, manifest: dict) -> bool:
+        schema_version = manifest.get("schemaVersion")
+        if isinstance(schema_version, bool) or schema_version != 1:
+            return False
+        layers = manifest.get("layers")
+        if not isinstance(layers, dict) or not layers:
+            return False
+        for name, value in layers.items():
+            if name not in EXPECTED_LAYER_NAMES:
+                return False
+            filename = self._layer_filename(identifier, value)
+            if filename is None:
+                return False
+            layer = job_dir / filename
+            try:
+                if layer.is_symlink() or not layer.is_file() or layer.resolve().parent != job_dir.resolve():
+                    return False
+            except OSError:
+                return False
+        return True
+
+    def _completed_manifest(self, identifier: str) -> dict | None:
+        job_dir = self._job_dir(identifier)
+        if job_dir is None:
+            return None
+        manifest_path = job_dir / "manifest.json"
+        try:
+            if manifest_path.is_symlink() or not manifest_path.is_file():
+                return None
+        except OSError:
+            return None
+        manifest = self._load_manifest(manifest_path)
+        return manifest if manifest is not None and self._valid_manifest(identifier, job_dir, manifest) else None
+
+    def _cache_entry_exists(self, identifier: str) -> bool:
+        entry = self.cache_dir / identifier
+        return entry.exists() or entry.is_symlink()
+
+    def _completed_response_locked(self, identifier: str) -> dict | None:
+        manifest = self._completed_manifest(identifier)
+        if manifest is None:
+            if self._cache_entry_exists(identifier):
+                self._remove_cache_entry(identifier)
+            return None
+        state = self.state.pop(identifier, {})
         response = {
             "jobId": identifier,
             "status": "completed",
@@ -313,6 +404,14 @@ class Service:
     @staticmethod
     def _failed_response() -> dict:
         return {"status": "failed", "error": "Simulation failed"}
+
+    def _remember_failure_locked(self, identifier: str) -> None:
+        self.state[identifier] = self._failed_response()
+        while sum(value.get("status") == "failed" for value in self.state.values()) > FAILED_STATE_LIMIT:
+            oldest = next(
+                key for key, value in self.state.items() if value.get("status") == "failed"
+            )
+            del self.state[oldest]
 
     def _state_response(self, identifier: str, state: dict) -> dict:
         if state.get("status") == "failed":
@@ -345,14 +444,11 @@ class Service:
             if completed is not None:
                 if "effectiveBounds" not in completed:
                     completed["effectiveBounds"] = effective_bounds
-                self.state[identifier] = {
-                    "status": "completed",
-                    "effectiveBounds": completed["effectiveBounds"],
-                }
                 return completed
             existing = self.state.get(identifier)
             if existing is not None and existing.get("status") in {"queued", "running"}:
                 return self._state_response(identifier, existing)
+            self._require_engine()
             try:
                 ensure_cache_space(self.cache_dir, self.minimum_free_gb)
             except InsufficientStorage:
@@ -388,10 +484,7 @@ class Service:
         cache = self.cache_dir.resolve()
         if target.parent.resolve() != cache:
             raise RuntimeError("invalid temporary path")
-        if target.is_symlink() or target.is_file():
-            target.unlink(missing_ok=True)
-        elif target.exists():
-            shutil.rmtree(target)
+        self._remove_cache_entry(target.name)
 
     def _prepare_manifest(self, returned, identifier: str) -> dict:
         if not isinstance(returned, dict):
@@ -412,14 +505,17 @@ class Service:
         manifest["layers"] = prefixed
         return manifest
 
-    def _run_next_once(self):
+    def _run_next_once(self, block=False):
         try:
-            item = self.queue.get_nowait()
+            item = self.queue.get() if block else self.queue.get_nowait()
         except queue.Empty:
             return None
+        with self._run_gate:
+            return self._process_item(item)
+
+    def _process_item(self, item):
         identifier, window, period, effective_bounds = item
         temp = self.cache_dir / f".{identifier}.tmp"
-        final = self.cache_dir / identifier
         try:
             with self.lock:
                 self.state[identifier] = {
@@ -428,16 +524,10 @@ class Service:
                 }
             if temp.exists() or temp.is_symlink():
                 self._remove_temp(temp)
-            existing = self._load_manifest(final / "manifest.json")
-            if final.exists():
-                if existing is not None:
-                    with self.lock:
-                        self.state[identifier] = {
-                            "status": "completed",
-                            "effectiveBounds": effective_bounds,
-                        }
-                    return self.status(identifier)
-                raise RuntimeError("job cache already exists")
+            with self.lock:
+                existing = self._completed_response_locked(identifier)
+            if existing is not None:
+                return existing
             temp.mkdir(parents=True, exist_ok=False)
             returned = self.runner(
                 self.engine,
@@ -468,14 +558,18 @@ class Service:
                 json.dumps(manifest, indent=2, allow_nan=False) + "\n",
                 encoding="utf-8",
             )
-            if final.exists():
-                raise RuntimeError("job cache already exists")
-            temp.rename(final)
+            if not self._valid_manifest(identifier, temp, manifest):
+                raise ValueError("manifest files are invalid")
             with self.lock:
-                self.state[identifier] = {
-                    "status": "completed",
-                    "effectiveBounds": effective_bounds,
-                }
+                existing = self._completed_response_locked(identifier)
+            if existing is not None:
+                self._remove_temp(temp)
+                return existing
+            if self._cache_entry_exists(identifier):
+                raise RuntimeError("job cache already exists")
+            temp.rename(self.cache_dir / identifier)
+            with self.lock:
+                self.state.pop(identifier, None)
             return self.status(identifier)
         except Exception:
             try:
@@ -484,18 +578,17 @@ class Service:
             except Exception:
                 pass
             with self.lock:
-                self.state[identifier] = self._failed_response()
+                self._remember_failure_locked(identifier)
             return self._failed_response()
         finally:
             self.queue.task_done()
 
     def run_next(self):
-        with self._run_gate:
-            return self._run_next_once()
+        return self._run_next_once()
 
     def worker(self):
         while True:
-            self.run_next()
+            self._run_next_once(block=True)
 
 
 def _safe_value_error(error: ValueError) -> str:
@@ -531,6 +624,10 @@ def make_handler(service: Service):
 
     class Handler(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.0"
+
+        def setup(self):
+            super().setup()
+            self.connection.settimeout(10)
 
         def log_message(self, format, *args):
             return
@@ -572,9 +669,17 @@ def make_handler(service: Service):
                 raise ValueError("Content-Length must be valid")
             if length > MAX_BODY_BYTES:
                 raise OverflowError("Request body too large")
-            body = self.rfile.read(length)
-            if len(body) != length:
-                raise ValueError("Request body is incomplete")
+            chunks = []
+            remaining = length
+            while remaining:
+                chunk = self.rfile.read(remaining)
+                if not chunk:
+                    raise ValueError("Request body is incomplete")
+                if len(chunk) > remaining:
+                    raise ValueError("Request body is longer than Content-Length")
+                chunks.append(chunk)
+                remaining -= len(chunk)
+            body = b"".join(chunks)
             try:
                 value = json.loads(
                     body.decode("utf-8"),
@@ -624,6 +729,8 @@ def make_handler(service: Service):
                 result = service.submit(payload["bounds"], payload["returnPeriod"])
             except OverflowError:
                 self._send_json(413, {"error": "Request body too large"})
+            except (socket.timeout, TimeoutError):
+                self._send_json(408, {"error": "Request timeout"})
             except QueueFull:
                 self._send_json(429, {"error": "Queue is full"})
             except InsufficientStorage:
