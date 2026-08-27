@@ -30,6 +30,13 @@
         </div>
       </fieldset>
 
+      <fieldset class="study-area">
+        <legend>Study area</legend>
+        <button id="selectArea" type="button">Select area</button>
+        <output id="selectedArea" aria-live="polite">Loading default area…</output>
+        <button id="runSimulation" type="button" disabled>Run simulation</button>
+      </fieldset>
+
       <fieldset class="layers">
         <legend>Map layer</legend>
         <label><input type="radio" name="layer" value="risk" checked> Population risk</label>
@@ -54,8 +61,8 @@
       </div>
 
       <footer>
-        <p id="status" role="status">Loading cached results…</p>
-        <p><strong>Research demonstration.</strong> Sewer networks and engineered drainage are not represented. Not for emergency response or engineering design.</p>
+        <p id="status" role="status">Loading study area…</p>
+        <p><strong>Research demonstration only.</strong> Sewer networks and engineered drainage are not represented; no underground drainage or artificial drainage capacity is modelled. Not for emergency response or engineering design.</p>
         <p class="sources">Data: Copernicus DEM, WorldPop and OpenStreetMap contributors.</p>
       </footer>
     </section>

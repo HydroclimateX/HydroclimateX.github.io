@@ -13,6 +13,11 @@ legend, .opacity, .legend strong { margin-bottom: 8px; color: #475668; font-size
 button { min-height: 36px; padding: 0; border: 1px solid #ccd6df; border-radius: 6px; color: #334155; background: #f7f9fb; font: inherit; font-size: .72rem; cursor: pointer; }
 button:hover, button:focus-visible { border-color: #126a78; outline: none; }
 button.active { border-color: #126a78; color: white; background: #126a78; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.study-area { display: grid; gap: 7px; }
+.study-area legend { grid-column: 1 / -1; }
+.study-area button { width: 100%; }
+#selectedArea { display: block; padding: 8px 9px; border: 1px solid #e1e8ed; border-radius: 6px; color: #5e6b7b; background: #f8fafb; font-size: .72rem; line-height: 1.35; }
 .layers { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 12px; }
 .layers legend { grid-column: 1 / -1; }
 .layers label { font-size: .78rem; }

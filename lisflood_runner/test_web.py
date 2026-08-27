@@ -24,9 +24,24 @@ class WebContractTests(unittest.TestCase):
         for metric in ("floodedArea", "exposedPopulation", "maximumDepth"):
             self.assertIn(f'id="{metric}"', html)
         self.assertIn("Research demonstration", html)
-        self.assertIn("fetch('/results/manifest.json'", script)
         self.assertIn("L.imageOverlay", script)
         self.assertNotIn("WebSocket", script)
+
+    def test_map_has_interactive_run_controls(self) -> None:
+        html = read("lisflood-app/index.html")
+        script = read("lisflood-app/app.js")
+        for element_id in ("selectArea", "selectedArea", "runSimulation"):
+            self.assertIn(f'id="{element_id}"', html)
+        for endpoint in ("/api/lisflood/config", "/api/lisflood/run", "/api/lisflood/jobs/"):
+            self.assertIn(endpoint, script)
+        self.assertIn("L.rectangle", script)
+        self.assertIn("2000", script)
+        self.assertNotIn("WebSocket", script)
+        self.assertNotIn("fetch('/results/manifest.json'", script)
+        self.assertIn("manifest.layers[state.layer]", script)
+        self.assertIn("manifest.stats", script)
+        self.assertIn("effectiveBounds", script)
+        self.assertIn("returnPeriod: Number(state.period)", script)
 
     def test_compose_and_nginx_publish_only_cached_results(self) -> None:
         compose = read("docker-compose.yml")
