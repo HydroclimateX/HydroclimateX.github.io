@@ -22,11 +22,11 @@
       <fieldset>
         <legend>Rainfall return period</legend>
         <div class="periods">
-          <button type="button" data-period="5">5 yr</button>
-          <button type="button" data-period="10">10 yr</button>
-          <button type="button" data-period="20" class="active">20 yr</button>
-          <button type="button" data-period="50">50 yr</button>
-          <button type="button" data-period="100">100 yr</button>
+          <button type="button" data-period="5" aria-pressed="false">5 yr</button>
+          <button type="button" data-period="10" aria-pressed="false">10 yr</button>
+          <button type="button" data-period="20" class="active" aria-pressed="true">20 yr</button>
+          <button type="button" data-period="50" aria-pressed="false">50 yr</button>
+          <button type="button" data-period="100" aria-pressed="false">100 yr</button>
         </div>
       </fieldset>
 
@@ -54,7 +54,7 @@
         <div><dt>Maximum depth</dt><dd id="maximumDepth">—</dd></div>
       </dl>
 
-      <div class="legend" id="legend" aria-label="Map legend">
+      <div class="legend" id="legend" aria-label="Map legend" hidden>
         <strong id="legendTitle">Population risk</strong>
         <span><i class="low"></i><b>Low</b></span><span><i class="moderate"></i><b>Moderate</b></span>
         <span><i class="high"></i><b>High</b></span><span><i class="extreme"></i><b>Extreme</b></span>

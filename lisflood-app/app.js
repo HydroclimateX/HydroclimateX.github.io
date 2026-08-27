@@ -21,14 +21,26 @@ const state = {
 };
 const $ = id => document.getElementById(id);
 const EARTH_RADIUS_KM = 6371.0088;
+const SUPPORTED_PERIODS = Object.freeze([5, 10, 20, 50, 100]);
+const LAYER_NAMES = Object.freeze(['dem', 'population', 'depth', 'hazard', 'risk']);
+const STAT_NAMES = Object.freeze(['floodedAreaKm2', 'exposedPopulation', 'maximumDepthM']);
+const POLL_INTERVAL_MS = 2000;
+const POLL_DEADLINE_MS = 24 * 60 * 60 * 1000;
+const MAX_TRANSIENT_ERRORS = 3;
 
 function asBounds(value) {
-  if (!Array.isArray(value) || value.length !== 2 || !value.every(corner => Array.isArray(corner) && corner.length === 2)) return null;
-  const bounds = value.map(corner => corner.map(Number));
-  if (bounds.some(corner => corner.some(coordinate => !Number.isFinite(coordinate)))) return null;
+  if (!Array.isArray(value) || value.length !== 2 || !value.every(corner => Array.isArray(corner) && corner.length === 2)) {
+    throw new Error('Invalid bounds');
+  }
+  const bounds = value.map(corner => corner.slice());
+  if (bounds.some(corner => corner.some(coordinate => typeof coordinate !== 'number' || !Number.isFinite(coordinate)))) {
+    throw new Error('Invalid bounds');
+  }
   const [[south, west], [north, east]] = bounds;
-  if (south > north || west > east) return null;
-  return bounds;
+  if (south < -90 || north > 90 || west < -180 || east > 180 || south >= north || west >= east) {
+    throw new Error('Invalid bounds');
+  }
+  return bounds.map(corner => corner.map(coordinate => coordinate + 0));
 }
 
 function rectangleAreaKm2(bounds) {
@@ -52,13 +64,69 @@ function boundsWithin(bounds, available) {
 
 function geometryIsValid() {
   if (!state.config || !state.bounds) return false;
-  const available = asBounds(state.config.availableBounds);
   const area = rectangleAreaKm2(state.bounds);
-  return boundsWithin(state.bounds, available) && area > 0 && area <= Number(state.config.maxAreaKm2);
+  return boundsWithin(state.bounds, state.config.availableBounds) && area > 0 && area <= state.config.maxAreaKm2;
 }
 
 function canRun() {
   return geometryIsValid() && !state.running;
+}
+
+function normalizeConfig(config) {
+  try {
+    if (!config || typeof config !== 'object' || config.schemaVersion !== 1) throw new Error('schema');
+    const availableBounds = asBounds(config.availableBounds);
+    const defaultBounds = asBounds(config.defaultBounds);
+    if (!boundsWithin(defaultBounds, availableBounds)) throw new Error('default bounds');
+    if (typeof config.maxAreaKm2 !== 'number' || !Number.isFinite(config.maxAreaKm2) || config.maxAreaKm2 <= 0) throw new Error('area');
+    if (typeof config.gridSizeM !== 'number' || !Number.isFinite(config.gridSizeM) || config.gridSizeM <= 0) throw new Error('grid');
+    if (!Array.isArray(config.returnPeriods)
+      || config.returnPeriods.length !== SUPPORTED_PERIODS.length
+      || new Set(config.returnPeriods).size !== SUPPORTED_PERIODS.length
+      || config.returnPeriods.some(period => typeof period !== 'number' || !Number.isInteger(period) || !SUPPORTED_PERIODS.includes(period))) throw new Error('periods');
+    if (typeof config.modelVersion !== 'string'
+      || config.modelVersion.length === 0
+      || config.modelVersion.length > 128
+      || config.modelVersion.trim() !== config.modelVersion
+      || !/^[\x20-\x7e]+$/.test(config.modelVersion)) throw new Error('model');
+    return {
+      ...config,
+      availableBounds,
+      defaultBounds,
+      maxAreaKm2: config.maxAreaKm2 + 0,
+      gridSizeM: config.gridSizeM + 0,
+      returnPeriods: SUPPORTED_PERIODS.slice(),
+      modelVersion: config.modelVersion,
+    };
+  } catch (error) {
+    throw new Error('Invalid LISFLOOD configuration');
+  }
+}
+
+function sameOriginPath(value, pattern) {
+  if (typeof value !== 'string' || !value.startsWith('/')) return false;
+  try {
+    const url = new URL(value, window.location.origin);
+    return url.origin === window.location.origin
+      && url.pathname === value
+      && !url.search
+      && !url.hash
+      && pattern.test(url.pathname);
+  } catch (error) {
+    return false;
+  }
+}
+
+function isJobId(value) {
+  return typeof value === 'string' && /^[0-9a-f]{20}$/.test(value);
+}
+
+function isStatusUrl(value, jobId) {
+  return isJobId(jobId) && sameOriginPath(value, new RegExp(`^/api/lisflood/jobs/${jobId}$`));
+}
+
+function isManifestUrl(value, jobId) {
+  return isJobId(jobId) && sameOriginPath(value, new RegExp(`^/results/${jobId}/manifest\\.json$`));
 }
 
 function setRectangle(bounds) {
@@ -124,10 +192,10 @@ function render() {
   }).addTo(map);
 
   const stats = manifest.stats;
-  $('floodedArea').textContent = `${Number(stats.floodedAreaKm2).toLocaleString()} km²`;
-  $('exposedPopulation').textContent = Math.round(Number(stats.exposedPopulation)).toLocaleString();
-  $('maximumDepth').textContent = `${Number(stats.maximumDepthM).toFixed(2)} m`;
-  const returnedPeriod = Number(manifest.returnPeriod);
+  $('floodedArea').textContent = `${stats.floodedAreaKm2.toLocaleString()} km²`;
+  $('exposedPopulation').textContent = Math.round(stats.exposedPopulation).toLocaleString();
+  $('maximumDepth').textContent = `${stats.maximumDepthM.toFixed(2)} m`;
+  const returnedPeriod = manifest.returnPeriod;
   const generatedAt = manifest.generatedAt ? new Date(manifest.generatedAt) : null;
   const generatedLabel = generatedAt && !Number.isNaN(generatedAt.getTime())
     ? ` · ${generatedAt.toLocaleDateString()}`
@@ -147,7 +215,6 @@ function render() {
 
 function setBounds(bounds, status) {
   state.bounds = asBounds(bounds);
-  if (!state.bounds) throw new Error('The service returned invalid study bounds');
   setRectangle(state.bounds);
   updateSelectionDisplay();
   if (status) $('status').textContent = status;
@@ -155,10 +222,13 @@ function setBounds(bounds, status) {
 }
 
 function applyEffectiveBounds(bounds) {
-  const effective = asBounds(bounds);
-  if (!effective) throw new Error('The service returned invalid effective bounds');
-  setBounds(effective, `Study area snapped to model grid · approx. ${areaLabel(rectangleAreaKm2(effective))}`);
-  return `snapped area ${areaLabel(rectangleAreaKm2(effective))}`;
+  try {
+    const effective = asBounds(bounds);
+    setBounds(effective, `Study area snapped to model grid · approx. ${areaLabel(rectangleAreaKm2(effective))}`);
+    return `snapped area ${areaLabel(rectangleAreaKm2(effective))}`;
+  } catch (error) {
+    throw new Error('Invalid simulation result');
+  }
 }
 
 async function responseError(response) {
@@ -172,8 +242,19 @@ async function responseError(response) {
 }
 
 async function fetchJson(url, options) {
-  const response = await fetch(url, options);
-  if (!response.ok) throw new Error(await responseError(response));
+  let response;
+  try {
+    response = await fetch(url, options);
+  } catch (error) {
+    const networkError = new Error('Network request failed');
+    networkError.transient = true;
+    throw networkError;
+  }
+  if (!response.ok) {
+    const requestError = new Error(await responseError(response));
+    requestError.transient = response.status >= 500;
+    throw requestError;
+  }
   try {
     return await response.json();
   } catch (error) {
@@ -199,8 +280,15 @@ function secondCorner(event) {
   ];
   state.corners = [];
   state.selecting = false;
-  setBounds(bounds, `Study area selected · approx. ${areaLabel(rectangleAreaKm2(bounds))}`);
-  updateControls();
+  try {
+    setBounds(bounds, `Study area selected · approx. ${areaLabel(rectangleAreaKm2(bounds))}`);
+  } catch (error) {
+    state.bounds = null;
+    setRectangle(null);
+    $('selectedArea').textContent = 'Select two different corners for a positive-area rectangle.';
+    $('status').textContent = 'Study area must have positive area.';
+    updateControls();
+  }
 }
 
 function startSelection() {
@@ -216,27 +304,78 @@ function startSelection() {
   map.once('click', firstCorner);
 }
 
-function prepareManifest(manifest, manifestUrl) {
-  if (!manifest || typeof manifest !== 'object' || !manifest.layers || !manifest.stats || !asBounds(manifest.bounds)) {
-    throw new Error('The service returned an unsupported result manifest');
-  }
-  const base = new URL(manifestUrl, window.location.href);
-  const layers = Object.fromEntries(Object.entries(manifest.layers).map(([name, path]) => [
-    name,
-    new URL(path, base).toString(),
-  ]));
-  return { ...manifest, layers };
+function normalizeStats(stats) {
+  if (!stats || typeof stats !== 'object' || Array.isArray(stats)
+    || Object.keys(stats).sort().join(',') !== STAT_NAMES.slice().sort().join(',')) throw new Error('stats');
+  return Object.fromEntries(STAT_NAMES.map(name => {
+    const value = stats[name];
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) throw new Error('stat');
+    return [name, value + 0];
+  }));
 }
 
-async function pollJob(jobId, snappedNotice = '') {
-  while (true) {
-    const job = await fetchJson(`/api/lisflood/jobs/${jobId}`, { cache: 'no-store' });
-    if (job.effectiveBounds) snappedNotice = applyEffectiveBounds(job.effectiveBounds);
+function prepareManifest(manifest, jobId) {
+  try {
+    if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || manifest.schemaVersion !== 1) throw new Error('schema');
+    const bounds = asBounds(manifest.bounds);
+    const returnPeriod = manifest.returnPeriod;
+    if (typeof returnPeriod !== 'number' || !Number.isInteger(returnPeriod) || !SUPPORTED_PERIODS.includes(returnPeriod)) throw new Error('period');
+    if (!manifest.layers || typeof manifest.layers !== 'object' || Array.isArray(manifest.layers)
+      || Object.keys(manifest.layers).sort().join(',') !== LAYER_NAMES.slice().sort().join(',')) throw new Error('layers');
+    const layers = Object.fromEntries(LAYER_NAMES.map(name => {
+      const path = manifest.layers[name];
+      if (!sameOriginPath(path, new RegExp(`^/results/[0-9a-f]{20}/${name}\\.png$`))) throw new Error('layer');
+      return [name, path];
+    }));
+    const populationBreaks = manifest.populationBreaks;
+    if (!Array.isArray(populationBreaks) || populationBreaks.length === 0
+      || populationBreaks.some(value => typeof value !== 'number' || !Number.isFinite(value))) throw new Error('breaks');
+    return {
+      ...manifest,
+      bounds,
+      returnPeriod: returnPeriod + 0,
+      layers,
+      stats: normalizeStats(manifest.stats),
+      populationBreaks: populationBreaks.map(value => value + 0),
+    };
+  } catch (error) {
+    throw new Error('Invalid simulation result');
+  }
+}
+
+async function pollJob(statusUrl, jobId, snappedNotice = '') {
+  const deadline = Date.now() + POLL_DEADLINE_MS;
+  let transientErrors = 0;
+  let waitMs = POLL_INTERVAL_MS;
+  while (Date.now() < deadline) {
+    let job;
+    try {
+      job = await fetchJson(statusUrl, { cache: 'no-store' });
+      transientErrors = 0;
+      waitMs = POLL_INTERVAL_MS;
+    } catch (error) {
+      if (!error.transient) throw error;
+      transientErrors += 1;
+      if (transientErrors > MAX_TRANSIENT_ERRORS) throw new Error('Simulation status unavailable');
+      $('status').textContent = 'Waiting for simulation status…';
+      const remaining = deadline - Date.now();
+      if (remaining > 0) await new Promise(resolve => setTimeout(resolve, Math.min(waitMs, remaining)));
+      waitMs = Math.min(POLL_INTERVAL_MS * 2 ** transientErrors, 10000);
+      continue;
+    }
+    if (!job || typeof job !== 'object') throw new Error('Invalid simulation status');
     if (job.status === 'failed') throw new Error(job.error || 'Simulation failed');
+    if (!isStatusUrl(job.statusUrl, jobId)) throw new Error('Invalid simulation status');
+    if (job.effectiveBounds) snappedNotice = applyEffectiveBounds(job.effectiveBounds);
     if (job.status === 'completed') {
-      if (!job.manifestUrl) throw new Error('Completed job has no result manifest');
-      const manifest = await fetchJson(job.manifestUrl, { cache: 'no-store' });
-      state.manifest = prepareManifest(manifest, job.manifestUrl);
+      if (!isManifestUrl(job.manifestUrl, jobId)) throw new Error('Invalid simulation result');
+      let manifest;
+      try {
+        manifest = await fetchJson(job.manifestUrl, { cache: 'no-store' });
+      } catch (error) {
+        throw new Error('Invalid simulation result');
+      }
+      state.manifest = prepareManifest(manifest, jobId);
       map.fitBounds(state.manifest.bounds, { padding: [20, 20] });
       render();
       return;
@@ -244,8 +383,10 @@ async function pollJob(jobId, snappedNotice = '') {
     if (job.status !== 'queued' && job.status !== 'running') throw new Error('The service returned an unknown job status');
     const label = job.status === 'running' ? 'Simulation running…' : 'Simulation queued…';
     $('status').textContent = snappedNotice ? `${label} · ${snappedNotice}` : label;
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    const remaining = deadline - Date.now();
+    if (remaining > 0) await new Promise(resolve => setTimeout(resolve, Math.min(POLL_INTERVAL_MS, remaining)));
   }
+  throw new Error('Simulation timed out');
 }
 
 async function runSimulation() {
@@ -256,16 +397,17 @@ async function runSimulation() {
   $('error').hidden = true;
   $('status').textContent = 'Submitting simulation…';
   try {
-    const response = await fetch('/api/lisflood/run', {
+    const job = await fetchJson('/api/lisflood/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ bounds: state.bounds, returnPeriod: Number(state.period) }),
     });
-    if (!response.ok) throw new Error(await responseError(response));
-    const job = await response.json();
-    if (!job || typeof job.jobId !== 'string') throw new Error('The service returned no job identifier');
+    if (!job || typeof job !== 'object' || !isJobId(job.jobId) || !isStatusUrl(job.statusUrl, job.jobId)) {
+      throw new Error('Invalid simulation job');
+    }
+    if (job.status === 'failed') throw new Error(job.error || 'Simulation failed');
     const snappedNotice = job.effectiveBounds ? applyEffectiveBounds(job.effectiveBounds) : '';
-    await pollJob(job.jobId, snappedNotice);
+    await pollJob(job.statusUrl, job.jobId, snappedNotice);
   } catch (error) {
     console.error(error);
     $('status').textContent = error instanceof Error ? error.message : 'Simulation failed';
@@ -277,10 +419,17 @@ async function runSimulation() {
   }
 }
 
+function updatePeriodButtons() {
+  document.querySelectorAll('[data-period]').forEach(button => {
+    const active = button.dataset.period === state.period;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+}
+
 document.querySelectorAll('[data-period]').forEach(button => button.addEventListener('click', () => {
-  document.querySelector('[data-period].active')?.classList.remove('active');
-  button.classList.add('active');
   state.period = button.dataset.period;
+  updatePeriodButtons();
   clearResult();
   $('status').textContent = `Ready to run ${state.period}-year event`;
   updateControls();
@@ -303,18 +452,13 @@ map.setView([32.12, 118.95], 11);
 
 fetchJson('/api/lisflood/config', { cache: 'no-store' })
   .then(config => {
-    const available = asBounds(config.availableBounds);
-    const defaultBounds = asBounds(config.defaultBounds);
-    if (!available || !defaultBounds || !Number.isFinite(Number(config.maxAreaKm2))) {
-      throw new Error('The service returned invalid study-area configuration');
-    }
-    state.config = config;
-    state.bounds = defaultBounds;
+    state.config = normalizeConfig(config);
+    state.bounds = state.config.defaultBounds;
     state.corners = [];
     setRectangle(state.bounds);
     updateSelectionDisplay();
-    document.querySelector('[data-period="20"]')?.classList.add('active');
-    map.fitBounds(config.defaultBounds || config.availableBounds, { padding: [20, 20] });
+    updatePeriodButtons();
+    map.fitBounds(state.config.defaultBounds, { padding: [20, 20] });
     $('status').textContent = `Default study area loaded · approx. ${areaLabel(rectangleAreaKm2(state.bounds))}`;
     $('error').hidden = true;
     updateControls();
