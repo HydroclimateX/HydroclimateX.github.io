@@ -1,6 +1,9 @@
 'use strict';
 
 const map = L.map('map', { zoomControl: false });
+const selectionPane = map.createPane('selectionPane');
+selectionPane.style.zIndex = '650';
+selectionPane.style.pointerEvents = 'none';
 L.control.zoom({ position: 'bottomright' }).addTo(map);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 19,
@@ -27,6 +30,7 @@ const STAT_NAMES = Object.freeze(['floodedAreaKm2', 'exposedPopulation', 'maximu
 const POLL_INTERVAL_MS = 2000;
 const POLL_DEADLINE_MS = 24 * 60 * 60 * 1000;
 const MAX_TRANSIENT_ERRORS = 3;
+const REQUEST_TIMEOUT_MS = 30000;
 
 function asBounds(value) {
   if (!Array.isArray(value) || value.length !== 2 || !value.every(corner => Array.isArray(corner) && corner.length === 2)) {
@@ -147,6 +151,7 @@ function setRectangle(bounds) {
       weight: 2,
       fillOpacity: 0.08,
       interactive: false,
+      pane: 'selectionPane',
     }).addTo(map);
   }
 }
@@ -248,24 +253,43 @@ async function responseError(response) {
   return payload && typeof payload.error === 'string' ? payload.error : `Request failed (HTTP ${response.status})`;
 }
 
-async function fetchJson(url, options) {
-  let response;
+async function fetchJson(url, options = {}) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timedOut = () => {
+    const timeoutError = new Error('Request timed out');
+    timeoutError.transient = true;
+    return timeoutError;
+  };
   try {
-    response = await fetch(url, options);
-  } catch (error) {
-    const networkError = new Error('Network request failed');
-    networkError.transient = true;
-    throw networkError;
-  }
-  if (!response.ok) {
-    const requestError = new Error(await responseError(response));
-    requestError.transient = response.status >= 500;
-    throw requestError;
-  }
-  try {
-    return await response.json();
-  } catch (error) {
-    throw new Error('The service returned invalid JSON');
+    let response;
+    try {
+      response = await fetch(url, { ...options, signal: controller.signal });
+    } catch (error) {
+      if (error.name === 'AbortError' || controller.signal.aborted) {
+        throw timedOut();
+      }
+      const networkError = new Error('Network request failed');
+      networkError.transient = true;
+      throw networkError;
+    }
+    if (!response.ok) {
+      const message = await responseError(response);
+      if (controller.signal.aborted) throw timedOut();
+      const requestError = new Error(message);
+      requestError.transient = response.status >= 500;
+      throw requestError;
+    }
+    try {
+      const payload = await response.json();
+      if (controller.signal.aborted) throw timedOut();
+      return payload;
+    } catch (error) {
+      if (error.name === 'AbortError' || controller.signal.aborted) throw timedOut();
+      throw new Error('The service returned invalid JSON');
+    }
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -392,6 +416,7 @@ async function pollJob(statusUrl, jobId, expectedPeriod, expectedBounds, availab
       try {
         manifest = await fetchJson(job.manifestUrl, { cache: 'no-store' });
       } catch (error) {
+        if (error instanceof Error && error.message === 'Request timed out') throw error;
         throw new Error('Invalid simulation result');
       }
       state.manifest = prepareManifest(manifest, jobId, expectedPeriod, expectedBounds, availableBounds);

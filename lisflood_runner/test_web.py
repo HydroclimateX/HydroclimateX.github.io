@@ -97,6 +97,18 @@ class WebContractTests(unittest.TestCase):
         self.assertIn('id="legend" aria-label="Map legend" hidden', html)
         self.assertIn("overflow: auto", css)
 
+    def test_requests_have_bounded_timeout_and_selection_pane(self) -> None:
+        script = read("lisflood-app/app.js")
+        self.assertIn("const REQUEST_TIMEOUT_MS = 30000", script)
+        self.assertIn("new AbortController()", script)
+        self.assertIn("controller.signal", script)
+        self.assertIn("setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)", script)
+        self.assertIn("Request timed out", script)
+        self.assertIn("map.createPane('selectionPane')", script)
+        self.assertIn("selectionPane.style.zIndex", script)
+        self.assertIn("selectionPane.style.pointerEvents = 'none'", script)
+        self.assertIn("pane: 'selectionPane'", script)
+
     def test_compose_and_nginx_publish_only_cached_results(self) -> None:
         compose = read("docker-compose.yml")
         environment = read(".env.example")
