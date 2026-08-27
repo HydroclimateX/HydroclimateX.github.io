@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 STATE_DIR="${WASP_STATE_DIR:-/opt/hydroclimatex-wasp/state}"
 NGINX_IMAGE="hydroclimatex/wasp-nginx:current"
 PRIOR_NGINX_IMAGE=""
+PRIOR_NGINX_CONFIG=""
 export WASP_STATE_DIR="$STATE_DIR"
 
 fail() { printf '[lisflood] error: %s\n' "$*" >&2; exit 1; }
@@ -24,14 +25,14 @@ certificate_is_valid() {
   [[ "$cert_public" == "$key_public" ]]
 }
 restore_proxy() {
-  status=$?
+  local status="${1:-$?}"
   trap - ERR
   info "Deployment failed; restoring the existing proxy configuration."
   local rollback_failed=0
   if [[ -n "$PRIOR_NGINX_IMAGE" ]]; then
     if ! docker image tag "$PRIOR_NGINX_IMAGE" "$NGINX_IMAGE"; then
       rollback_failed=1
-    elif ! NGINX_CONFIG=nginx.analytics.conf docker compose up -d --no-build --force-recreate --wait --wait-timeout 120 nginx; then
+    elif ! NGINX_CONFIG="$PRIOR_NGINX_CONFIG" docker compose up -d --no-build --force-recreate --wait --wait-timeout 120 nginx; then
       rollback_failed=1
     fi
   else
@@ -66,6 +67,8 @@ records="$(dig +short A "$DOMAIN" | sed '/^[[:space:]]*$/d' | sort -u)"
 install -d -m 0755 "$STATE_DIR/www/.well-known/acme-challenge"
 cd "$SCRIPT_DIR"
 docker compose config --quiet
+PRIOR_NGINX_CONFIG="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' wasp-nginx 2>/dev/null | sed -n 's/^NGINX_CONFIG=//p' || true)"
+[[ "$PRIOR_NGINX_CONFIG" == "nginx.conf" || "$PRIOR_NGINX_CONFIG" == "nginx.analytics.conf" ]] || fail "existing WASP Nginx config is unsupported"
 PRIOR_NGINX_IMAGE="$(docker inspect --format '{{.Image}}' wasp-nginx 2>/dev/null || true)"
 [[ -n "$PRIOR_NGINX_IMAGE" ]] || fail "a running WASP Nginx image is required for rollback"
 [[ "$(docker inspect --format '{{.State.Health.Status}}' wasp-nginx 2>/dev/null || true)" == "healthy" ]] || fail "the existing WASP Nginx container must be healthy"
@@ -80,7 +83,10 @@ if ! certificate_is_valid "$DOMAIN"; then
   NGINX_CONFIG=nginx.bootstrap.conf docker compose up -d --no-build --force-recreate --wait --wait-timeout 120 nginx
   docker compose run --rm certbot certonly --webroot --webroot-path /var/www/certbot \
     --email "$CERTBOT_EMAIL" --agree-tos --no-eff-email --force-renewal -d "$DOMAIN"
-  certificate_is_valid "$DOMAIN" || fail "LISFLOOD certificate remains invalid after renewal"
+  if ! certificate_is_valid "$DOMAIN"; then
+    printf '[lisflood] error: LISFLOOD certificate remains invalid after renewal.\n' >&2
+    restore_proxy 1
+  fi
 fi
 
 NGINX_CONFIG=nginx.analytics.conf docker compose up -d --no-build --force-recreate --wait nginx
