@@ -1,5 +1,6 @@
 import gzip
 import hashlib
+import math
 import unittest
 from pathlib import Path
 
@@ -117,15 +118,20 @@ class WebContractTests(unittest.TestCase):
 
             with gzip.open(path, "rt", encoding="ascii") as source:
                 header = {}
-                for _ in range(6):
-                    key, value = source.readline().split()[:2]
+                header_lines = [source.readline() for _ in range(6)]
+                self.assertEqual(source.buffer.mtime, 0)
+                for line in header_lines:
+                    key, value = line.split()[:2]
                     header[key.lower()] = float(value)
                 row_count = 0
                 for line in source:
                     values = line.split()
                     self.assertEqual(len(values), int(header["ncols"]))
                     for value in values:
-                        float(value)
+                        number = float(value)
+                        self.assertTrue(math.isfinite(number))
+                        if name == "population" and number != header["nodata_value"]:
+                            self.assertGreaterEqual(number, 0.0)
                     row_count += 1
                 self.assertEqual(row_count, int(header["nrows"]))
                 self.assertGreater(row_count, 0)
