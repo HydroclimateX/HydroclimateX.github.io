@@ -23,7 +23,7 @@ def test_compose_keeps_analytics_datastores_private_and_pinned():
     analytics_image = read("analytics/Dockerfile")
     assert "python:3.11.10-slim-bookworm" in analytics_image
     assert "libnss3" in analytics_image and "libgbm1" in analytics_image
-    assert "plotly-2.35.2.min.js" in analytics_image
+    assert "plotly-2.35.2.min.js" not in analytics_image
 
 
 def test_nginx_exposes_only_telemetry_collection_routes_and_privacy_safe_logs():
@@ -126,3 +126,15 @@ def test_dashboard_attributes_country_geolocation_to_dbip():
 
     assert '<a href="https://db-ip.com"' in dashboard
     assert "IP Geolocation by DB-IP" in dashboard
+
+
+def test_dashboard_uses_committed_static_world_map_without_plotly():
+    svg = read("analytics_app/static/world-map.svg")
+    assert svg.strip().startswith("<svg")
+    assert "viewBox" in svg
+    assert 'data-iso3="' in svg
+
+    dashboard = read("analytics_app/static/index.html").lower()
+    app_script = read("analytics_app/static/app.js")
+    assert "plotly" not in dashboard + app_script.lower()
+    assert "renderStaticMap" in app_script

@@ -4,6 +4,7 @@ import csv
 import html
 import io
 import json
+import logging
 import smtplib
 from datetime import date, datetime, timezone
 from email.message import EmailMessage
@@ -15,6 +16,9 @@ import plotly.graph_objects as go
 from .config import Settings
 from .domain import HONG_KONG, Period, aggregate_country_rows
 from .repository import MonthlyReport, Repository
+
+
+LOG = logging.getLogger("hydroclimatex.analytics.reports")
 
 
 def previous_complete_month(now: datetime | None = None) -> date:
@@ -134,7 +138,7 @@ class ReportService:
             ])
         return output.getvalue().encode("utf-8")
 
-    def _html(self, report: MonthlyReport) -> str:
+    def _html(self, report: MonthlyReport, *, has_map: bool) -> str:
         website = report.snapshot["website"]  # type: ignore[assignment]
         wasp = report.snapshot["wasp"]  # type: ignore[assignment]
         totals = wasp["totals"]
@@ -167,7 +171,7 @@ class ReportService:
         <tr><td>Countries</td><td>{display(totals['countries'])}</td></tr>
         <tr><td>Result downloads</td><td>{display(totals['downloads'])}</td></tr></table>
         <h3>Top countries</h3><ol>{top_rows}</ol>
-        {('<img src="cid:usage-map" alt="Global WASP usage map" style="max-width:100%">' if wasp_available else '')}
+        {('<img src="cid:usage-map" alt="Global WASP usage map" style="max-width:100%">' if has_map else '')}
         <p style="font-size:12px;color:#60747a"><a href="https://db-ip.com">IP Geolocation by DB-IP</a></p>
         </body></html>
         """
@@ -182,12 +186,20 @@ class ReportService:
             f"HydroClimateX Monthly Analytics — {report.snapshot['label']}\n\n"
             "IP Geolocation by DB-IP: https://db-ip.com"
         )
-        message.add_alternative(self._html(report), subtype="html")
         wasp = report.snapshot["wasp"]  # type: ignore[assignment]
-        if wasp.get("status", "available") == "available":
+        wasp_available = wasp.get("status", "available") == "available"
+        map_bytes: bytes | None = None
+        if wasp_available:
+            try:
+                map_bytes = self.map_renderer(wasp["countries"])
+            except Exception as exc:
+                LOG.warning("report map rendering failed code=%s", type(exc).__name__)
+                map_bytes = None
+        message.add_alternative(self._html(report, has_map=map_bytes is not None), subtype="html")
+        if map_bytes is not None:
             html_part = message.get_payload()[-1]
-            map_bytes = self.map_renderer(wasp["countries"])
             html_part.add_related(map_bytes, maintype="image", subtype="png", cid="<usage-map>", filename="global-wasp-usage.png")
+        if wasp_available:
             filename = f"hydroclimatex_usage_{report.report_month:%Y-%m}.csv"
             message.add_attachment(self._csv_bytes(report), maintype="text", subtype="csv", filename=filename)
         return message

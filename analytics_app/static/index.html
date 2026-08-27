@@ -6,7 +6,6 @@
   <meta name="robots" content="noindex,nofollow,noarchive">
   <title>HydroclimateX Analytics</title>
   <link rel="stylesheet" href="/static/style.css">
-  <script defer src="/static/vendor/plotly-2.35.2.min.js"></script>
   <script defer src="/static/app.js"></script>
 </head>
 <body>
@@ -58,19 +57,12 @@
       </section>
 
       <section class="section-card usage-section" aria-labelledby="usageTitle">
-        <div class="section-heading"><div><p class="eyebrow">Scientific software usage</p><h2 id="usageTitle">Global WASP Usage</h2></div>
-          <div><label for="mapMetric">Map metric</label><select id="mapMetric">
-            <option value="successful_runs">Successful runs</option><option value="failed_runs">Failed runs</option>
-            <option value="downloads">Downloads</option><option value="sessions">Sessions</option>
-          </select></div>
+        <div class="section-heading">
+          <div><p class="eyebrow">Scientific software usage</p><h2 id="usageTitle">Global WASP Usage</h2></div>
+          <a id="csvLink" class="button-link" href="/api/v1/wasp/export.csv?period=30d">Download CSV</a>
         </div>
-        <div class="map-layout">
-          <div id="usageMap" class="map" role="img" aria-label="World choropleth showing WASP usage by country"></div>
-          <aside id="countryDetail" class="country-detail" aria-live="polite">
-            <p class="eyebrow">Country detail</p><h3>Select a country</h3><p class="muted">Click a country on the map or choose a table row.</p>
-          </aside>
-        </div>
-        <div class="table-actions"><h3>Country usage</h3><a id="csvLink" class="button-link" href="/api/v1/wasp/export.csv?period=30d">Download CSV</a></div>
+        <div id="usageMap" class="map" aria-label="World map of WASP usage by country"></div>
+        <div class="table-actions"><h3>Country usage</h3></div>
         <div class="table-wrap"><table><thead><tr><th>Country</th><th>Successful runs</th><th>Failed runs</th><th>Downloads</th><th>Sessions</th><th>Last activity</th></tr></thead><tbody id="countryRows"></tbody></table></div>
       </section>
 

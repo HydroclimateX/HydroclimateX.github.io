@@ -134,6 +134,64 @@ def test_unavailable_wasp_source_sends_status_without_unverified_attachments() -
     assert "text/csv" not in payload_types
 
 
+def test_map_render_failure_does_not_abort_send() -> None:
+    FakeSMTP.instances.clear()
+    repository = MemoryRepository()
+    repository.seed_event("session_start", "s1", "AU", "2026-07-05T00:00:00Z")
+    repository.seed_event("run_success", "s1", "AU", "2026-07-05T01:00:00Z", run_id="267eb25f-e2e5-4654-bf41-2bdcfbdedddc")
+
+    def broken_map(_rows):
+        raise RuntimeError("kaleido failed")
+
+    service = ReportService(
+        settings(), repository, FakeUmami(),
+        smtp_factory=FakeSMTP,
+        map_renderer=broken_map,
+    )
+
+    result = service.send(date(2026, 7, 1))
+
+    assert result["sent"] is True
+    message = FakeSMTP.instances[0].messages[0]
+    payload_types = [part.get_content_type() for part in message.walk()]
+    assert "text/html" in payload_types
+    assert "text/csv" in payload_types
+    assert "image/png" not in payload_types
+    body = message.as_string()
+    assert "Visitors" in body
+    assert "Successful runs" in body
+    saved = repository.get_report(date(2026, 7, 1))
+    assert saved.status == "sent"
+    assert saved.failure_code is None
+
+
+def test_report_includes_website_section_when_available() -> None:
+    FakeSMTP.instances.clear()
+    repository = MemoryRepository()
+    repository.seed_event("session_start", "s1", "AU", "2026-07-05T00:00:00Z")
+    repository.seed_event("run_success", "s1", "AU", "2026-07-05T01:00:00Z", run_id="267eb25f-e2e5-4654-bf41-2bdcfbdedddc")
+    service = ReportService(
+        settings(), repository, FakeUmami(),
+        smtp_factory=FakeSMTP,
+        map_renderer=lambda _rows: b"png-bytes",
+    )
+
+    result = service.send(date(2026, 7, 1))
+
+    assert result["sent"] is True
+    message = FakeSMTP.instances[0].messages[0]
+    html = "\n".join(
+        part.get_content()
+        for part in message.walk()
+        if part.get_content_type() == "text/html"
+    )
+    assert "WEBSITE" in html
+    assert "Visitors" in html
+    assert "1,245" in html
+    assert "WASP" in html
+    assert "Successful runs" in html
+
+
 def test_smtp_test_uses_configured_sender_and_recipient() -> None:
     FakeSMTP.instances.clear()
 

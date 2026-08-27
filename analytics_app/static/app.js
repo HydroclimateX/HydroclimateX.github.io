@@ -1,15 +1,13 @@
 (() => {
   'use strict';
   const byId = id => document.getElementById(id);
-  const state = { csrf: '', period: '30d', start: '', end: '', countries: [], worldGeo: null };
-  let worldGeoPromise = null;
-  function loadWorldGeo() {
-    if (!state.worldGeo) {
-      worldGeoPromise ||= fetch('/static/vendor/world-countries.json')
-        .then(r => { if (!r.ok) throw new Error(`world map data failed (${r.status})`); return r.json(); })
-        .then(geo => { state.worldGeo = geo; return geo; });
-    }
-    return worldGeoPromise;
+  const state = { csrf: '', period: '30d', start: '', end: '', countries: [] };
+  let worldMap = null;
+
+  function tealColor(t) {
+    const a = [215, 239, 233], b = [11, 79, 74];
+    const c = a.map((v, i) => Math.round(v + (b[i] - v) * t));
+    return `rgb(${c[0]},${c[1]},${c[2]})`;
   }
 
   async function api(path, options = {}) {
@@ -56,42 +54,43 @@
       setSourceStatus('websiteStatus','Website',summary.sources.website,summary.source_freshness?.website);
       setSourceStatus('waspStatus','WASP',summary.sources.wasp,summary.source_freshness?.wasp);
       state.countries = usage.countries;
-      try { await loadWorldGeo(); } catch (_) { state.worldGeo = null; }
-      renderMap(); renderCountryTable(); renderWebsiteTable(website.metrics || []);
+      renderStaticMap(); renderCountryTable(); renderWebsiteTable(website.metrics || []);
       byId('csvLink').href = `/api/v1/wasp/export.csv?${query}`;
     } catch (error) { if (error.message !== 'Authentication required') byId('dashboardError').textContent = error.message; }
   }
 
-  function renderMap() {
-    if (!window.Plotly) { byId('usageMap').textContent = 'Map library unavailable. Country table remains available.'; return; }
-    if (!state.worldGeo) { byId('usageMap').textContent = 'World map data unavailable. Country table remains available.'; return; }
-    const metric = byId('mapMetric').value;
-    const labels = {successful_runs:'Successful runs',failed_runs:'Failed runs',downloads:'Downloads',sessions:'Sessions'};
-    const rows = state.countries.filter(row => row.country_iso3);
-    Plotly.newPlot('usageMap',[{type:'choropleth',geojson:state.worldGeo,featureidkey:'properties.ISO_A3_EH',locations:rows.map(r=>r.country_iso3),z:rows.map(r=>r[metric]),text:rows.map(r=>r.country),hovertemplate:`%{text}<br>${labels[metric]}: %{z}<extra></extra>`,colorscale:[[0,'#e5f2ef'],[1,'#0f766e']],marker:{line:{color:'#fff',width:.5}},colorbar:{title:labels[metric]}}],{geo:{showframe:false,showcoastlines:false,projection:{type:'natural earth'},bgcolor:'#f9fbfa'},paper_bgcolor:'#f9fbfa',margin:{l:0,r:0,t:10,b:0}},{responsive:true,displayModeBar:false});
-    const map = byId('usageMap'); map.removeAllListeners?.('plotly_click');
-    map.on('plotly_click', event => { const code = event.points[0]?.location; const row = state.countries.find(item=>item.country_iso3===code); if(row) void selectCountry(row.country_code); });
+  function loadWorldMap() {
+    if (!worldMap) {
+      worldMap = fetch('/static/world-map.svg')
+        .then(r => { if (!r.ok) throw new Error(`world map failed (${r.status})`); return r.text(); })
+        .then(text => new DOMParser().parseFromString(text, 'image/svg+xml').documentElement);
+    }
+    return worldMap;
+  }
+
+  function renderStaticMap() {
+    const container = byId('usageMap');
+    loadWorldMap()
+      .then(svg => {
+        const view = svg.cloneNode(true);
+        const runs = new Map(state.countries.map(row => [row.country_iso3, row.successful_runs]));
+        const max = Math.max(0, ...runs.values());
+        view.querySelectorAll('path[data-iso3]').forEach(path => {
+          const value = runs.get(path.dataset.iso3) || 0;
+          path.setAttribute('fill', value > 0 ? tealColor(Math.pow(value / max, 0.7)) : '#dce4e1');
+        });
+        container.replaceChildren(view);
+      })
+      .catch(() => { container.textContent = 'World map unavailable. Country table remains available.'; });
   }
 
   function renderCountryTable() {
     const body = byId('countryRows'); body.replaceChildren();
     state.countries.forEach(row => {
-      const tr = document.createElement('tr'); tr.dataset.country = row.country_code; tr.tabIndex = 0;
+      const tr = document.createElement('tr'); tr.dataset.country = row.country_code;
       [row.country,row.successful_runs,row.failed_runs,row.downloads,row.sessions,row.last_activity || '—'].forEach(value=>{const td=document.createElement('td');td.textContent=value;tr.appendChild(td);});
-      const choose=()=>selectCountry(row.country_code); tr.addEventListener('click',choose); tr.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();void choose();}}); body.appendChild(tr);
+      body.appendChild(tr);
     });
-  }
-
-  async function selectCountry(code) {
-    try {
-      const row = await api(`/api/v1/wasp/countries/${encodeURIComponent(code)}?${periodQuery()}`);
-      const panel=byId('countryDetail'); panel.replaceChildren();
-      const eyebrow=document.createElement('p');eyebrow.className='eyebrow';eyebrow.textContent='Country detail';
-      const title=document.createElement('h3');title.textContent=row.country;
-      const list=document.createElement('dl');
-      [['Successful runs',row.successful_runs],['Failed runs',row.failed_runs],['Downloads',row.downloads],['Sessions',row.sessions],['Last activity',row.last_activity||'—']].forEach(([label,value])=>{const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;list.append(dt,dd);});
-      panel.append(eyebrow,title,list);
-    } catch(error){byId('dashboardError').textContent=error.message;}
   }
 
   function renderWebsiteTable(rows) {
@@ -107,7 +106,6 @@
   byId('logoutButton').addEventListener('click',async()=>{try{await api('/auth/logout',{method:'POST',headers:{'X-CSRF-Token':state.csrf}});}finally{state.csrf='';showLogin();}});
   byId('periodSelect').addEventListener('change',event=>{state.period=event.target.value;byId('customDates').hidden=state.period!=='custom';if(state.period!=='custom')void loadDashboard();});
   byId('applyDates').addEventListener('click',()=>{state.start=byId('startDate').value;state.end=byId('endDate').value;if(state.start&&state.end)void loadDashboard();});
-  byId('mapMetric').addEventListener('change',renderMap);
   byId('previewReport').addEventListener('click',async()=>{const month=byId('reportMonth').value;if(!month)return;try{const report=await api(`/api/v1/reports/${month}`);byId('reportPreview').textContent=JSON.stringify(report,null,2);}catch(error){byId('reportPreview').textContent=error.message;}});
   byId('sendReport').addEventListener('click',async()=>{const month=byId('reportMonth').value;if(!month)return;try{const result=await api(`/api/v1/reports/${month}/send`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf},body:JSON.stringify({force:false})});byId('reportPreview').textContent=JSON.stringify(result,null,2);}catch(error){byId('reportPreview').textContent=error.message;}});
   void restoreSession();

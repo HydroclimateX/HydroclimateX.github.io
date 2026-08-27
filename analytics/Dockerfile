@@ -10,7 +10,6 @@ COPY analytics-requirements.txt .
 RUN pip install --no-cache-dir --requirement analytics-requirements.txt
 
 COPY analytics_app /app/analytics_app
-COPY wasp-app/vendor/plotly-2.35.2.min.js /app/analytics_app/static/vendor/plotly-2.35.2.min.js
 
 RUN useradd --create-home --uid 10001 analytics && chown -R analytics:analytics /app
 USER analytics
