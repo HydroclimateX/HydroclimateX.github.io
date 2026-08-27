@@ -27,5 +27,7 @@ RUN pip install --no-cache-dir numpy==1.26.4 pillow==11.3.0
 
 WORKDIR /app
 COPY lisflood_runner /app/lisflood_runner
+COPY lisflood_runner/data /opt/lisflood/data
 
-ENTRYPOINT ["python", "-m", "lisflood_runner.generate"]
+EXPOSE 8080
+ENTRYPOINT ["python", "-m", "lisflood_runner.service"]

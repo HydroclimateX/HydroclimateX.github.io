@@ -110,20 +110,43 @@ class WebContractTests(unittest.TestCase):
         self.assertIn("selectionPane.style.pointerEvents = 'none'", script)
         self.assertIn("pane: 'selectionPane'", script)
 
-    def test_compose_and_nginx_publish_only_cached_results(self) -> None:
+    def test_compose_and_nginx_publish_interactive_results(self) -> None:
         compose = read("docker-compose.yml")
         environment = read(".env.example")
         nginx = read("nginx.analytics.conf")
         lisflood = read("nginx/lisflood.conf")
         bootstrap = read("nginx.bootstrap.conf")
         dockerfile = read("nginx/Dockerfile")
+        runner_dockerfile = read("lisflood_runner/Dockerfile")
         selector = read("nginx/select-config.sh")
+        runner = compose.split("  lisflood-runner:\n", 1)[1].split(
+            "  # ---- Nginx Reverse Proxy ----", 1
+        )[0]
+
         self.assertIn("lisflood-runner:", compose)
-        self.assertIn('profiles: ["lisflood-tools"]', compose)
-        self.assertIn("mem_limit: 2560m", compose)
-        self.assertIn("cpus: 2.0", compose)
-        self.assertIn("LISFLOOD_MODEL_DIR: /opt/lisflood/model", compose)
-        self.assertIn("${LISFLOOD_MODEL_DIR:-/opt/hydroclimatex-wasp/lisflood-private/model}:/opt/lisflood/model:ro", compose)
+        self.assertNotIn("profiles:", runner)
+        self.assertNotIn("init:", runner)
+        self.assertNotIn("LISFLOOD_MODEL_DIR", runner)
+        self.assertNotIn("/opt/lisflood/model", runner)
+        self.assertIn("restart: unless-stopped", runner)
+        self.assertIn('expose:\n      - "8080"', runner)
+        self.assertIn("networks:\n      - wasp-net", runner)
+        self.assertIn("cpus: 2.0", runner)
+        self.assertIn("mem_limit: 2560m", runner)
+        self.assertIn("LISFLOOD_CACHE_DIR: /opt/lisflood/cache", runner)
+        self.assertIn("LISFLOOD_MAX_AREA_KM2: ${LISFLOOD_MAX_AREA_KM2:-300}", runner)
+        self.assertIn(
+            "LISFLOOD_JOB_TIMEOUT_SECONDS: ${LISFLOOD_JOB_TIMEOUT_SECONDS:-7200}",
+            runner,
+        )
+        self.assertIn(
+            "${LISFLOOD_CACHE_DIR:-/opt/hydroclimatex-wasp/state/lisflood-cache}:/opt/lisflood/cache",
+            runner,
+        )
+        self.assertIn(
+            "http://localhost:8080/api/lisflood/config",
+            runner,
+        )
         self.assertNotIn("LISFLOOD_PRIVATE_DIR", compose)
         self.assertNotIn("LISFLOOD_REQUIRE_PARITY", compose)
         self.assertIn("LISFLOOD_MODEL_DIR=/opt/hydroclimatex-wasp/lisflood-private/model", environment)
@@ -134,6 +157,16 @@ class WebContractTests(unittest.TestCase):
         self.assertIn("server_name lisflood.hydroclimatex.com", lisflood)
         self.assertIn("location = /results/manifest.json", lisflood)
         self.assertIn("alias /srv/lisflood-results/", lisflood)
+        self.assertIn("upstream lisflood_backend", lisflood)
+        self.assertIn("limit_req_zone $binary_remote_addr zone=lisflood_submit:10m rate=2r/m;", lisflood)
+        self.assertIn("location = /api/lisflood/run", lisflood)
+        self.assertIn("limit_req zone=lisflood_submit burst=1 nodelay;", lisflood)
+        self.assertIn("location /api/lisflood/", lisflood)
+        self.assertLess(lisflood.index("location /api/lisflood/"), lisflood.rindex("location / {"))
+        self.assertIn("COPY lisflood_runner/data /opt/lisflood/data", runner_dockerfile)
+        self.assertIn("EXPOSE 8080", runner_dockerfile)
+        self.assertIn('ENTRYPOINT ["python", "-m", "lisflood_runner.service"]', runner_dockerfile)
+        self.assertNotIn("lisflood_runner.generate", runner_dockerfile)
         self.assertIn("lisflood.hydroclimatex.com", bootstrap)
         self.assertIn("COPY lisflood-app /usr/share/nginx/lisflood", dockerfile)
         self.assertIn("COPY nginx/lisflood.conf /opt/wasp/lisflood.conf", dockerfile)

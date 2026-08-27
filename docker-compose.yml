@@ -139,22 +139,30 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # ---- One-shot LISFLOOD-FP cache generator ----
+  # ---- Interactive LISFLOOD-FP service ----
   lisflood-runner:
-    profiles: ["lisflood-tools"]
     image: hydroclimatex/lisflood-runner:current
     build:
       context: .
       dockerfile: lisflood_runner/Dockerfile
-    init: true
+    restart: unless-stopped
+    expose:
+      - "8080"
     cpus: 2.0
     mem_limit: 2560m
     environment:
-      LISFLOOD_MODEL_DIR: /opt/lisflood/model
       LISFLOOD_CACHE_DIR: /opt/lisflood/cache
+      LISFLOOD_MAX_AREA_KM2: ${LISFLOOD_MAX_AREA_KM2:-300}
+      LISFLOOD_JOB_TIMEOUT_SECONDS: ${LISFLOOD_JOB_TIMEOUT_SECONDS:-7200}
     volumes:
-      - ${LISFLOOD_MODEL_DIR:-/opt/hydroclimatex-wasp/lisflood-private/model}:/opt/lisflood/model:ro
       - ${LISFLOOD_CACHE_DIR:-/opt/hydroclimatex-wasp/state/lisflood-cache}:/opt/lisflood/cache
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/lisflood/config')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - wasp-net
 
   # ---- Nginx Reverse Proxy ----
   nginx:
