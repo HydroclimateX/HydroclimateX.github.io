@@ -15,8 +15,6 @@ from numbers import Integral
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import numpy as np
-
 from . import generate
 
 
@@ -168,12 +166,18 @@ class Service:
             raise ValueError("data grids are invalid or misaligned") from error
         if dem.shape != population.shape or dem.ndim != 2:
             raise ValueError("data grids are invalid or misaligned")
-        if not np.isfinite(dem).any() or np.isinf(dem).any():
+        dem_values = dem.ravel()
+        if not any(math.isfinite(float(value)) for value in dem_values) or any(
+            math.isinf(float(value)) for value in dem_values
+        ):
             raise ValueError("DEM grid contains invalid values")
-        if np.isinf(population).any():
+        population_values = population.ravel()
+        if any(math.isinf(float(value)) for value in population_values):
             raise ValueError("population grid contains invalid values")
-        finite_population = population[np.isfinite(population)]
-        if finite_population.size and np.any(finite_population < 0):
+        if any(
+            math.isfinite(float(value)) and float(value) < 0
+            for value in population_values
+        ):
             raise ValueError("population grid contains negative values")
 
         try:
@@ -265,7 +269,7 @@ class Service:
         ]
 
     def config(self) -> dict:
-        ncols, nrows, _, _, _ = self._grid_shape()
+        ncols, nrows, _, _, cell = self._grid_shape()
         available = self._bounds_for_window((0, 0, ncols, nrows))
         default = self._bounds_for_window(DEFAULT_WINDOW)
         return {
@@ -273,6 +277,7 @@ class Service:
             "availableBounds": available,
             "defaultBounds": default,
             "maxAreaKm2": float(self.max_area),
+            "gridSizeM": float(cell),
             "returnPeriods": [int(period) for period in RETURN_PERIODS],
             "modelVersion": str(self.model_version),
         }
@@ -495,14 +500,30 @@ class Service:
 
 def _safe_value_error(error: ValueError) -> str:
     message = str(error).strip()
-    if (
-        not message
-        or len(message) > 200
-        or ("/" in message and not message.startswith("Content-Type"))
-        or "\\" in message
-    ):
-        return "Invalid request"
-    return message
+    public_messages = {
+        "Invalid request",
+        "Invalid JSON",
+        "JSON body must be an object",
+        "Content-Type must be application/json",
+        "Content-Length must be valid",
+        "Request body is incomplete",
+        "bounds is required",
+        "returnPeriod is required",
+        "return period must be an integer",
+        "effective bounds must contain two corners",
+        "effective bounds must contain two coordinates per corner",
+        "effective bounds coordinate must be numeric",
+        "effective bounds coordinate must be finite",
+        "effective bounds must be ordered WGS84 coordinates",
+        "bounds outside available extent",
+    }
+    if message in public_messages:
+        return message
+    if re.fullmatch(r"unsupported return period: -?\d+", message):
+        return message
+    if re.fullmatch(r"area exceeds [0-9.+eE-]+ km²", message):
+        return message
+    return "Invalid request"
 
 
 def make_handler(service: Service):
@@ -596,9 +617,11 @@ def make_handler(service: Service):
                 payload = self._read_json()
                 if "bounds" not in payload:
                     raise ValueError("bounds is required")
-                if "period" not in payload:
-                    raise ValueError("period is required")
-                result = service.submit(payload["bounds"], payload["period"])
+                if "returnPeriod" not in payload:
+                    raise ValueError("returnPeriod is required")
+                if set(payload) - {"bounds", "returnPeriod"}:
+                    raise ValueError("Invalid request")
+                result = service.submit(payload["bounds"], payload["returnPeriod"])
             except OverflowError:
                 self._send_json(413, {"error": "Request body too large"})
             except QueueFull:
@@ -606,13 +629,13 @@ def make_handler(service: Service):
             except InsufficientStorage:
                 self._send_json(507, {"error": "Insufficient storage"})
             except EngineUnavailable:
-                self._send_json(503, {"error": "Engine unavailable"})
+                self._send_json(503, {"error": "Simulation engine unavailable"})
             except ValueError as error:
                 self._send_json(400, {"error": _safe_value_error(error)})
             except Exception:
                 self._send_json(500, {"error": "Internal service error"})
             else:
-                self._send_json(202, result)
+                self._send_json(200 if result.get("status") == "completed" else 202, result)
 
         def do_HEAD(self):
             self._not_found()

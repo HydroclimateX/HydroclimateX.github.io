@@ -238,6 +238,7 @@ class ServiceHTTPTests(HTTPTestCase):
             self.assertEqual(payload["schemaVersion"], 1)
             self.assertEqual(payload["returnPeriods"], [5, 10, 20, 50, 100])
             self.assertEqual(payload["maxAreaKm2"], 300.0)
+            self.assertEqual(payload["gridSizeM"], 30.0)
             self.assertEqual(payload["modelVersion"], "8.0.3 ACC")
             self.assertEqual(payload["availableBounds"], [[31.0, 118.0], [31.1, 118.2]])
             self.assertEqual(payload["defaultBounds"], [[31.0, 118.0], [31.1, 118.2]])
@@ -254,7 +255,7 @@ class ServiceHTTPTests(HTTPTestCase):
                 server,
                 "POST",
                 "/api/lisflood/run",
-                json.dumps({"bounds": [[1, 2], [3, 4]], "period": 20}),
+                json.dumps({"bounds": [[1, 2], [3, 4]], "returnPeriod": 20}),
                 {"Content-Type": "text/plain"},
             )
             self.assertEqual(status, 400)
@@ -272,24 +273,24 @@ class ServiceHTTPTests(HTTPTestCase):
                 server,
                 "POST",
                 "/api/lisflood/run",
-                json.dumps({"bounds": [[1, 2], [3, 4]], "period": True}),
+                json.dumps({"bounds": [[1, 2], [3, 4]], "returnPeriod": True}),
                 base_headers,
             )
             self.assertEqual(status, 400)
             self.assertIn("period", payload["error"])
             with mock.patch(
                 "lisflood_runner.service.generate.snap_bounds",
-                side_effect=ValueError("bounds are invalid"),
+                side_effect=ValueError("bounds outside available extent"),
             ):
                 status, _, payload = self.request(
                     server,
                     "POST",
                     "/api/lisflood/run",
-                    json.dumps({"bounds": [[1, 2], [3, 4]], "period": 20}),
+                    json.dumps({"bounds": [[1, 2], [3, 4]], "returnPeriod": 20}),
                     base_headers,
                 )
             self.assertEqual(status, 400)
-            self.assertIn("bounds", payload["error"])
+            self.assertEqual(payload["error"], "bounds outside available extent")
 
     def test_post_run_and_get_completed_job(self) -> None:
         def runner(*args):
@@ -308,7 +309,7 @@ class ServiceHTTPTests(HTTPTestCase):
                     server,
                     "POST",
                     "/api/lisflood/run",
-                    json.dumps({"bounds": [[1, 2], [3, 4]], "period": 20}),
+                    json.dumps({"bounds": [[1, 2], [3, 4]], "returnPeriod": 20}),
                     headers,
                 )
             self.assertEqual(status, 202)
@@ -323,6 +324,35 @@ class ServiceHTTPTests(HTTPTestCase):
             self.assertEqual(status, 200)
             self.assertEqual(completed["status"], "completed")
             self.assertEqual(completed["manifestUrl"], f"/results/{submitted['jobId']}/manifest.json")
+
+    def test_cached_completed_post_returns_200(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            service = make_service(Path(directory), minimum_free_gb=0)
+            server = self.start_server(service)
+            body = {"bounds": [[1, 2], [3, 4]], "returnPeriod": 20}
+            with mock.patch(
+                "lisflood_runner.service.generate.snap_bounds",
+                return_value=((0, 0, 2, 2), [[1.0, 2.0], [3.0, 4.0]]),
+            ):
+                first_status, _, first = self.request(
+                    server,
+                    "POST",
+                    "/api/lisflood/run",
+                    json.dumps(body),
+                    {"Content-Type": "application/json"},
+                )
+                write_manifest(Path(directory) / first["jobId"], manifest_for())
+                second_status, _, second = self.request(
+                    server,
+                    "POST",
+                    "/api/lisflood/run",
+                    json.dumps(body),
+                    {"Content-Type": "application/json"},
+                )
+            self.assertEqual(first_status, 202)
+            self.assertEqual(second_status, 200)
+            self.assertEqual(second["status"], "completed")
+            self.assertEqual(service.queue.qsize(), 1)
 
     def test_unknown_and_malformed_jobs_are_not_found(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -340,11 +370,11 @@ class ServiceHTTPTests(HTTPTestCase):
         with tempfile.TemporaryDirectory() as directory:
             service = make_service(Path(directory))
             server = self.start_server(service)
-            body = json.dumps({"bounds": [[1, 2], [3, 4]], "period": 20})
+            body = json.dumps({"bounds": [[1, 2], [3, 4]], "returnPeriod": 20})
             for exception, expected_status, expected_error in (
                 (QueueFull("secret"), 429, "Queue is full"),
                 (InsufficientStorage("secret"), 507, "Insufficient storage"),
-                (EngineUnavailable("secret"), 503, "Engine unavailable"),
+                (EngineUnavailable("secret"), 503, "Simulation engine unavailable"),
                 (RuntimeError("secret/path"), 500, "Internal service error"),
             ):
                 with self.subTest(exception=type(exception).__name__), mock.patch.object(
@@ -360,6 +390,57 @@ class ServiceHTTPTests(HTTPTestCase):
                 self.assertEqual(status, expected_status)
                 self.assertEqual(payload["error"], expected_error)
                 self.assertNotIn("secret", json.dumps(payload))
+
+    def test_unexpected_value_error_is_redacted(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            service = make_service(Path(directory))
+            server = self.start_server(service)
+            with mock.patch.object(
+                service,
+                "submit",
+                side_effect=ValueError("private secret /srv/cache/job-123"),
+            ):
+                status, _, payload = self.request(
+                    server,
+                    "POST",
+                    "/api/lisflood/run",
+                    json.dumps({"bounds": [[1, 2], [3, 4]], "returnPeriod": 20}),
+                    {"Content-Type": "application/json"},
+                )
+            self.assertEqual(status, 400)
+            self.assertEqual(payload, {"error": "Invalid request"})
+
+    def test_period_alias_is_not_accepted_by_http_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            service = make_service(Path(directory))
+            server = self.start_server(service)
+            status, _, payload = self.request(
+                server,
+                "POST",
+                "/api/lisflood/run",
+                json.dumps({"bounds": [[1, 2], [3, 4]], "period": 20}),
+                {"Content-Type": "application/json"},
+            )
+            self.assertEqual(status, 400)
+            self.assertEqual(payload, {"error": "returnPeriod is required"})
+
+    def test_area_limit_validation_message_is_public(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            service = make_service(Path(directory))
+            server = self.start_server(service)
+            with mock.patch(
+                "lisflood_runner.service.generate.snap_bounds",
+                side_effect=ValueError("area exceeds 300 km²"),
+            ):
+                status, _, payload = self.request(
+                    server,
+                    "POST",
+                    "/api/lisflood/run",
+                    json.dumps({"bounds": [[1, 2], [3, 4]], "returnPeriod": 20}),
+                    {"Content-Type": "application/json"},
+                )
+            self.assertEqual(status, 400)
+            self.assertEqual(payload, {"error": "area exceeds 300 km²"})
 
     def test_restart_reconstructs_completed_status_from_disk(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
