@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -33,7 +34,12 @@ class WindowTests(unittest.TestCase):
     def test_snap_crop_and_stable_job_id(self) -> None:
         with unittest.mock.patch(
             "lisflood_runner.generate.transform_points",
-            return_value=[(500030.0, 3500030.0), (500180.0, 3500180.0)],
+            return_value=[
+                (500030.0, 3500030.0),
+                (500180.0, 3500180.0),
+                (500030.0, 3500030.0),
+                (500180.0, 3500180.0),
+            ],
         ):
             window, effective = snap_bounds([[31.0, 118.0], [31.1, 118.1]], self.HEADER, 300)
         self.assertEqual(window, (1, 1, 6, 6))
@@ -46,7 +52,12 @@ class WindowTests(unittest.TestCase):
         large_header = dict(self.HEADER, ncols=1000.0, nrows=1000.0)
         with unittest.mock.patch(
             "lisflood_runner.generate.transform_points",
-            return_value=[(500000.0, 3500000.0), (520000.0, 3520000.0)],
+            return_value=[
+                (500000.0, 3500000.0),
+                (500000.0, 3520000.0),
+                (520000.0, 3500000.0),
+                (520000.0, 3520000.0),
+            ],
         ):
             with self.assertRaisesRegex(ValueError, "300"):
                 snap_bounds([[31.0, 118.0], [31.2, 118.2]], large_header, 300)
@@ -60,6 +71,114 @@ class WindowTests(unittest.TestCase):
             actual_header, actual = generate.read_ascii(path)
             self.assertEqual(actual_header["ncols"], 3)
             np.testing.assert_allclose(actual, data)
+
+    def test_snap_uses_all_four_corners_and_returns_ordered_effective_bounds(self) -> None:
+        calls = []
+
+        def transform(points, source, target):
+            calls.append((list(points), source, target))
+            if len(calls) == 1:
+                return [
+                    (500060.0, 3500060.0),  # SW
+                    (500030.0, 3500150.0),  # NW
+                    (500200.0, 3500030.0),  # SE
+                    (500180.0, 3500200.0),  # NE
+                ]
+            return [
+                (118.02, 31.03),
+                (118.01, 31.18),
+                (118.17, 31.02),
+                (118.18, 31.20),
+            ]
+
+        with unittest.mock.patch("lisflood_runner.generate.transform_points", side_effect=transform):
+            window, effective = snap_bounds([[31.0, 118.0], [31.1, 118.1]], self.HEADER, 300)
+
+        self.assertEqual(
+            calls[0],
+            (
+                [(118.0, 31.0), (118.0, 31.1), (118.1, 31.0), (118.1, 31.1)],
+                "EPSG:4326",
+                "EPSG:32650",
+            ),
+        )
+        self.assertEqual(
+            calls[1],
+            (
+                [
+                    (500030.0, 3500030.0),
+                    (500030.0, 3500180.0),
+                    (500180.0, 3500030.0),
+                    (500180.0, 3500180.0),
+                ],
+                "EPSG:32650",
+                "EPSG:4326",
+            ),
+        )
+        self.assertEqual(window, (1, 1, 6, 6))
+        self.assertEqual(effective, [[31.02, 118.01], [31.20, 118.18]])
+
+    def test_one_cell_ascii_round_trip_stays_two_dimensional(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "one.asc"
+            write_ascii(path, self.HEADER, np.array([[7.5]]))
+            _, actual = generate.read_ascii(path)
+            self.assertEqual(actual.shape, (1, 1))
+            self.assertEqual(actual[0, 0], 7.5)
+
+
+class ValidationTests(unittest.TestCase):
+    HEADER = {
+        "ncols": 4.0, "nrows": 4.0, "xllcorner": 500000.0,
+        "yllcorner": 3500000.0, "cellsize": 30.0, "nodata_value": -9999.0,
+    }
+
+    def reject(self, *, header=None, dem=None, population=None, window=(0, 0, 2, 2), period=20, bounds=None):
+        with tempfile.TemporaryDirectory() as directory:
+            staging = Path(directory) / "staging"
+            with self.assertRaises(ValueError):
+                run_job(
+                    Path("missing-engine"),
+                    header or self.HEADER,
+                    dem if dem is not None else np.ones((4, 4)),
+                    population if population is not None else np.ones((4, 4)),
+                    window,
+                    period,
+                    bounds or [[32.0, 118.0], [32.1, 118.1]],
+                    "data",
+                    staging,
+                )
+            self.assertFalse(staging.exists())
+
+    def test_rejects_non_integer_or_out_of_range_windows(self) -> None:
+        for window in ((0.0, 0, 2, 2), (False, 0, 2, 2), (-1, 0, 2, 2), (0, 0, 4, 5), (2, 2, 2, 3)):
+            with self.subTest(window=window):
+                self.reject(window=window)
+
+    def test_rejects_non_integer_or_unsupported_periods(self) -> None:
+        for period in (20.0, True, 7):
+            with self.subTest(period=period):
+                self.reject(period=period)
+
+    def test_rejects_invalid_base_grids_and_cellsize(self) -> None:
+        for header, dem, population in (
+            (dict(self.HEADER, nrows=3.0), np.ones((4, 4)), np.ones((4, 4))),
+            (self.HEADER, np.ones(16), np.ones((4, 4))),
+            (self.HEADER, np.ones((4, 4)), np.ones((3, 4))),
+            (dict(self.HEADER, cellsize=0.0), np.ones((4, 4)), np.ones((4, 4))),
+        ):
+            with self.subTest(header=header, dem_shape=dem.shape, population_shape=population.shape):
+                self.reject(header=header, dem=dem, population=population)
+
+    def test_rejects_nonfinite_or_unordered_effective_bounds(self) -> None:
+        for bounds in (
+            [[32.0, 118.0], [float("nan"), 118.1]],
+            [[32.1, 118.0], [32.0, 118.1]],
+            [[32.0, 118.1], [32.1, 118.0]],
+            [[32.0, 118.0, 0.0], [32.1, 118.1, 0.0]],
+        ):
+            with self.subTest(bounds=bounds):
+                self.reject(bounds=bounds)
 
 
 class RainfallTests(unittest.TestCase):
@@ -158,6 +277,14 @@ class ModelConfigurationTests(unittest.TestCase):
             engine.chmod(0o755)
             self.assertEqual(model_version(engine), "8.0.3 ACC")
 
+    def test_model_version_rejects_arbitrary_usage_output(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            engine = Path(directory) / "lisflood"
+            engine.write_text("#!/bin/sh\necho 'usage: lisflood [options]'\n", encoding="utf-8")
+            engine.chmod(0o755)
+            with self.assertRaisesRegex(RuntimeError, "LISFLOOD-FP"):
+                model_version(engine)
+
 
 class RunnerTests(unittest.TestCase):
     HEADER = {
@@ -166,16 +293,57 @@ class RunnerTests(unittest.TestCase):
     }
 
     @staticmethod
-    def _engine(directory: str, fail: bool = False) -> Path:
+    def _engine(
+        directory: str,
+        fail: bool = False,
+        all_nodata: bool = False,
+        nonfinite_hazard: bool = False,
+        nonfinite_depth: bool = False,
+    ) -> Path:
         engine = Path(directory) / "fake-lisflood"
         if fail:
             script = "#!/bin/sh\nexit 1\n"
         else:
+            depth_rows = (
+                "-9999.000000 -9999.000000\n-9999.000000 -9999.000000"
+                if all_nodata
+                else "inf 0.050000\n0.100000 0.500000"
+                if nonfinite_depth
+                else "0.200000 0.050000\n0.100000 0.500000"
+            )
+            hazard_rows = (
+                "-9999.000000 1.300000\n2.700000 3.000000"
+                if nonfinite_hazard
+                else "0.500000 1.300000\n2.700000 3.000000"
+            )
             script = """#!/bin/sh
 if [ "$1" = "-version" ] || [ "$1" = "-v" ]; then
   echo 'LISFLOOD-FP version 8.0.3 (double)'
   exit 0
 fi
+test "$(sed -n '1p' dem.asc)" = "ncols 2"
+test "$(sed -n '2p' dem.asc)" = "nrows 2"
+test "$(sed -n '3p' dem.asc)" = "xllcorner 500030.000000"
+test "$(sed -n '4p' dem.asc)" = "yllcorner 3500030.000000"
+test "$(sed -n '5p' dem.asc)" = "cellsize 30.000000"
+grep -Fxq 'DEMfile dem.asc' web.par
+grep -Fxq 'resroot result' web.par
+grep -Fxq 'dirroot results' web.par
+grep -Fxq 'sim_time 43200' web.par
+grep -Fxq 'initial_tstep 10' web.par
+grep -Fxq 'massint 3600' web.par
+grep -Fxq 'saveint 3600' web.par
+grep -Fxq 'acceleration' web.par
+grep -Fxq 'fpfric 0.06' web.par
+grep -Fxq 'infiltration 0.00001' web.par
+grep -Fxq 'hazard' web.par
+grep -Fxq 'depththresh 0.01' web.par
+grep -Fxq 'comp_out' web.par
+grep -Fxq 'rainfall design.rain' web.par
+grep -Fxq 'evaporation evaporation.evap' web.par
+! grep -Eiq '^[[:space:]]*(inpFile|uniform_rules|fv1|dg2|bcifile|startfile|manningfile)([[:space:]]|$)' web.par
+test -f design.rain
+test -f evaporation.evap
 mkdir -p results
 cat > results/result.mass <<'EOF'
 Time Tstep MinTstep NumTsteps Area Vol Qin Hds Qout Qerror Verror Rain-Inf+Evap
@@ -188,8 +356,7 @@ xllcorner 500030.000000
 yllcorner 3500030.000000
 cellsize 30.000000
 NODATA_value -9999
-0.200000 0.050000
-0.100000 0.500000
+DEPTH_ROWS
 EOF
 cat > results/result.maxHaz <<'EOF'
 ncols 2
@@ -198,10 +365,10 @@ xllcorner 500030.000000
 yllcorner 3500030.000000
 cellsize 30.000000
 NODATA_value -9999
-0.500000 1.300000
-2.700000 3.000000
+HAZARD_ROWS
 EOF
 """
+            script = script.replace("DEPTH_ROWS", depth_rows).replace("HAZARD_ROWS", hazard_rows)
         engine.write_text(script, encoding="utf-8")
         engine.chmod(0o755)
         return engine
@@ -222,9 +389,9 @@ EOF
                 self.HEADER,
                 dem,
                 population,
-                (1, 1, 3, 3),
-                20,
-                [[32.0, 118.0], [32.1, 118.1]],
+                (np.int64(1), np.int64(1), np.int64(3), np.int64(3)),
+                np.int64(20),
+                [[np.float64(32.0), np.float64(118.0)], [np.float64(32.1), np.float64(118.1)]],
                 "sha256:data",
                 staging,
             )
@@ -234,6 +401,9 @@ EOF
             self.assertEqual(manifest["dataVersion"], "sha256:data")
             self.assertEqual(manifest["returnPeriod"], 20)
             self.assertEqual(manifest["bounds"], [[32.0, 118.0], [32.1, 118.1]])
+            self.assertIs(type(manifest["returnPeriod"]), int)
+            self.assertTrue(all(type(value) is float for corner in manifest["bounds"] for value in corner))
+            json.dumps(manifest, allow_nan=False)
             self.assertEqual(
                 manifest["layers"],
                 {name: f"{name}.png" for name in ("dem", "population", "depth", "hazard", "risk")},
@@ -243,6 +413,101 @@ EOF
             self.assertEqual(manifest["stats"]["maximumDepthM"], 0.5)
             for name in ("dem", "population", "depth", "hazard", "risk"):
                 self.assertTrue((staging / f"{name}.png").is_file())
+
+    def test_relative_engine_path_is_resolved_before_temp_cwd(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            engine = self._engine(directory)
+            old_cwd = Path.cwd()
+            os.chdir(root)
+            try:
+                manifest = run_job(
+                    Path(engine.name),
+                    self.HEADER,
+                    np.ones((4, 4)),
+                    np.ones((4, 4)),
+                    (1, 1, 3, 3),
+                    20,
+                    [[32.0, 118.0], [32.1, 118.1]],
+                    "data",
+                    root / "staging",
+                )
+            finally:
+                os.chdir(old_cwd)
+            self.assertEqual(manifest["modelVersion"], "8.0.3 ACC")
+
+    def test_nonfinite_population_is_zeroed_before_risk_statistics(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = run_job(
+                self._engine(directory),
+                self.HEADER,
+                np.ones((4, 4)),
+                np.array(
+                    [[0, 0, 0, 0], [np.nan, np.inf, 0, 0], [-np.inf, np.nan, 0, 0], [0, 0, 0, 0]],
+                    dtype=float,
+                ),
+                (1, 1, 3, 3),
+                20,
+                [[32.0, 118.0], [32.1, 118.1]],
+                "data",
+                root / "staging",
+            )
+            self.assertEqual(manifest["populationBreaks"], [0.0, 0.0, 0.0])
+            self.assertEqual(manifest["stats"]["exposedPopulation"], 0)
+
+    def test_nonfinite_hazard_is_not_counted_as_flooded(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            population = np.array(
+                [[0, 0, 0, 0], [0, 1, 2, 0], [0, 3, 4, 0], [0, 0, 0, 0]],
+                dtype=float,
+            )
+            manifest = run_job(
+                self._engine(directory, nonfinite_hazard=True),
+                self.HEADER,
+                np.ones((4, 4)),
+                population,
+                (1, 1, 3, 3),
+                20,
+                [[32.0, 118.0], [32.1, 118.1]],
+                "data",
+                root / "staging",
+            )
+            self.assertEqual(manifest["stats"]["floodedAreaKm2"], 0.002)
+            self.assertEqual(manifest["stats"]["exposedPopulation"], 7)
+
+    def test_all_nodata_depth_is_rejected_without_nan_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(ValueError, "finite depth"):
+                run_job(
+                    self._engine(directory, all_nodata=True),
+                    self.HEADER,
+                    np.ones((4, 4)),
+                    np.ones((4, 4)),
+                    (1, 1, 3, 3),
+                    20,
+                    [[32.0, 118.0], [32.1, 118.1]],
+                    "data",
+                    root / "staging",
+                )
+
+    def test_nonfinite_maximum_depth_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(ValueError, "finite depth"):
+                run_job(
+                    self._engine(directory, nonfinite_depth=True),
+                    self.HEADER,
+                    np.ones((4, 4)),
+                    np.ones((4, 4)),
+                    (1, 1, 3, 3),
+                    20,
+                    [[32.0, 118.0], [32.1, 118.1]],
+                    "data",
+                    root / "staging",
+                )
 
     def test_failed_engine_does_not_write_manifest_or_layers(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

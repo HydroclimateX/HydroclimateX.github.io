@@ -7,6 +7,7 @@ import json
 import gzip
 import hashlib
 import math
+import os
 import re
 import subprocess
 import tempfile
@@ -81,9 +82,29 @@ def snap_bounds(
     (south, west), (north, east) = bounds
     if not (-90 <= south < north <= 90 and -180 <= west < east <= 180):
         raise ValueError("invalid bounds")
-    (x0, y0), (x1, y1) = transform_points(
-        [(west, south), (east, north)], "EPSG:4326", "EPSG:32650"
+    projected = transform_points(
+        [
+            (west, south),
+            (west, north),
+            (east, south),
+            (east, north),
+        ],
+        "EPSG:4326",
+        "EPSG:32650",
     )
+    if len(projected) != 4:
+        raise ValueError("coordinate transform returned the wrong number of points")
+    if any(
+        len(point) < 2
+        or not math.isfinite(float(point[0]))
+        or not math.isfinite(float(point[1]))
+        for point in projected
+    ):
+        raise ValueError("coordinate transform returned invalid points")
+    x0 = min(point[0] for point in projected)
+    y0 = min(point[1] for point in projected)
+    x1 = max(point[0] for point in projected)
+    y1 = max(point[1] for point in projected)
     origin_x, origin_y, cell = (
         header["xllcorner"],
         header["yllcorner"],
@@ -111,12 +132,28 @@ def snap_bounds(
     corners = transform_points(
         [
             (origin_x + c0 * cell, origin_y + r0 * cell),
+            (origin_x + c0 * cell, origin_y + r1 * cell),
+            (origin_x + c1 * cell, origin_y + r0 * cell),
             (origin_x + c1 * cell, origin_y + r1 * cell),
         ],
         "EPSG:32650",
         "EPSG:4326",
     )
-    return window, [[corners[0][1], corners[0][0]], [corners[1][1], corners[1][0]]]
+    if len(corners) != 4:
+        raise ValueError("coordinate transform returned the wrong number of points")
+    if any(
+        len(point) < 2
+        or not math.isfinite(float(point[0]))
+        or not math.isfinite(float(point[1]))
+        for point in corners
+    ):
+        raise ValueError("coordinate transform returned invalid points")
+    longitudes = [point[0] for point in corners]
+    latitudes = [point[1] for point in corners]
+    return window, [
+        [float(min(latitudes)), float(min(longitudes))],
+        [float(max(latitudes)), float(max(longitudes))],
+    ]
 
 
 def crop_grid(data: np.ndarray, window: tuple[int, int, int, int]) -> np.ndarray:
@@ -147,6 +184,150 @@ def job_id(window, period, model, data_version) -> str:
     return hashlib.sha256(value.encode()).hexdigest()[:20]
 
 
+def _normalise_integer(value, label: str) -> int:
+    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
+        raise ValueError(f"{label} must contain integer values")
+    return int(value)
+
+
+def _normalise_window(window, ncols: int, nrows: int) -> tuple[int, int, int, int]:
+    try:
+        values = tuple(window)
+    except TypeError as error:
+        raise ValueError("window must contain four integer values") from error
+    if len(values) != 4:
+        raise ValueError("window must contain four integer values")
+    c0, r0, c1, r1 = (_normalise_integer(value, "window") for value in values)
+    if not (0 <= c0 < c1 <= ncols and 0 <= r0 < r1 <= nrows):
+        raise ValueError("window is outside the base grid")
+    return c0, r0, c1, r1
+
+
+def _normalise_period(period: int) -> int:
+    if isinstance(period, (bool, np.bool_)) or not isinstance(period, (int, np.integer)):
+        raise ValueError("return period must be an integer")
+    period = int(period)
+    if period not in RETURN_PERIODS:
+        raise ValueError(f"unsupported return period: {period}")
+    return period
+
+
+def _normalise_bounds(bounds) -> list[list[float]]:
+    try:
+        corners = tuple(bounds)
+    except TypeError as error:
+        raise ValueError("effective bounds must contain two corners") from error
+    if len(corners) != 2:
+        raise ValueError("effective bounds must contain two corners")
+    normalised: list[list[float]] = []
+    for corner in corners:
+        try:
+            values = tuple(corner)
+        except TypeError as error:
+            raise ValueError("effective bounds must contain two coordinates per corner") from error
+        if len(values) != 2:
+            raise ValueError("effective bounds must contain two coordinates per corner")
+        coordinates: list[float] = []
+        for value in values:
+            if isinstance(value, (bool, np.bool_)) or not isinstance(
+                value, (int, float, np.integer, np.floating)
+            ):
+                raise ValueError("effective bounds must contain numeric coordinates")
+            number = float(value)
+            if not math.isfinite(number):
+                raise ValueError("effective bounds must contain finite coordinates")
+            coordinates.append(number)
+        normalised.append(coordinates)
+    (south, west), (north, east) = normalised
+    if not (-90 <= south < north <= 90 and -180 <= west < east <= 180):
+        raise ValueError("effective bounds must be ordered WGS84 coordinates")
+    return normalised
+
+
+def _normalise_header(
+    base_header: dict[str, float], dem: np.ndarray, population: np.ndarray
+) -> tuple[dict[str, float], np.ndarray, np.ndarray, int, int, float]:
+    try:
+        ncols_float = float(base_header["ncols"])
+        nrows_float = float(base_header["nrows"])
+        origin_x = float(base_header["xllcorner"])
+        origin_y = float(base_header["yllcorner"])
+        cell = float(base_header["cellsize"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("base header is incomplete or non-numeric") from error
+    if (
+        not math.isfinite(ncols_float)
+        or not math.isfinite(nrows_float)
+        or not ncols_float.is_integer()
+        or not nrows_float.is_integer()
+        or ncols_float <= 0
+        or nrows_float <= 0
+        or not math.isfinite(origin_x)
+        or not math.isfinite(origin_y)
+        or not math.isfinite(cell)
+        or cell <= 0
+    ):
+        raise ValueError("base header has invalid dimensions or cellsize")
+    ncols, nrows = int(ncols_float), int(nrows_float)
+    dem_array, population_array = np.asarray(dem), np.asarray(population)
+    expected = (nrows, ncols)
+    if dem_array.ndim != 2 or dem_array.shape != expected:
+        raise ValueError(f"DEM grid must be 2-D with shape {expected}")
+    if population_array.ndim != 2 or population_array.shape != expected:
+        raise ValueError(f"population grid must be 2-D with shape {expected}")
+    header = dict(base_header)
+    header.update(
+        ncols=float(ncols),
+        nrows=float(nrows),
+        xllcorner=origin_x,
+        yllcorner=origin_y,
+        cellsize=cell,
+    )
+    return header, dem_array, population_array, ncols, nrows, cell
+
+
+def _resolve_engine(engine: Path) -> Path:
+    path = Path(engine).expanduser()
+    if not path.is_absolute():
+        path = Path.cwd() / path
+    path = path.resolve()
+    if not path.is_file():
+        raise FileNotFoundError(f"LISFLOOD engine not found: {path}")
+    if not os.access(path, os.X_OK):
+        raise PermissionError(f"LISFLOOD engine is not executable: {path}")
+    return path
+
+
+def _validate_job_inputs(
+    engine: Path,
+    base_header: dict[str, float],
+    dem: np.ndarray,
+    population: np.ndarray,
+    window,
+    period: int,
+    effective_bounds,
+    data_version: str,
+) -> tuple[Path, dict[str, float], np.ndarray, np.ndarray, tuple[int, int, int, int], int, list[list[float]], str, float]:
+    header, dem_array, population_array, ncols, nrows, cell = _normalise_header(
+        base_header, dem, population
+    )
+    normalised_window = _normalise_window(window, ncols, nrows)
+    normalised_period = _normalise_period(period)
+    normalised_bounds = _normalise_bounds(effective_bounds)
+    resolved_engine = _resolve_engine(engine)
+    return (
+        resolved_engine,
+        header,
+        dem_array,
+        population_array,
+        normalised_window,
+        normalised_period,
+        normalised_bounds,
+        str(data_version),
+        cell,
+    )
+
+
 def build_risk(depth: np.ndarray, hazard: np.ndarray, population: np.ndarray) -> tuple[np.ndarray, list[float]]:
     if depth.shape != hazard.shape or depth.shape != population.shape:
         raise ValueError("depth, hazard, and population grids must align")
@@ -170,7 +351,7 @@ def read_ascii(path: Path) -> tuple[dict[str, float], np.ndarray]:
         for _ in range(6):
             key, value = source.readline().split()[:2]
             header[key.lower()] = float(value)
-        data = np.loadtxt(source)
+        data = np.loadtxt(source, ndmin=2)
     expected = (int(header["nrows"]), int(header["ncols"]))
     if data.shape != expected:
         raise ValueError(f"{path} has shape {data.shape}, expected {expected}")
@@ -238,14 +419,27 @@ def save_layer(path: Path, data: np.ndarray, palette: list[tuple[int, int, int, 
 
 
 def model_version(engine: Path) -> str:
+    engine = _resolve_engine(engine)
     for flag in ("-version", "-v"):
-        result = subprocess.run([str(engine), flag], text=True, capture_output=True)
+        try:
+            result = subprocess.run(
+                [str(engine), flag],
+                text=True,
+                capture_output=True,
+                check=True,
+                timeout=10,
+            )
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+            continue
         output = (result.stdout + result.stderr).strip()
-        if output:
-            match = re.search(r"LISFLOOD-FP version\s+([\d.]+)", output, re.IGNORECASE)
-            version = match.group(1) if match else output.splitlines()[0][:120]
-            return f"{version} ACC"
-    return "unknown ACC"
+        for line in output.splitlines():
+            if (
+                re.search(r"\bLISFLOOD[- ]FP\b", line, re.IGNORECASE)
+                and re.search(r"\b8\.0\.3\b", line)
+                and not re.search(r"\b(?:usage|error|invalid)\b", line, re.IGNORECASE)
+            ):
+                return "8.0.3 ACC"
+    raise RuntimeError("LISFLOOD-FP 8.0.3 version output was not found")
 
 
 def run_job(
@@ -261,8 +455,27 @@ def run_job(
     timeout: int = 7200,
 ) -> dict:
     """Run one cropped ACC rainfall scenario and write a flat manifest to staging."""
+    (
+        engine,
+        base_header,
+        dem,
+        population,
+        window,
+        period,
+        effective_bounds,
+        data_version,
+        cell,
+    ) = _validate_job_inputs(
+        engine,
+        base_header,
+        dem,
+        population,
+        window,
+        period,
+        effective_bounds,
+        data_version,
+    )
     c0, r0, c1, r1 = window
-    cell = base_header["cellsize"]
     header = dict(
         base_header,
         ncols=float(c1 - c0),
@@ -271,7 +484,9 @@ def run_job(
         yllcorner=base_header["yllcorner"] + r0 * cell,
     )
     cropped_dem = crop_grid(dem, window)
-    cropped_population = np.nan_to_num(crop_grid(population, window), nan=0.0)
+    cropped_population = np.nan_to_num(
+        crop_grid(population, window), nan=0.0, posinf=0.0, neginf=0.0
+    )
     staging.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory(prefix="lisflood-job-") as directory:
@@ -290,11 +505,18 @@ def run_job(
         hazard_header, hazard = read_ascii(locate_output(output, HAZARD_SUFFIX))
         assert_aligned(header, depth_header)
         assert_aligned(header, hazard_header)
-        if np.nanmin(depth) < -1e-8:
+        if not np.isfinite(depth).any():
+            raise ValueError("depth output has no finite depth values")
+        if np.isinf(depth).any():
+            raise ValueError("depth output contains non-finite depth values")
+        maximum_depth = float(np.nanmax(depth))
+        if not math.isfinite(maximum_depth):
+            raise ValueError("maximum depth is not finite")
+        if np.min(depth[np.isfinite(depth)]) < -1e-8:
             raise RuntimeError("negative depth")
 
     risk, breaks = build_risk(depth, hazard, cropped_population)
-    flooded = np.isfinite(depth) & (depth >= 0.10)
+    flooded = np.isfinite(depth) & np.isfinite(hazard) & (depth >= 0.10)
     save_layer(
         staging / "dem.png",
         cropped_dem,
@@ -347,10 +569,10 @@ def run_job(
         "stats": {
             "floodedAreaKm2": round(float(flooded.sum() * cell * cell / 1e6), 3),
             "exposedPopulation": round(float(cropped_population[flooded].sum())),
-            "maximumDepthM": round(float(np.nanmax(depth)), 3),
+            "maximumDepthM": round(maximum_depth, 3),
         },
     }
     (staging / "manifest.json").write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+        json.dumps(manifest, indent=2, allow_nan=False) + "\n", encoding="utf-8"
     )
     return manifest
