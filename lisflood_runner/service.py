@@ -82,6 +82,16 @@ def _safe_filename(value: str) -> bool:
     )
 
 
+def _finite_nonnegative(value) -> bool:
+    if isinstance(value, bool):
+        return False
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    return math.isfinite(number) and number >= 0
+
+
 class Service:
     """Own a bounded FIFO queue and one optional background worker."""
 
@@ -334,38 +344,46 @@ class Service:
             return None
         return job_dir
 
-    @staticmethod
-    def _layer_filename(identifier: str, value) -> str | None:
-        if not isinstance(value, str):
-            return None
-        prefix = f"/results/{identifier}/"
-        if value.startswith(prefix):
-            value = value[len(prefix) :]
-        elif value.startswith("/"):
-            return None
-        if not _safe_filename(value) or not value.lower().endswith(".png"):
-            return None
-        return value
-
     def _valid_manifest(self, identifier: str, job_dir: Path, manifest: dict) -> bool:
         schema_version = manifest.get("schemaVersion")
         if isinstance(schema_version, bool) or schema_version != 1:
             return False
         layers = manifest.get("layers")
-        if not isinstance(layers, dict) or not layers:
+        if not isinstance(layers, dict) or set(layers) != EXPECTED_LAYER_NAMES:
             return False
-        for name, value in layers.items():
-            if name not in EXPECTED_LAYER_NAMES:
+        for name in EXPECTED_LAYER_NAMES:
+            if layers.get(name) != f"/results/{identifier}/{name}.png":
                 return False
-            filename = self._layer_filename(identifier, value)
-            if filename is None:
-                return False
-            layer = job_dir / filename
+            layer = job_dir / f"{name}.png"
             try:
                 if layer.is_symlink() or not layer.is_file() or layer.resolve().parent != job_dir.resolve():
                     return False
             except OSError:
                 return False
+        try:
+            _normalise_period(manifest["returnPeriod"])
+            generate._normalise_bounds(manifest["bounds"])
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return False
+        if (
+            not isinstance(manifest.get("modelVersion"), str)
+            or not manifest["modelVersion"]
+            or not isinstance(manifest.get("dataVersion"), str)
+            or not manifest["dataVersion"]
+            or not _finite_nonnegative(manifest.get("rainfallMm"))
+        ):
+            return False
+        breaks = manifest.get("populationBreaks")
+        if not isinstance(breaks, list) or len(breaks) != 3 or not all(
+            _finite_nonnegative(value) for value in breaks
+        ):
+            return False
+        stats = manifest.get("stats")
+        if not isinstance(stats, dict) or not all(
+            _finite_nonnegative(stats.get(name))
+            for name in ("floodedAreaKm2", "exposedPopulation", "maximumDepthM")
+        ):
+            return False
         return True
 
     def _completed_manifest(self, identifier: str) -> dict | None:

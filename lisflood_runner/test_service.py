@@ -31,12 +31,30 @@ HEADER = {
     "cellsize": 30.0,
 }
 
+LAYER_NAMES = ("dem", "population", "depth", "hazard", "risk")
 
-def manifest_for(*, layer="depth.png", **extra):
+
+def manifest_for(*, layer=None, job_id=None, **extra):
+    layers = {name: f"{name}.png" for name in LAYER_NAMES}
+    if layer is not None:
+        layers["depth"] = layer
+    if job_id is not None:
+        layers = {name: f"/results/{job_id}/{filename}" for name, filename in layers.items()}
     manifest = {
         "schemaVersion": 1,
-        "layers": {"depth": layer},
-        "stats": {"maximumDepthM": 1.0},
+        "generatedAt": "2026-01-01T00:00:00+00:00",
+        "modelVersion": "model",
+        "dataVersion": "data",
+        "returnPeriod": 20,
+        "rainfallMm": 10.0,
+        "bounds": [[1.0, 2.0], [3.0, 4.0]],
+        "populationBreaks": [0.0, 1.0, 2.0],
+        "layers": layers,
+        "stats": {
+            "floodedAreaKm2": 1.0,
+            "exposedPopulation": 2.0,
+            "maximumDepthM": 1.0,
+        },
     }
     manifest.update(extra)
     return manifest
@@ -50,7 +68,18 @@ def write_manifest(path: Path, manifest: dict) -> None:
     (path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
 
+def runner_manifest(staging: Path, manifest: dict | None = None, *, depth=b"png") -> dict:
+    if manifest is None:
+        manifest = manifest_for()
+    write_manifest(staging, manifest)
+    if depth != b"png":
+        (staging / "depth.png").write_bytes(depth)
+    return manifest
+
+
 def make_service(cache: Path, *, runner=None, start_worker=False, **kwargs) -> Service:
+    if runner is None:
+        runner = lambda *args: runner_manifest(args[8])
     return Service(
         cache,
         Path("engine"),
@@ -59,7 +88,7 @@ def make_service(cache: Path, *, runner=None, start_worker=False, **kwargs) -> S
         np.ones((4, 4)),
         "data",
         "model",
-        runner=runner or (lambda *args: manifest_for()),
+        runner=runner,
         start_worker=start_worker,
         **kwargs,
     )
@@ -125,7 +154,7 @@ class ServiceSubmissionTests(unittest.TestCase):
             ):
                 service = make_service(cache)
                 first = service.submit([[1, 2], [3, 4]], 20)
-                write_manifest(cache / first["jobId"], manifest_for())
+                write_manifest(cache / first["jobId"], manifest_for(job_id=first["jobId"]))
                 service.state[first["jobId"]] = {"status": "failed", "error": "Simulation failed"}
                 second = service.submit([[1, 2], [3, 4]], 20)
 
@@ -169,9 +198,7 @@ class ServiceExecutionTests(unittest.TestCase):
 
         def runner(*args):
             calls.append(args[4:7])
-            staging = args[8]
-            (staging / "depth.png").write_bytes(b"png")
-            return manifest_for()
+            return runner_manifest(args[8])
 
         with tempfile.TemporaryDirectory() as directory:
             service = make_service(Path(directory), runner=runner, minimum_free_gb=0)
@@ -215,9 +242,8 @@ class ServiceExecutionTests(unittest.TestCase):
         processed = threading.Event()
 
         def runner(*args):
-            (args[8] / "depth.png").write_bytes(b"png")
             processed.set()
-            return manifest_for()
+            return runner_manifest(args[8])
 
         with tempfile.TemporaryDirectory() as directory:
             service = make_service(Path(directory), runner=runner, start_worker=False, minimum_free_gb=0)
@@ -260,7 +286,7 @@ class ServiceExecutionTests(unittest.TestCase):
             period = args[5]
             with calls_lock:
                 calls.append(period)
-            (args[8] / "depth.png").write_bytes(b"png")
+            runner_manifest(args[8])
             if period == 5:
                 first_runner.set()
                 self.assertTrue(release_first_runner.wait(2))
@@ -357,8 +383,7 @@ class ServiceExecutionTests(unittest.TestCase):
 
     def test_completed_state_is_removed_after_disk_publish(self) -> None:
         def runner(*args):
-            (args[8] / "depth.png").write_bytes(b"png")
-            return manifest_for()
+            return runner_manifest(args[8])
 
         with tempfile.TemporaryDirectory() as directory:
             service = make_service(Path(directory), runner=runner, minimum_free_gb=0)
@@ -391,8 +416,7 @@ class ServiceExecutionTests(unittest.TestCase):
 
     def test_invalid_final_manifest_is_discarded_and_job_can_publish(self) -> None:
         def runner(*args):
-            (args[8] / "depth.png").write_bytes(b"new")
-            return manifest_for()
+            return runner_manifest(args[8], depth=b"new")
 
         with tempfile.TemporaryDirectory() as directory:
             cache = Path(directory)
@@ -402,10 +426,55 @@ class ServiceExecutionTests(unittest.TestCase):
                 return_value=((0, 0, 2, 2), [[1.0, 2.0], [3.0, 4.0]]),
             ):
                 identifier = service.submit([[1, 2], [3, 4]], 20)["jobId"]
-            write_manifest(cache / identifier, manifest_for(schemaVersion=2))
+            write_manifest(cache / identifier, manifest_for(job_id=identifier, schemaVersion=2))
             self.assertEqual(service.status(identifier)["status"], "queued")
             self.assertEqual(service.run_next()["status"], "completed")
             self.assertEqual(json.loads((cache / identifier / "manifest.json").read_text())["schemaVersion"], 1)
+
+    def test_partial_final_manifest_is_discarded_and_requeued(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory)
+            service = make_service(cache, minimum_free_gb=0)
+            with mock.patch(
+                "lisflood_runner.service.generate.snap_bounds",
+                return_value=((0, 0, 2, 2), [[1.0, 2.0], [3.0, 4.0]]),
+            ):
+                identifier = service.submit([[1, 2], [3, 4]], 20)["jobId"]
+            partial = manifest_for(job_id=identifier)
+            partial["layers"].pop("risk")
+            write_manifest(cache / identifier, partial)
+            self.assertEqual(service.status(identifier)["status"], "queued")
+            self.assertFalse((cache / identifier).exists())
+            self.assertEqual(service.run_next()["status"], "completed")
+
+    def test_relative_final_manifest_is_discarded_and_requeued(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory)
+            service = make_service(cache, minimum_free_gb=0)
+            with mock.patch(
+                "lisflood_runner.service.generate.snap_bounds",
+                return_value=((0, 0, 2, 2), [[1.0, 2.0], [3.0, 4.0]]),
+            ):
+                identifier = service.submit([[1, 2], [3, 4]], 20)["jobId"]
+            write_manifest(cache / identifier, manifest_for())
+            self.assertEqual(service.status(identifier)["status"], "queued")
+            self.assertFalse((cache / identifier).exists())
+            self.assertEqual(service.run_next()["status"], "completed")
+
+    def test_final_manifest_requires_production_result_fields(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory)
+            service = make_service(cache, minimum_free_gb=0)
+            with mock.patch(
+                "lisflood_runner.service.generate.snap_bounds",
+                return_value=((0, 0, 2, 2), [[1.0, 2.0], [3.0, 4.0]]),
+            ):
+                identifier = service.submit([[1, 2], [3, 4]], 20)["jobId"]
+            incomplete = manifest_for(job_id=identifier)
+            del incomplete["populationBreaks"]
+            write_manifest(cache / identifier, incomplete)
+            self.assertEqual(service.status(identifier)["status"], "queued")
+            self.assertFalse((cache / identifier).exists())
 
     def test_missing_or_unsafe_layer_cache_is_not_completed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -416,12 +485,12 @@ class ServiceExecutionTests(unittest.TestCase):
                 return_value=((0, 0, 2, 2), [[1.0, 2.0], [3.0, 4.0]]),
             ):
                 identifier = service.submit([[1, 2], [3, 4]], 20)["jobId"]
-            write_manifest(cache / identifier, manifest_for())
+            write_manifest(cache / identifier, manifest_for(job_id=identifier))
             (cache / identifier / "depth.png").unlink()
             self.assertEqual(service.status(identifier)["status"], "queued")
             self.assertFalse((cache / identifier).exists())
 
-            write_manifest(cache / identifier, manifest_for(layer="../secret.png"))
+            write_manifest(cache / identifier, manifest_for(job_id=identifier, layer="../secret.png"))
             self.assertEqual(service.status(identifier)["status"], "queued")
             self.assertFalse((cache / identifier).exists())
 
@@ -568,8 +637,7 @@ class ServiceHTTPTests(HTTPTestCase):
 
     def test_post_run_and_get_completed_job(self) -> None:
         def runner(*args):
-            (args[8] / "depth.png").write_bytes(b"png")
-            return manifest_for()
+            return runner_manifest(args[8])
 
         with tempfile.TemporaryDirectory() as directory:
             service = make_service(Path(directory), runner=runner, minimum_free_gb=0)
@@ -649,7 +717,10 @@ class ServiceHTTPTests(HTTPTestCase):
                     json.dumps(body),
                     {"Content-Type": "application/json"},
                 )
-                write_manifest(Path(directory) / first["jobId"], manifest_for())
+                write_manifest(
+                    Path(directory) / first["jobId"],
+                    manifest_for(job_id=first["jobId"]),
+                )
                 second_status, _, second = self.request(
                     server,
                     "POST",
@@ -755,7 +826,7 @@ class ServiceHTTPTests(HTTPTestCase):
             cache = Path(directory)
             service = make_service(cache)
             identifier = "0123456789abcdef0123"
-            write_manifest(cache / identifier, manifest_for())
+            write_manifest(cache / identifier, manifest_for(job_id=identifier))
             restarted = make_service(cache)
             self.assertEqual(restarted.status(identifier)["status"], "completed")
             self.assertEqual(restarted.status(identifier)["manifestUrl"], f"/results/{identifier}/manifest.json")
@@ -767,8 +838,7 @@ class ServiceHTTPTests(HTTPTestCase):
 
             def runner(*args):
                 calls.append(True)
-                (args[8] / "depth.png").write_bytes(b"new")
-                return manifest_for()
+                return runner_manifest(args[8], depth=b"new")
 
             service = make_service(cache, runner=runner, minimum_free_gb=0)
             with mock.patch(
@@ -779,7 +849,7 @@ class ServiceHTTPTests(HTTPTestCase):
             identifier = submitted["jobId"]
             (cache / f".{identifier}.tmp").mkdir()
             (cache / f".{identifier}.tmp" / "old").write_text("old", encoding="utf-8")
-            write_manifest(cache / identifier, manifest_for())
+            write_manifest(cache / identifier, manifest_for(job_id=identifier))
             (cache / identifier / "depth.png").write_bytes(b"old")
             self.assertEqual(service.run_next()["status"], "completed")
             self.assertEqual(calls, [])
@@ -816,7 +886,7 @@ class ServiceHTTPTests(HTTPTestCase):
             release.wait(2)
             with active_lock:
                 active -= 1
-            return manifest_for()
+            return runner_manifest(args[8])
 
         with tempfile.TemporaryDirectory() as directory:
             service = make_service(Path(directory), runner=runner, minimum_free_gb=0)
