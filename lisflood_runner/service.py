@@ -118,6 +118,7 @@ class Service:
         self.queue: queue.Queue = queue.Queue(maxsize=8)
         self.state: dict[str, dict] = {}
         self.lock = threading.Lock()
+        self._work_available = threading.Condition(self.lock)
         self._run_gate = threading.Lock()
         self._worker_thread: threading.Thread | None = None
         self._cleanup_stale_temps()
@@ -463,6 +464,7 @@ class Service:
                 "status": "queued",
                 "effectiveBounds": effective_bounds,
             }
+            self._work_available.notify()
             return self._state_response(identifier, self.state[identifier])
 
     def status(self, job_id) -> dict:
@@ -505,13 +507,12 @@ class Service:
         manifest["layers"] = prefixed
         return manifest
 
-    def _run_next_once(self, block=False):
+    def _run_next_once(self):
         try:
-            item = self.queue.get() if block else self.queue.get_nowait()
+            item = self.queue.get_nowait()
         except queue.Empty:
             return None
-        with self._run_gate:
-            return self._process_item(item)
+        return self._process_item(item)
 
     def _process_item(self, item):
         identifier, window, period, effective_bounds = item
@@ -584,11 +585,15 @@ class Service:
             self.queue.task_done()
 
     def run_next(self):
-        return self._run_next_once()
+        with self._run_gate:
+            return self._run_next_once()
 
     def worker(self):
         while True:
-            self._run_next_once(block=True)
+            with self._work_available:
+                while self.queue.empty():
+                    self._work_available.wait()
+            self.run_next()
 
 
 def _safe_value_error(error: ValueError) -> str:

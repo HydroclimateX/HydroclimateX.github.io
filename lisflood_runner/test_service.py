@@ -221,14 +221,14 @@ class ServiceExecutionTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as directory:
             service = make_service(Path(directory), runner=runner, start_worker=False, minimum_free_gb=0)
-            original_get = service.queue.get
+            original_wait = service._work_available.wait
             waiting = threading.Event()
 
-            def observed_get(*args, **kwargs):
+            def observed_wait(*args, **kwargs):
                 waiting.set()
-                return original_get(*args, **kwargs)
+                return original_wait(*args, **kwargs)
 
-            service.queue.get = observed_get
+            service._work_available.wait = observed_wait
             worker = threading.Thread(target=service.worker, daemon=True)
             worker.start()
             service._worker_thread = worker
@@ -244,6 +244,90 @@ class ServiceExecutionTests(unittest.TestCase):
             self.assertTrue(processed.wait(2))
             service.queue.join()
             self.assertEqual(service.status(submitted["jobId"])["status"], "completed")
+
+    def test_concurrent_run_next_gates_before_dequeue_and_preserves_fifo(self) -> None:
+        calls = []
+        calls_lock = threading.Lock()
+        first_get = threading.Event()
+        release_first_get = threading.Event()
+        first_runner = threading.Event()
+        release_first_runner = threading.Event()
+        second_ready = threading.Event()
+        events = []
+        events_lock = threading.Lock()
+
+        def runner(*args):
+            period = args[5]
+            with calls_lock:
+                calls.append(period)
+            (args[8] / "depth.png").write_bytes(b"png")
+            if period == 5:
+                first_runner.set()
+                self.assertTrue(release_first_runner.wait(2))
+            return manifest_for()
+
+        with tempfile.TemporaryDirectory() as directory:
+            service = make_service(Path(directory), runner=runner, minimum_free_gb=0)
+            original_gate = service._run_gate
+
+            class RecordingGate:
+                def __enter__(self):
+                    with events_lock:
+                        events.append(("gate", threading.current_thread().name))
+                    original_gate.acquire()
+                    return self
+
+                def __exit__(self, *args):
+                    original_gate.release()
+
+            service._run_gate = RecordingGate()
+            original_get = service.queue.get_nowait
+
+            def observed_get():
+                item = original_get()
+                with events_lock:
+                    events.append(("get", threading.current_thread().name))
+                if threading.current_thread().name == "job1":
+                    first_get.set()
+                    self.assertTrue(release_first_get.wait(2))
+                return item
+
+            service.queue.get_nowait = observed_get
+            with mock.patch(
+                "lisflood_runner.service.generate.snap_bounds",
+                side_effect=[
+                    ((0, 0, 2, 2), [[1.0, 2.0], [3.0, 4.0]]),
+                    ((1, 0, 3, 2), [[1.0, 2.0], [3.0, 4.0]]),
+                ],
+            ):
+                service.submit([[1, 2], [3, 4]], 5)
+                service.submit([[1, 2], [3, 4]], 10)
+
+            first_thread = threading.Thread(target=service.run_next, name="job1")
+
+            def run_second():
+                second_ready.set()
+                service.run_next()
+
+            second_thread = threading.Thread(target=run_second, name="job2")
+            first_thread.start()
+            self.assertTrue(first_get.wait(2))
+            second_thread.start()
+            self.assertTrue(second_ready.wait(2))
+            release_first_get.set()
+            self.assertTrue(first_runner.wait(2))
+            with calls_lock:
+                self.assertEqual(calls, [5])
+            self.assertFalse(release_first_runner.is_set())
+            release_first_runner.set()
+            first_thread.join(2)
+            second_thread.join(2)
+            self.assertFalse(first_thread.is_alive())
+            self.assertFalse(second_thread.is_alive())
+            self.assertEqual(calls, [5, 10])
+            first_gate = events.index(("gate", "job1"))
+            first_dequeue = events.index(("get", "job1"))
+            self.assertLess(first_gate, first_dequeue)
 
     def test_default_runner_engine_disappearance_is_rejected_before_queueing(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
