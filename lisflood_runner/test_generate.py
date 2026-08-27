@@ -126,6 +126,44 @@ class WindowTests(unittest.TestCase):
             self.assertEqual(actual.shape, (1, 1))
             self.assertEqual(actual[0, 0], 7.5)
 
+    def test_snap_rejects_malformed_inputs_before_transform(self) -> None:
+        malformed_bounds = (
+            None,
+            [],
+            [[31.0, 118.0]],
+            [[31.0, 118.0], [31.1]],
+            [[31.0, 118.0], ["bad", 118.1]],
+            [[31.0, 118.0], [float("nan"), 118.1]],
+        )
+        for bounds in malformed_bounds:
+            with self.subTest(bounds=bounds), unittest.mock.patch(
+                "lisflood_runner.generate.transform_points"
+            ) as transform:
+                with self.assertRaises(ValueError):
+                    snap_bounds(bounds, self.HEADER, 300)
+                transform.assert_not_called()
+
+        for max_area in (True, False, float("nan"), float("inf"), 0, -1, "300", 10**400):
+            with self.subTest(max_area=max_area), unittest.mock.patch(
+                "lisflood_runner.generate.transform_points"
+            ) as transform:
+                with self.assertRaises(ValueError):
+                    snap_bounds([[31.0, 118.0], [31.1, 118.1]], self.HEADER, max_area)
+                transform.assert_not_called()
+
+        for header in (
+            dict(self.HEADER, ncols=4.5),
+            dict(self.HEADER, nrows=float("nan")),
+            dict(self.HEADER, xllcorner=float("inf")),
+            dict(self.HEADER, cellsize=0),
+        ):
+            with self.subTest(header=header), unittest.mock.patch(
+                "lisflood_runner.generate.transform_points"
+            ) as transform:
+                with self.assertRaises(ValueError):
+                    snap_bounds([[31.0, 118.0], [31.1, 118.1]], header, 300)
+                transform.assert_not_called()
+
 
 class ValidationTests(unittest.TestCase):
     HEADER = {
@@ -243,6 +281,16 @@ class RiskTests(unittest.TestCase):
         self.assertEqual(breaks, [0.0, 0.0, 0.0])
         np.testing.assert_array_equal(risk, np.ones((2, 2), dtype=np.uint8))
 
+    def test_nonfinite_population_is_zero_exposure_even_with_positive_values(self) -> None:
+        depth = np.full((2, 3), 0.5)
+        hazard = np.full((2, 3), 0.5)
+        population = np.array([[1.0, np.nan, np.inf], [-np.inf, 3.0, 5.0]])
+
+        risk, breaks = build_risk(depth, hazard, population)
+
+        self.assertEqual(breaks, [2.0, 3.0, 4.0])
+        np.testing.assert_array_equal(risk, [[1, 1, 1], [1, 1, 2]])
+
 
 class ModelConfigurationTests(unittest.TestCase):
     def test_surface_configuration_is_code_owned_and_has_no_drainage_inputs(self) -> None:
@@ -285,6 +333,26 @@ class ModelConfigurationTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "LISFLOOD-FP"):
                 model_version(engine)
 
+    def test_transform_points_uses_a_short_subprocess_timeout(self) -> None:
+        result = subprocess.CompletedProcess(
+            ["gdaltransform"], 0, stdout="1 2\n", stderr=""
+        )
+        with unittest.mock.patch(
+            "lisflood_runner.generate.subprocess.run", return_value=result
+        ) as runner:
+            self.assertEqual(
+                generate.transform_points([(0, 0)], "EPSG:4326", "EPSG:32650"),
+                [(1.0, 2.0)],
+            )
+        runner.assert_called_once_with(
+            ["gdaltransform", "-s_srs", "EPSG:4326", "-t_srs", "EPSG:32650"],
+            input="0 0\n",
+            text=True,
+            capture_output=True,
+            check=True,
+            timeout=10,
+        )
+
 
 class RunnerTests(unittest.TestCase):
     HEADER = {
@@ -317,6 +385,7 @@ class RunnerTests(unittest.TestCase):
                 else "0.500000 1.300000\n2.700000 3.000000"
             )
             script = """#!/bin/sh
+set -eu
 if [ "$1" = "-version" ] || [ "$1" = "-v" ]; then
   echo 'LISFLOOD-FP version 8.0.3 (double)'
   exit 0
@@ -372,6 +441,27 @@ EOF
         engine.write_text(script, encoding="utf-8")
         engine.chmod(0o755)
         return engine
+
+    def test_all_nodata_cropped_dem_is_rejected_before_engine_invocation(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            marker = root / "invoked"
+            engine = root / "fake-lisflood"
+            engine.write_text(f"#!/bin/sh\nset -eu\ntouch '{marker}'\n", encoding="utf-8")
+            engine.chmod(0o755)
+            with self.assertRaisesRegex(ValueError, "cropped DEM"):
+                run_job(
+                    engine,
+                    self.HEADER,
+                    np.full((4, 4), np.nan),
+                    np.ones((4, 4)),
+                    (1, 1, 3, 3),
+                    20,
+                    [[32.0, 118.0], [32.1, 118.1]],
+                    "data",
+                    root / "staging",
+                )
+            self.assertFalse(marker.exists())
 
     def test_run_job_writes_flat_manifest_and_layers(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

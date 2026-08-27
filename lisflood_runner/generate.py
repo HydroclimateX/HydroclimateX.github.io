@@ -72,6 +72,7 @@ def transform_points(points, source: str, target: str) -> list[tuple[float, floa
         text=True,
         capture_output=True,
         check=True,
+        timeout=10,
     )
     return [tuple(map(float, line.split()[:2])) for line in result.stdout.splitlines()]
 
@@ -79,9 +80,10 @@ def transform_points(points, source: str, target: str) -> list[tuple[float, floa
 def snap_bounds(
     bounds: list[list[float]], header: dict[str, float], max_area_km2: float
 ) -> tuple[tuple[int, int, int, int], list[list[float]]]:
-    (south, west), (north, east) = bounds
-    if not (-90 <= south < north <= 90 and -180 <= west < east <= 180):
-        raise ValueError("invalid bounds")
+    normalised_bounds = _normalise_bounds(bounds)
+    max_area = _normalise_max_area(max_area_km2)
+    grid_header, ncols, nrows, cell = _normalise_grid_header(header)
+    (south, west), (north, east) = normalised_bounds
     projected = transform_points(
         [
             (west, south),
@@ -105,16 +107,12 @@ def snap_bounds(
     y0 = min(point[1] for point in projected)
     x1 = max(point[0] for point in projected)
     y1 = max(point[1] for point in projected)
-    origin_x, origin_y, cell = (
-        header["xllcorner"],
-        header["yllcorner"],
-        header["cellsize"],
-    )
+    origin_x, origin_y = grid_header["xllcorner"], grid_header["yllcorner"]
     window = (
         max(0, math.ceil((x0 - origin_x) / cell)),
         max(0, math.ceil((y0 - origin_y) / cell)),
-        min(int(header["ncols"]), math.floor((x1 - origin_x) / cell)),
-        min(int(header["nrows"]), math.floor((y1 - origin_y) / cell)),
+        min(ncols, math.floor((x1 - origin_x) / cell)),
+        min(nrows, math.floor((y1 - origin_y) / cell)),
     )
     c0, r0, c1, r1 = window
     if (
@@ -122,13 +120,13 @@ def snap_bounds(
         or r0 >= r1
         or x0 < origin_x
         or y0 < origin_y
-        or x1 > origin_x + header["ncols"] * cell
-        or y1 > origin_y + header["nrows"] * cell
+        or x1 > origin_x + ncols * cell
+        or y1 > origin_y + nrows * cell
     ):
         raise ValueError("bounds outside available extent")
     area = (c1 - c0) * (r1 - r0) * cell * cell / 1e6
-    if area > max_area_km2:
-        raise ValueError(f"area exceeds {max_area_km2:g} km²")
+    if area > max_area:
+        raise ValueError(f"area exceeds {max_area:g} km²")
     corners = transform_points(
         [
             (origin_x + c0 * cell, origin_y + r0 * cell),
@@ -190,6 +188,58 @@ def _normalise_integer(value, label: str) -> int:
     return int(value)
 
 
+def _normalise_float(value, label: str) -> float:
+    if isinstance(value, (bool, np.bool_)) or not isinstance(
+        value, (int, float, np.integer, np.floating)
+    ):
+        raise ValueError(f"{label} must be numeric")
+    try:
+        number = float(value)
+    except OverflowError as error:
+        raise ValueError(f"{label} must be finite") from error
+    if not math.isfinite(number):
+        raise ValueError(f"{label} must be finite")
+    return number
+
+
+def _normalise_grid_header(
+    base_header: dict[str, float],
+) -> tuple[dict[str, float], int, int, float]:
+    try:
+        ncols_float = _normalise_float(base_header["ncols"], "base header ncols")
+        nrows_float = _normalise_float(base_header["nrows"], "base header nrows")
+        origin_x = _normalise_float(base_header["xllcorner"], "base header xllcorner")
+        origin_y = _normalise_float(base_header["yllcorner"], "base header yllcorner")
+        cell = _normalise_float(base_header["cellsize"], "base header cellsize")
+    except (KeyError, TypeError) as error:
+        raise ValueError("base header is incomplete or non-numeric") from error
+    if (
+        not ncols_float.is_integer()
+        or not nrows_float.is_integer()
+        or ncols_float <= 0
+        or nrows_float <= 0
+        or cell <= 0
+    ):
+        raise ValueError("base header has invalid dimensions or cellsize")
+    ncols, nrows = int(ncols_float), int(nrows_float)
+    header = dict(base_header)
+    header.update(
+        ncols=float(ncols),
+        nrows=float(nrows),
+        xllcorner=origin_x,
+        yllcorner=origin_y,
+        cellsize=cell,
+    )
+    return header, ncols, nrows, cell
+
+
+def _normalise_max_area(max_area_km2) -> float:
+    max_area = _normalise_float(max_area_km2, "max_area_km2")
+    if max_area <= 0:
+        raise ValueError("max_area_km2 must be positive")
+    return max_area
+
+
 def _normalise_window(window, ncols: int, nrows: int) -> tuple[int, int, int, int]:
     try:
         values = tuple(window)
@@ -215,7 +265,7 @@ def _normalise_period(period: int) -> int:
 def _normalise_bounds(bounds) -> list[list[float]]:
     try:
         corners = tuple(bounds)
-    except TypeError as error:
+    except (TypeError, ValueError) as error:
         raise ValueError("effective bounds must contain two corners") from error
     if len(corners) != 2:
         raise ValueError("effective bounds must contain two corners")
@@ -223,20 +273,11 @@ def _normalise_bounds(bounds) -> list[list[float]]:
     for corner in corners:
         try:
             values = tuple(corner)
-        except TypeError as error:
+        except (TypeError, ValueError) as error:
             raise ValueError("effective bounds must contain two coordinates per corner") from error
         if len(values) != 2:
             raise ValueError("effective bounds must contain two coordinates per corner")
-        coordinates: list[float] = []
-        for value in values:
-            if isinstance(value, (bool, np.bool_)) or not isinstance(
-                value, (int, float, np.integer, np.floating)
-            ):
-                raise ValueError("effective bounds must contain numeric coordinates")
-            number = float(value)
-            if not math.isfinite(number):
-                raise ValueError("effective bounds must contain finite coordinates")
-            coordinates.append(number)
+        coordinates = [_normalise_float(value, "effective bounds coordinate") for value in values]
         normalised.append(coordinates)
     (south, west), (north, east) = normalised
     if not (-90 <= south < north <= 90 and -180 <= west < east <= 180):
@@ -247,42 +288,13 @@ def _normalise_bounds(bounds) -> list[list[float]]:
 def _normalise_header(
     base_header: dict[str, float], dem: np.ndarray, population: np.ndarray
 ) -> tuple[dict[str, float], np.ndarray, np.ndarray, int, int, float]:
-    try:
-        ncols_float = float(base_header["ncols"])
-        nrows_float = float(base_header["nrows"])
-        origin_x = float(base_header["xllcorner"])
-        origin_y = float(base_header["yllcorner"])
-        cell = float(base_header["cellsize"])
-    except (KeyError, TypeError, ValueError) as error:
-        raise ValueError("base header is incomplete or non-numeric") from error
-    if (
-        not math.isfinite(ncols_float)
-        or not math.isfinite(nrows_float)
-        or not ncols_float.is_integer()
-        or not nrows_float.is_integer()
-        or ncols_float <= 0
-        or nrows_float <= 0
-        or not math.isfinite(origin_x)
-        or not math.isfinite(origin_y)
-        or not math.isfinite(cell)
-        or cell <= 0
-    ):
-        raise ValueError("base header has invalid dimensions or cellsize")
-    ncols, nrows = int(ncols_float), int(nrows_float)
+    header, ncols, nrows, cell = _normalise_grid_header(base_header)
     dem_array, population_array = np.asarray(dem), np.asarray(population)
     expected = (nrows, ncols)
     if dem_array.ndim != 2 or dem_array.shape != expected:
         raise ValueError(f"DEM grid must be 2-D with shape {expected}")
     if population_array.ndim != 2 or population_array.shape != expected:
         raise ValueError(f"population grid must be 2-D with shape {expected}")
-    header = dict(base_header)
-    header.update(
-        ncols=float(ncols),
-        nrows=float(nrows),
-        xllcorner=origin_x,
-        yllcorner=origin_y,
-        cellsize=cell,
-    )
     return header, dem_array, population_array, ncols, nrows, cell
 
 
@@ -331,13 +343,14 @@ def _validate_job_inputs(
 def build_risk(depth: np.ndarray, hazard: np.ndarray, population: np.ndarray) -> tuple[np.ndarray, list[float]]:
     if depth.shape != hazard.shape or depth.shape != population.shape:
         raise ValueError("depth, hazard, and population grids must align")
-    populated = population[np.isfinite(population) & (population > 0)]
+    safe_population = np.where(np.isfinite(population), population, 0.0)
+    populated = safe_population[safe_population > 0]
     if populated.size == 0:
         breaks = [0.0, 0.0, 0.0]
-        exposure_class = np.zeros(population.shape, dtype=np.intp)
+        exposure_class = np.zeros(safe_population.shape, dtype=np.intp)
     else:
         breaks = np.quantile(populated, [0.25, 0.5, 0.75]).tolist()
-        exposure_class = np.digitize(population, breaks).clip(0, 3)
+        exposure_class = np.digitize(safe_population, breaks).clip(0, 3)
     hazard_class = np.digitize(hazard, [0.75, 1.25, 2.5]).clip(0, 3)
     risk = RISK_MATRIX[hazard_class, exposure_class]
     risk[(depth < 0.10) | ~np.isfinite(depth) | ~np.isfinite(hazard)] = 0
@@ -484,6 +497,8 @@ def run_job(
         yllcorner=base_header["yllcorner"] + r0 * cell,
     )
     cropped_dem = crop_grid(dem, window)
+    if not np.isfinite(cropped_dem).any():
+        raise ValueError("cropped DEM has no finite cells")
     cropped_population = np.nan_to_num(
         crop_grid(population, window), nan=0.0, posinf=0.0, neginf=0.0
     )
