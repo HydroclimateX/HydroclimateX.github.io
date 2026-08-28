@@ -57,11 +57,12 @@ def test_dashboard_script_uses_only_protected_analytics_interfaces() -> None:
     for endpoint in (
         "/auth/login", "/auth/logout", "/auth/session", "/api/v1/summary",
         "/api/v1/website/windows", "/api/v1/wasp/countries",
-        "/api/v1/wasp/export.csv", "/api/v1/reports/",
+        "/api/v1/wasp/countries/", "/api/v1/wasp/export.csv",
+        "/api/v1/reports/",
     ):
         assert endpoint in script
-    assert "renderStaticMap" in script
-    assert "plotly" not in script.lower()
+    assert "Plotly.newPlot" in script
+    assert "plotly_click" in script
 
 
 def test_dashboard_css_has_responsive_and_accessible_states() -> None:

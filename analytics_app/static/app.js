@@ -1,14 +1,21 @@
 (() => {
   'use strict';
   const byId = id => document.getElementById(id);
-  const state = { csrf: '', period: '30d', start: '', end: '', countries: [] };
-  let worldMap = null;
-
-  function tealColor(t) {
-    const a = [215, 239, 233], b = [11, 79, 74];
-    const c = a.map((v, i) => Math.round(v + (b[i] - v) * t));
-    return `rgb(${c[0]},${c[1]},${c[2]})`;
+  const state = { csrf: '', period: '30d', start: '', end: '', countries: [], worldGeo: null };
+  let worldGeoPromise = null;
+  function loadWorldGeo() {
+    if (!state.worldGeo) {
+      worldGeoPromise ||= fetch('/static/vendor/world-countries.json')
+        .then(r => { if (!r.ok) throw new Error(`world map data failed (${r.status})`); return r.json(); })
+        .then(geo => { state.worldGeo = geo; return geo; });
+    }
+    return worldGeoPromise;
   }
+
+  const MAP_METRICS = {
+    successful_runs: 'Successful runs', failed_runs: 'Failed runs', downloads: 'Downloads', sessions: 'Sessions',
+  };
+  const MAP_COLORSCALE = [[0, '#f0faf7'], [0.25, '#c8ebe1'], [0.5, '#8cd3c2'], [0.75, '#3da48f'], [1, '#0b4f4a']];
 
   async function api(path, options = {}) {
     const response = await fetch(path, { credentials: 'same-origin', ...options });
@@ -54,45 +61,72 @@
       setSourceStatus('websiteStatus','Website',summary.sources.website,summary.source_freshness?.website);
       setSourceStatus('waspStatus','WASP',summary.sources.wasp,summary.source_freshness?.wasp);
       state.countries = usage.countries;
-      renderStaticMap(); renderCountryTable(); renderWebsiteTable(website.metrics || []);
+      try { await loadWorldGeo(); } catch (_) { state.worldGeo = null; }
+      renderMap(); renderCountryTable(); renderWebsiteTable(website.metrics || []);
       byId('csvLink').href = `/api/v1/wasp/export.csv?${query}`;
     } catch (error) { if (error.message !== 'Authentication required') byId('dashboardError').textContent = error.message; }
   }
 
-  function loadWorldMap() {
-    if (!worldMap) {
-      worldMap = fetch('/static/world-map.svg')
-        .then(r => { if (!r.ok) throw new Error(`world map failed (${r.status})`); return r.text(); })
-        .then(text => new DOMParser().parseFromString(text, 'image/svg+xml').documentElement);
-    }
-    return worldMap;
-  }
-
-  function paintMap(svg) {
-    const runs = new Map(state.countries.map(row => [row.country_iso3, row.successful_runs]));
-    const max = Math.max(0, ...runs.values());
-    svg.querySelectorAll('path[data-iso3]').forEach(path => {
-      const value = runs.get(path.dataset.iso3) || 0;
-      path.setAttribute('fill', value > 0 ? tealColor(Math.pow(value / max, 0.7)) : '#dce4e1');
+  function renderMap() {
+    const map = byId('usageMap');
+    if (!window.Plotly) { map.textContent = 'Map library unavailable. Country table remains available.'; return; }
+    if (!state.worldGeo) { map.textContent = 'World map data unavailable. Country table remains available.'; return; }
+    const metric = byId('mapMetric').value;
+    const label = MAP_METRICS[metric];
+    const rows = state.countries.filter(row => row.country_iso3);
+    const trace = {
+      type: 'choropleth',
+      geojson: state.worldGeo,
+      featureidkey: 'properties.ISO_A3_EH',
+      locations: rows.map(r => r.country_iso3),
+      z: rows.map(r => r[metric]),
+      text: rows.map(r => r.country),
+      hovertemplate: `%{text}<br>${label}: %{z}<extra></extra>`,
+      colorscale: MAP_COLORSCALE,
+      marker: { line: { color: '#ffffff', width: 0.4 } },
+      colorbar: {
+        title: { text: label, side: 'top', font: { size: 12, color: '#60747a' } },
+        thickness: 12, len: 0.8, outlinewidth: 0, tickfont: { size: 11, color: '#60747a' },
+      },
+    };
+    const layout = {
+      geo: {
+        showframe: false, showcoastlines: false, projection: { type: 'natural earth' },
+        bgcolor: '#eef2f0', landcolor: '#eef2f0', oceancolor: '#f5f7f5', countrycolor: '#ffffff',
+      },
+      paper_bgcolor: 'transparent',
+      margin: { l: 0, r: 0, t: 8, b: 0 },
+      height: 460,
+      uirevision: state.period,
+    };
+    Plotly.newPlot('usageMap', [trace], layout, { responsive: true, displayModeBar: false });
+    map.removeAllListeners?.('plotly_click');
+    map.on('plotly_click', event => {
+      const code = event.points[0]?.location;
+      const row = state.countries.find(item => item.country_iso3 === code);
+      if (row) void selectCountry(row.country_code);
     });
-  }
-
-  function renderStaticMap() {
-    const container = byId('usageMap');
-    const existing = container.querySelector('svg');
-    if (existing) { paintMap(existing); return; }
-    loadWorldMap()
-      .then(svg => { container.replaceChildren(svg.cloneNode(true)); paintMap(container.querySelector('svg')); })
-      .catch(() => { container.textContent = 'World map unavailable. Country table remains available.'; });
   }
 
   function renderCountryTable() {
     const body = byId('countryRows'); body.replaceChildren();
     state.countries.forEach(row => {
-      const tr = document.createElement('tr'); tr.dataset.country = row.country_code;
+      const tr = document.createElement('tr'); tr.dataset.country = row.country_code; tr.tabIndex = 0;
       [row.country,row.successful_runs,row.failed_runs,row.downloads,row.sessions,row.last_activity || '—'].forEach(value=>{const td=document.createElement('td');td.textContent=value;tr.appendChild(td);});
-      body.appendChild(tr);
+      const choose=()=>selectCountry(row.country_code); tr.addEventListener('click',choose); tr.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();void choose();}}); body.appendChild(tr);
     });
+  }
+
+  async function selectCountry(code) {
+    try {
+      const row = await api(`/api/v1/wasp/countries/${encodeURIComponent(code)}?${periodQuery()}`);
+      const panel=byId('countryDetail'); panel.replaceChildren();
+      const eyebrow=document.createElement('p');eyebrow.className='eyebrow';eyebrow.textContent='Country detail';
+      const title=document.createElement('h3');title.textContent=row.country;
+      const list=document.createElement('dl');
+      [['Successful runs',row.successful_runs],['Failed runs',row.failed_runs],['Downloads',row.downloads],['Sessions',row.sessions],['Last activity',row.last_activity||'—']].forEach(([label,value])=>{const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;list.append(dt,dd);});
+      panel.append(eyebrow,title,list);
+    } catch(error){byId('dashboardError').textContent=error.message;}
   }
 
   function renderWebsiteTable(rows) {
@@ -108,6 +142,7 @@
   byId('logoutButton').addEventListener('click',async()=>{try{await api('/auth/logout',{method:'POST',headers:{'X-CSRF-Token':state.csrf}});}finally{state.csrf='';showLogin();}});
   byId('periodSelect').addEventListener('change',event=>{state.period=event.target.value;byId('customDates').hidden=state.period!=='custom';if(state.period!=='custom')void loadDashboard();});
   byId('applyDates').addEventListener('click',()=>{state.start=byId('startDate').value;state.end=byId('endDate').value;if(state.start&&state.end)void loadDashboard();});
+  byId('mapMetric').addEventListener('change',renderMap);
   byId('previewReport').addEventListener('click',async()=>{const month=byId('reportMonth').value;if(!month)return;try{const report=await api(`/api/v1/reports/${month}`);byId('reportPreview').textContent=JSON.stringify(report,null,2);}catch(error){byId('reportPreview').textContent=error.message;}});
   byId('sendReport').addEventListener('click',async()=>{const month=byId('reportMonth').value;if(!month)return;try{const result=await api(`/api/v1/reports/${month}/send`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf},body:JSON.stringify({force:false})});byId('reportPreview').textContent=JSON.stringify(result,null,2);}catch(error){byId('reportPreview').textContent=error.message;}});
   void restoreSession();
