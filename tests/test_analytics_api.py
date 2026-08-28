@@ -139,7 +139,7 @@ def test_internal_event_ingestion_is_token_protected_and_idempotent() -> None:
     assert len(repository.events) == 1
 
 
-def test_download_requires_a_successful_run() -> None:
+def test_download_no_longer_requires_a_successful_run() -> None:
     client, _ = make_client()
     headers = {"X-Analytics-Token": "internal-token-with-at-least-32-characters"}
 
@@ -151,7 +151,8 @@ def test_download_requires_a_successful_run() -> None:
         "run_id": "267eb25f-e2e5-4654-bf41-2bdcfbdedddc",
     })
 
-    assert response.status_code == 409
+    assert response.status_code == 202
+    assert response.json() == {"created": True}
 
 
 def test_summary_combines_umami_and_wasp_metrics() -> None:

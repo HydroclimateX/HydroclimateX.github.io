@@ -17,8 +17,8 @@ import asyncio
 import io
 import os
 from datetime import datetime, timezone
-from typing import List, Optional
-from uuid import UUID, uuid4
+from typing import List, Literal, Optional
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from fastapi import BackgroundTasks, FastAPI, File, UploadFile, Form, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -46,6 +46,11 @@ PREDICTION_SEMAPHORE = asyncio.Semaphore(1)
 USAGE_TRACKER = UsageTracker.from_env()
 USAGE_COOKIE = "hx_wasp_session"
 USAGE_SESSION_SECONDS = 30 * 60
+SOFTWARE_DOWNLOAD_IDS = {
+    "r": uuid5(NAMESPACE_URL, "https://wasp.hydroclimatex.com/downloads/WASP.zip"),
+    "python": uuid5(NAMESPACE_URL, "https://wasp.hydroclimatex.com/downloads/WASP_python.zip"),
+    "matlab": uuid5(NAMESPACE_URL, "https://wasp.hydroclimatex.com/downloads/WASP_matlab.zip"),
+}
 
 # CORS is needed only for the Pages introduction and explicit local development.
 # NOTE: Starlette does not support port wildcards like "http://localhost:*",
@@ -71,6 +76,10 @@ app.add_middleware(
 
 class UsageDownload(BaseModel):
     run_id: UUID
+
+
+class SoftwareDownload(BaseModel):
+    software: Literal["r", "python", "matlab"]
 
 
 def usage_context(request: Request) -> tuple[str, str, bool]:
@@ -138,6 +147,28 @@ async def record_usage_download(
     queue_usage_event(
         background_tasks, "download",
         session_token=session_token, country_code=country_code, run_id=str(payload.run_id),
+    )
+    response = JSONResponse(status_code=202, content={"accepted": True}, background=background_tasks)
+    set_usage_cookie(response, session_token)
+    return response
+
+
+@app.post("/api/usage/software-download", status_code=202)
+async def record_software_download(
+    payload: SoftwareDownload,
+    request: Request,
+    background_tasks: BackgroundTasks,
+) -> JSONResponse:
+    session_token, country_code, is_new = usage_context(request)
+    if is_new:
+        queue_usage_event(
+            background_tasks, "session_start",
+            session_token=session_token, country_code=country_code, run_id=None,
+        )
+    queue_usage_event(
+        background_tasks, "download",
+        session_token=session_token, country_code=country_code,
+        run_id=str(SOFTWARE_DOWNLOAD_IDS[payload.software]),
     )
     response = JSONResponse(status_code=202, content={"accepted": True}, background=background_tasks)
     set_usage_cookie(response, session_token)

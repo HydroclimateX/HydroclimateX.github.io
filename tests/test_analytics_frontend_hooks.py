@@ -28,10 +28,15 @@ def test_pages_workflow_publishes_analytics_bootstrap() -> None:
     assert "analytics.js" in workflow
 
 
-def test_wasp_frontend_starts_session_and_records_result_download() -> None:
+def test_wasp_frontend_starts_session_and_tracks_software_downloads() -> None:
     app = read("wasp-app/index.html")
 
     assert "'/api/usage/session'" in app
-    assert "'/api/usage/download'" in app
-    assert "lastResult.analytics_run_id" in app
+    assert "'/api/usage/software-download'" in app
+    assert "trackSoftwareDownload" in app
+    assert "/downloads/WASP.zip" in app
+    assert "/downloads/WASP_python.zip" in app
+    assert "/downloads/WASP_matlab.zip" in app
+    assert "logos/r.svg" in app and "logos/python.svg" in app and "logos/matlab.png" in app
     assert "keepalive: true" in app
+    assert "lastResult.analytics_run_id" not in app

@@ -106,3 +106,26 @@ def test_download_endpoint_accepts_run_id_and_emits_download() -> None:
     assert response.status_code == 202
     assert tracker.events[-1][0] == "download"
     assert tracker.events[-1][1]["run_id"] == "267eb25f-e2e5-4654-bf41-2bdcfbdedddc"
+
+
+def test_software_download_endpoint_emits_download_for_each_language() -> None:
+    module, tracker = load_backend({"success": True})
+    client = TestClient(module.app, base_url="https://wasp.hydroclimatex.test")
+    client.post("/api/usage/session")
+
+    for software in ("r", "python", "matlab"):
+        response = client.post("/api/usage/software-download", json={"software": software})
+
+        assert response.status_code == 202
+        assert tracker.events[-1][0] == "download"
+        assert tracker.events[-1][1]["run_id"] == str(module.SOFTWARE_DOWNLOAD_IDS[software])
+
+
+def test_software_download_rejects_unknown_language() -> None:
+    module, tracker = load_backend({"success": True})
+    client = TestClient(module.app, base_url="https://wasp.hydroclimatex.test")
+
+    response = client.post("/api/usage/software-download", json={"software": "fortran"})
+
+    assert response.status_code == 422
+    assert tracker.events == []

@@ -41,6 +41,19 @@ body {
 .topbar-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; }
 .topbar-link { color: #94a3b8; font-size: 12px; text-decoration: none; transition: color 0.2s; }
 .topbar-link:hover { color: #fff; }
+.downloads-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 20px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+}
+.downloads-label { font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: #475569; }
+.download-link {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border: 1px solid #e2e8f0; border-radius: 8px;
+  background: #fff; color: #0f172a; font-size: 13px; font-weight: 600;
+  text-decoration: none; transition: border-color 0.2s, box-shadow 0.2s;
+}
+.download-link:hover { border-color: #94a3b8; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08); }
+.download-link img { height: 18px; width: auto; }
 
 /* ---- Main Layout ---- */
 .main-layout { display: flex; flex: 1; overflow: hidden; }
@@ -202,6 +215,20 @@ input[type="file"] { display: none; }
   <a href="https://hydroclimatex.com/showcase/wasp-web/" class="topbar-link">← WASP methodology</a>
 </div>
 
+<!-- Downloads -->
+<section class="downloads-bar">
+  <span class="downloads-label">Download the WASP toolkit</span>
+  <a class="download-link" href="/downloads/WASP.zip" download onclick="trackSoftwareDownload('r')">
+    <img src="logos/r.svg" alt="R logo"><span>WASP for R</span>
+  </a>
+  <a class="download-link" href="/downloads/WASP_python.zip" download onclick="trackSoftwareDownload('python')">
+    <img src="logos/python.svg" alt="Python logo"><span>WASP for Python</span>
+  </a>
+  <a class="download-link" href="/downloads/WASP_matlab.zip" download onclick="trackSoftwareDownload('matlab')">
+    <img src="logos/matlab.png" alt="MATLAB logo"><span>WASP for MATLAB</span>
+  </a>
+</section>
+
 <!-- Main Layout -->
 <div class="main-layout">
 
@@ -336,7 +363,7 @@ const API_BASE = window.WASP_API_BASE || (
     : ''
 );
 const USAGE_SESSION_ENDPOINT = '/api/usage/session';
-const USAGE_DOWNLOAD_ENDPOINT = '/api/usage/download';
+const USAGE_SOFTWARE_DOWNLOAD_ENDPOINT = '/api/usage/software-download';
 
 function startUsageSession() {
   return fetch(API_BASE + USAGE_SESSION_ENDPOINT, {
@@ -344,14 +371,13 @@ function startUsageSession() {
   }).catch(() => {});
 }
 
-function recordResultDownload(runId) {
-  if (!runId) return;
-  void fetch(API_BASE + USAGE_DOWNLOAD_ENDPOINT, {
+function trackSoftwareDownload(software) {
+  void fetch(API_BASE + USAGE_SOFTWARE_DOWNLOAD_ENDPOINT, {
     method: 'POST',
     credentials: 'same-origin',
     keepalive: true,
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ run_id: runId }),
+    body: JSON.stringify({ software }),
   }).catch(() => {});
 }
 
@@ -802,7 +828,6 @@ function downloadWaspPredictor() {
   link.download = 'wasp_predictors.csv';
   document.body.appendChild(link);
   link.click();
-  recordResultDownload(lastResult.analytics_run_id);
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }

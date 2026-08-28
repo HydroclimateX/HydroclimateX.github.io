@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 from matplotlib.cm import ScalarMappable
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 from matplotlib.patches import Polygon
+from matplotlib.ticker import MaxNLocator
 
 GEOJSON_PATH = Path(__file__).with_name("static") / "vendor" / "world-countries.json"
 
@@ -30,6 +31,12 @@ TEAL_CMAP = LinearSegmentedColormap.from_list(
     "usage_teal", ["#f0faf7", "#c8ebe1", "#8cd3c2", "#3da48f", "#0b4f4a"]
 )
 MAP_METRICS = ("successful_runs", "failed_runs", "downloads", "sessions")
+METRIC_LABELS = {
+    "successful_runs": "Successful runs",
+    "failed_runs": "Failed runs",
+    "downloads": "Downloads",
+    "sessions": "Sessions",
+}
 
 
 def project(lon: float, lat: float) -> tuple[float, float]:
@@ -115,8 +122,9 @@ def render_usage_map(rows: list[dict[str, object]], metric: str = "successful_ru
     sm = ScalarMappable(norm=Normalize(0, max_value or 1), cmap=TEAL_CMAP)
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax, pad=0.01, fraction=0.03)
-    cbar.set_label("Runs", fontsize=12)
+    cbar.set_label(METRIC_LABELS.get(metric, "Count"), fontsize=12)
     cbar.ax.tick_params(labelsize=11)
+    cbar.ax.yaxis.set_major_locator(MaxNLocator(integer=True))
     cbar.outline.set_linewidth(0.5)
 
     fig.tight_layout(pad=0.2)

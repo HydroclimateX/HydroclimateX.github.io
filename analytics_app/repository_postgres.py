@@ -67,14 +67,6 @@ class PostgresRepository:
 
     def record_event(self, event: UsageEvent) -> bool:
         with self._connect() as connection:
-            if event.event_type == "download":
-                succeeded = connection.execute(
-                    "SELECT 1 FROM wasp_events WHERE run_id = %s AND event_type = 'run_success'",
-                    (event.run_id,),
-                ).fetchone()
-                if not succeeded:
-                    raise EventConflict("download requires a successful run")
-
             cursor = connection.execute(
                 """
                 INSERT INTO wasp_events (event_type, session_hash, country_code, occurred_at, run_id)

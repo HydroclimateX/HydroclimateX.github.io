@@ -82,13 +82,6 @@ class MemoryRepository:
         self.audits.append((action, result, occurred_at))
 
     def record_event(self, event: UsageEvent) -> bool:
-        if event.event_type == "download":
-            succeeded = any(
-                row.run_id == event.run_id and row.event_type == "run_success"
-                for row in self.events
-            )
-            if not succeeded:
-                raise EventConflict("download requires a successful run")
         if event.event_type in {"run_success", "run_failure"}:
             existing_outcome = next((
                 row for row in self.events
