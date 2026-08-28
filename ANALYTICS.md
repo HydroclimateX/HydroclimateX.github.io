@@ -1,4 +1,4 @@
-# HydroClimateX Private Analytics
+# HydroclimateX Private Analytics
 
 The platform runs two public origins on the existing Hong Kong host:
 

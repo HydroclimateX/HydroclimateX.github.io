@@ -1,1 +1,1 @@
-"""HydroClimateX private analytics service."""
+"""HydroclimateX private analytics service."""
