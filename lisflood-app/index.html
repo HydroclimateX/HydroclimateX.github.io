@@ -22,12 +22,19 @@
       <fieldset>
         <legend>Rainfall return period</legend>
         <div class="periods">
-          <button type="button" data-period="5">5 yr</button>
-          <button type="button" data-period="10">10 yr</button>
-          <button type="button" data-period="20" class="active">20 yr</button>
-          <button type="button" data-period="50">50 yr</button>
-          <button type="button" data-period="100">100 yr</button>
+          <button type="button" data-period="5" aria-pressed="false">5 yr</button>
+          <button type="button" data-period="10" aria-pressed="false">10 yr</button>
+          <button type="button" data-period="20" class="active" aria-pressed="true">20 yr</button>
+          <button type="button" data-period="50" aria-pressed="false">50 yr</button>
+          <button type="button" data-period="100" aria-pressed="false">100 yr</button>
         </div>
+      </fieldset>
+
+      <fieldset class="study-area">
+        <legend>Study area</legend>
+        <button id="selectArea" type="button">Select area</button>
+        <output id="selectedArea" aria-live="polite">Loading default area…</output>
+        <button id="runSimulation" type="button" disabled>Run simulation</button>
       </fieldset>
 
       <fieldset class="layers">
@@ -47,15 +54,15 @@
         <div><dt>Maximum depth</dt><dd id="maximumDepth">—</dd></div>
       </dl>
 
-      <div class="legend" id="legend" aria-label="Map legend">
+      <div class="legend" id="legend" aria-label="Map legend" hidden>
         <strong id="legendTitle">Population risk</strong>
         <span><i class="low"></i><b>Low</b></span><span><i class="moderate"></i><b>Moderate</b></span>
         <span><i class="high"></i><b>High</b></span><span><i class="extreme"></i><b>Extreme</b></span>
       </div>
 
       <footer>
-        <p id="status" role="status">Loading cached results…</p>
-        <p><strong>Research demonstration.</strong> Sewer networks and engineered drainage are not represented. Not for emergency response or engineering design.</p>
+        <p id="status" role="status">Loading study area…</p>
+        <p><strong>Research demonstration only.</strong> Sewer networks and engineered drainage are not represented; no underground drainage or artificial drainage capacity is modelled. Not for emergency response or engineering design.</p>
         <p class="sources">Data: Copernicus DEM, WorldPop and OpenStreetMap contributors.</p>
       </footer>
     </section>
