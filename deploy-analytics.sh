@@ -99,9 +99,13 @@ NGINX_CONFIG=nginx.analytics.conf docker compose up -d --no-build --force-recrea
 curl --fail --silent --show-error --resolve "analytics.hydroclimatex.com:443:127.0.0.1" \
   https://analytics.hydroclimatex.com/health >/dev/null
 
-info "Sending the required one-off SMTP test."
-docker compose run --rm analytics-api python -m analytics_app.cli test-email
+info "Sending a one-off SMTP test; a failure warns but does not roll back the deployment."
 rm -f "$SMTP_MARKER"
+if docker compose run --rm analytics-api python -m analytics_app.cli test-email; then
+  info "SMTP test delivered. Verify it in the recipient mailbox, then run: touch $SMTP_MARKER"
+else
+  info "SMTP test failed; monthly report delivery stays disabled until ANALYTICS_SMTP_AUTHORIZATION_CODE is corrected."
+fi
 
 install -d -m 0755 "$(dirname "$BACKUP_CRON")"
 printf '23 2 * * * root cd %s && %s/scripts/backup-analytics-db.sh >> /var/log/hydroclimatex-analytics-backup.log 2>&1\n' \
@@ -110,5 +114,4 @@ chmod 0644 "$BACKUP_CRON"
 trap - ERR
 
 info "Analytics is deployed without the monthly scheduler."
-info "After the recipient verifies the SMTP test, run: touch $SMTP_MARKER"
 info "After the first complete post-launch month, run scripts/enable-analytics-reports.sh"
