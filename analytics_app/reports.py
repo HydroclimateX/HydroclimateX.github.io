@@ -72,7 +72,7 @@ class ReportService:
 
     def generate(self, report_month: date) -> MonthlyReport:
         existing = self.repository.get_report(report_month)
-        if existing:
+        if existing and existing.snapshot["website"].get("status") == "available":
             return existing
         period = month_period(report_month)
         website = self.umami.summary(period)
@@ -133,7 +133,7 @@ class ReportService:
         ) or "<li>No verified WASP usage in this period</li>"
         return f"""
         <html><body style="font-family:Arial,sans-serif;color:#17313a">
-        <h1>HydroClimateX Monthly Analytics</h1><h2>{html.escape(str(report.snapshot['label']))}</h2>
+        <h1>HydroclimateX Monthly Analytics</h1><h2>{html.escape(str(report.snapshot['label']))}</h2>
         <h3>WEBSITE</h3>
         <p>{'Data unavailable' if not website_available else ''}</p>
         <table><tr><td>Visitors</td><td>{display(website.get('visitors'))}</td></tr>
@@ -159,10 +159,10 @@ class ReportService:
         message = EmailMessage()
         message["From"] = self.settings.report_from
         message["To"] = self.settings.report_to
-        message["Subject"] = f"HydroClimateX Monthly Analytics — {report.snapshot['label']}"
+        message["Subject"] = f"HydroclimateX Monthly Analytics — {report.snapshot['label']}"
         message["Message-ID"] = make_msgid(domain="hydroclimatex.com")
         message.set_content(
-            f"HydroClimateX Monthly Analytics — {report.snapshot['label']}\n\n"
+            f"HydroclimateX Monthly Analytics — {report.snapshot['label']}\n\n"
             "IP Geolocation by DB-IP: https://db-ip.com"
         )
         wasp = report.snapshot["wasp"]  # type: ignore[assignment]
@@ -187,7 +187,7 @@ class ReportService:
         existing = self.repository.get_report(report_month)
         if existing and existing.status == "sent" and not force:
             return {"sent": False, "reason": "already sent"}
-        report = existing or self.generate(report_month)
+        report = self.generate(report_month)
         if not self.repository.claim_report_delivery(report_month, force=force):
             current = self.repository.get_report(report_month)
             reason = "already sent" if current and current.status == "sent" else "delivery in progress"

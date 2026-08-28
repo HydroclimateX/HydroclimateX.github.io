@@ -122,7 +122,7 @@ class PostgresRepository:
                     (report_month, snapshot, status, generated_at, sent_at, message_id, failure_code)
                 VALUES (%s, %s::jsonb, %s, %s, %s, %s, %s)
                 ON CONFLICT (report_month) DO UPDATE SET
-                    snapshot = monthly_reports.snapshot,
+                    snapshot = CASE WHEN monthly_reports.status = 'sent' THEN monthly_reports.snapshot ELSE EXCLUDED.snapshot END,
                     status = CASE WHEN monthly_reports.status = 'sent' THEN monthly_reports.status ELSE EXCLUDED.status END,
                     generated_at = monthly_reports.generated_at,
                     sent_at = COALESCE(EXCLUDED.sent_at, monthly_reports.sent_at),

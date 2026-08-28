@@ -79,7 +79,7 @@ def test_monthly_email_contains_html_inline_map_and_csv_attachment() -> None:
     message = smtp.messages[0]
     assert message["From"] == "zejiang_hydrology@126.com"
     assert message["To"] == "ze.jiang@hhu.edu.cn"
-    assert message["Subject"] == "HydroClimateX Monthly Analytics — July 2026"
+    assert message["Subject"] == "HydroclimateX Monthly Analytics — July 2026"
     payload_types = [part.get_content_type() for part in message.walk()]
     assert "text/html" in payload_types
     assert "image/png" in payload_types
@@ -213,3 +213,33 @@ def test_in_progress_month_does_not_send_a_duplicate_message() -> None:
 
     assert service.send(date(2026, 7, 1)) == {"sent": False, "reason": "delivery in progress"}
     assert FakeSMTP.instances == []
+
+
+def test_generate_regenerates_when_cached_website_unavailable() -> None:
+    repository = MemoryRepository()
+    service = ReportService(settings(), repository, FakeUmami(), smtp_factory=FakeSMTP, map_renderer=lambda _rows: b"png")
+    repository.save_report(MonthlyReport(
+        date(2026, 7, 1),
+        {"month": "2026-07-01", "label": "July 2026", "timezone": "Asia/Hong_Kong",
+         "website": {"status": "unavailable", "visitors": None, "pageviews": None, "countries": None},
+         "wasp": {"status": "unavailable", "totals": {}, "countries": []}},
+        "generated", datetime.now(timezone.utc),
+    ))
+
+    report = service.generate(date(2026, 7, 1))
+
+    assert report.snapshot["website"]["status"] == "available"
+    assert report.snapshot["website"]["visitors"] == 1245
+
+
+def test_save_report_freezes_snapshot_only_after_sent() -> None:
+    repository = MemoryRepository()
+    first = {"website": {"status": "available", "visitors": 10}, "wasp": {}}
+    repository.save_report(MonthlyReport(date(2026, 7, 1), first, "generated", datetime.now(timezone.utc)))
+    second = {"website": {"status": "available", "visitors": 99}, "wasp": {}}
+    repository.save_report(MonthlyReport(date(2026, 7, 1), second, "generated", datetime.now(timezone.utc)))
+    assert repository.get_report(date(2026, 7, 1)).snapshot["website"]["visitors"] == 99
+    repository.save_report(MonthlyReport(date(2026, 7, 1), second, "sent", datetime.now(timezone.utc)))
+    third = {"website": {"status": "available", "visitors": 123}, "wasp": {}}
+    repository.save_report(MonthlyReport(date(2026, 7, 1), third, "sent", datetime.now(timezone.utc)))
+    assert repository.get_report(date(2026, 7, 1)).snapshot["website"]["visitors"] == 99

@@ -99,3 +99,26 @@ def test_missing_read_credentials_are_deferred_and_do_not_call_umami(monkeypatch
     period = resolve_period("30d", now=datetime(2026, 8, 25, tzinfo=timezone.utc))
 
     assert client.summary(period)["status"] == "configuration missing"
+
+
+def test_summary_counts_hk_tw_mo_under_china() -> None:
+    def handler(request):
+        if request.url.path == "/api/auth/login":
+            return httpx.Response(200, json={"token": "bearer-token"})
+        if request.url.path.endswith("/stats"):
+            return httpx.Response(200, json={"visitors": 100, "pageviews": 300})
+        if request.url.params.get("type") == "country":
+            return httpx.Response(200, json=[
+                {"x": "CN", "y": 10}, {"x": "HK", "y": 5}, {"x": "TW", "y": 3}, {"x": "MO", "y": 2},
+            ])
+        if request.url.params.get("type") == "event":
+            return httpx.Response(200, json=[])
+        raise AssertionError(request.url)
+
+    client = UmamiClient(settings(), http_client=httpx.Client(transport=httpx.MockTransport(handler)))
+    period = resolve_period("30d", now=datetime(2026, 8, 25, tzinfo=timezone.utc))
+
+    result = client.summary(period)
+
+    assert result["status"] == "available"
+    assert result["countries"] == 1

@@ -130,9 +130,9 @@ class MemoryRepository:
 
     def save_report(self, report: MonthlyReport) -> MonthlyReport:
         existing = self.reports.get(report.report_month)
-        if existing and existing.status == "sent" and report.status != "sent":
-            return existing
-        if existing:
+        if existing and existing.status == "sent":
+            if report.status != "sent":
+                return existing
             report = MonthlyReport(
                 existing.report_month,
                 existing.snapshot,

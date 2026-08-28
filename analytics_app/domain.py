@@ -62,6 +62,9 @@ def resolve_period(
     raise PeriodError(f"unsupported period: {key}")
 
 
+NORMALIZE_COUNTRY = {"HK": "CN", "TW": "CN", "MO": "CN"}
+
+
 COUNTRY_NAMES = {
     "AU": "Australia",
     "BR": "Brazil",
@@ -118,6 +121,7 @@ def aggregate_country_rows(rows: Iterable[Mapping[str, object]]) -> dict[str, ob
     for row in rows:
         raw_code = row.get("country_code")
         code = str(raw_code).upper() if raw_code and len(str(raw_code)) == 2 else "ZZ"
+        code = NORMALIZE_COUNTRY.get(code, code)
         bucket = grouped.setdefault(code, {
             "country_code": code,
             "country": country_name(code),

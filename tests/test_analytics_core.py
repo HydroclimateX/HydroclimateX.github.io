@@ -81,6 +81,22 @@ def test_country_aggregation_emits_iso3_for_micro_territories() -> None:
     ])
 
     by_code = {row["country_code"]: row for row in result["countries"]}
-    assert by_code["HK"]["country"] == "Hong Kong"
-    assert by_code["HK"]["country_iso3"] == "HKG"
+    assert by_code["CN"]["country"] == "China"
+    assert by_code["CN"]["country_iso3"] == "CHN"
     assert by_code["SG"]["country_iso3"] == "SGP"
+
+
+def test_country_aggregation_counts_hk_tw_mo_under_china() -> None:
+    result = aggregate_country_rows([
+        {"country_code": "CN", "event_type": "run_success", "session_hash": "s1", "occurred_at": "2026-08-01T01:00:00Z", "run_id": "a"},
+        {"country_code": "HK", "event_type": "run_success", "session_hash": "s2", "occurred_at": "2026-08-01T02:00:00Z", "run_id": "b"},
+        {"country_code": "TW", "event_type": "run_success", "session_hash": "s3", "occurred_at": "2026-08-01T03:00:00Z", "run_id": "c"},
+        {"country_code": "MO", "event_type": "run_success", "session_hash": "s4", "occurred_at": "2026-08-01T04:00:00Z", "run_id": "d"},
+    ])
+
+    assert len(result["countries"]) == 1
+    china = result["countries"][0]
+    assert china["country_code"] == "CN"
+    assert china["country"] == "China"
+    assert china["country_iso3"] == "CHN"
+    assert china["successful_runs"] == 4

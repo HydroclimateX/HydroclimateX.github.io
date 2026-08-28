@@ -5,7 +5,7 @@ from datetime import datetime
 import httpx
 
 from .config import Settings
-from .domain import Period, resolve_period
+from .domain import NORMALIZE_COUNTRY, Period, resolve_period
 
 
 EVENT_METRICS = {
@@ -80,11 +80,15 @@ class UmamiClient:
             return self._empty("unavailable")
 
         event_counts = {str(row.get("x")): int(row.get("y", 0)) for row in events}  # type: ignore[union-attr]
+        merged_countries: dict[str, int] = {}
+        for row in countries:  # type: ignore[union-attr]
+            code = NORMALIZE_COUNTRY.get(str(row.get("x", "")), str(row.get("x", "")))
+            merged_countries[code] = merged_countries.get(code, 0) + int(row.get("y", 0))
         result = {
             "status": "available",
             "visitors": int(stats.get("visitors", 0)),  # type: ignore[union-attr]
             "pageviews": int(stats.get("pageviews", 0)),  # type: ignore[union-attr]
-            "countries": len(countries),  # type: ignore[arg-type]
+            "countries": len(merged_countries),
         }
         result.update({field: event_counts.get(event, 0) for event, field in EVENT_METRICS.items()})
         return result
