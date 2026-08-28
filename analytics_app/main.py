@@ -247,6 +247,20 @@ def create_app(*, settings: Settings, repository: Repository, umami, report_serv
             **usage,
         }
 
+    @app.get("/api/v1/wasp/map.png")
+    def usage_map_png(
+        _: AdminSession = Depends(authenticated_session),
+        period=Depends(selected_period),
+        metric: str = Query("successful_runs"),
+    ) -> Response:
+        usage = wasp_usage(period)
+        if usage["status"] != "available":
+            raise HTTPException(status_code=503, detail="WASP analytics source unavailable")
+        from .map_render import render_usage_map
+
+        png = render_usage_map(usage["countries"], metric)
+        return Response(content=png, media_type="image/png", headers={"Cache-Control": "no-store"})
+
     @app.get("/api/v1/wasp/countries/{country_code}")
     def country_detail(
         country_code: str,

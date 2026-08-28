@@ -1,21 +1,7 @@
 (() => {
   'use strict';
   const byId = id => document.getElementById(id);
-  const state = { csrf: '', period: '30d', start: '', end: '', countries: [], worldGeo: null };
-  let worldGeoPromise = null;
-  function loadWorldGeo() {
-    if (!state.worldGeo) {
-      worldGeoPromise ||= fetch('/static/vendor/world-countries.json')
-        .then(r => { if (!r.ok) throw new Error(`world map data failed (${r.status})`); return r.json(); })
-        .then(geo => { state.worldGeo = geo; return geo; });
-    }
-    return worldGeoPromise;
-  }
-
-  const MAP_METRICS = {
-    successful_runs: 'Successful runs', failed_runs: 'Failed runs', downloads: 'Downloads', sessions: 'Sessions',
-  };
-  const MAP_COLORSCALE = [[0, '#f0faf7'], [0.25, '#c8ebe1'], [0.5, '#8cd3c2'], [0.75, '#3da48f'], [1, '#0b4f4a']];
+  const state = { csrf: '', period: '30d', start: '', end: '', countries: [] };
 
   async function api(path, options = {}) {
     const response = await fetch(path, { credentials: 'same-origin', ...options });
@@ -61,51 +47,14 @@
       setSourceStatus('websiteStatus','Website',summary.sources.website,summary.source_freshness?.website);
       setSourceStatus('waspStatus','WASP',summary.sources.wasp,summary.source_freshness?.wasp);
       state.countries = usage.countries;
-      try { await loadWorldGeo(); } catch (_) { state.worldGeo = null; }
       renderMap(); renderCountryTable(); renderWebsiteTable(website.metrics || []);
       byId('csvLink').href = `/api/v1/wasp/export.csv?${query}`;
     } catch (error) { if (error.message !== 'Authentication required') byId('dashboardError').textContent = error.message; }
   }
 
   function renderMap() {
-    const map = byId('usageMap');
-    if (!window.Plotly) { map.textContent = 'Map library unavailable. Country table remains available.'; return; }
-    if (!state.worldGeo) { map.textContent = 'World map data unavailable. Country table remains available.'; return; }
     const metric = byId('mapMetric').value;
-    const label = MAP_METRICS[metric];
-    const rows = state.countries.filter(row => row.country_iso3);
-    const trace = {
-      type: 'choropleth',
-      geojson: state.worldGeo,
-      featureidkey: 'properties.ISO_A3_EH',
-      locations: rows.map(r => r.country_iso3),
-      z: rows.map(r => r[metric]),
-      text: rows.map(r => r.country),
-      hovertemplate: `%{text}<br>${label}: %{z}<extra></extra>`,
-      colorscale: MAP_COLORSCALE,
-      marker: { line: { color: '#ffffff', width: 0.4 } },
-      colorbar: {
-        title: { text: label, side: 'top', font: { size: 12, color: '#60747a' } },
-        thickness: 12, len: 0.8, outlinewidth: 0, tickfont: { size: 11, color: '#60747a' },
-      },
-    };
-    const layout = {
-      geo: {
-        showframe: false, showcoastlines: false, projection: { type: 'natural earth' },
-        bgcolor: '#eef2f0', landcolor: '#eef2f0', oceancolor: '#f5f7f5', countrycolor: '#ffffff',
-      },
-      paper_bgcolor: 'transparent',
-      margin: { l: 0, r: 0, t: 8, b: 0 },
-      height: 460,
-      uirevision: state.period,
-    };
-    Plotly.newPlot('usageMap', [trace], layout, { responsive: true, displayModeBar: false });
-    map.removeAllListeners?.('plotly_click');
-    map.on('plotly_click', event => {
-      const code = event.points[0]?.location;
-      const row = state.countries.find(item => item.country_iso3 === code);
-      if (row) void selectCountry(row.country_code);
-    });
+    byId('usageMap').src = `/api/v1/wasp/map.png?${periodQuery()}&metric=${encodeURIComponent(metric)}`;
   }
 
   function renderCountryTable() {
@@ -144,6 +93,6 @@
   byId('applyDates').addEventListener('click',()=>{state.start=byId('startDate').value;state.end=byId('endDate').value;if(state.start&&state.end)void loadDashboard();});
   byId('mapMetric').addEventListener('change',renderMap);
   byId('previewReport').addEventListener('click',async()=>{const month=byId('reportMonth').value;if(!month)return;try{const report=await api(`/api/v1/reports/${month}`);byId('reportPreview').textContent=JSON.stringify(report,null,2);}catch(error){byId('reportPreview').textContent=error.message;}});
-  byId('sendReport').addEventListener('click',async()=>{const month=byId('reportMonth').value;if(!month)return;try{const result=await api(`/api/v1/reports/${month}/send`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf},body:JSON.stringify({force:false})});byId('reportPreview').textContent=JSON.stringify(result,null,2);}catch(error){byId('reportPreview').textContent=error.message;}});
+  byId('sendReport').addEventListener('click',async()=>{const month=byId('reportMonth').value;if(!month)return;try{const result=await api(`/api/v1/reports/${month}/send`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf},body:JSON.stringify({force:true})});byId('reportPreview').textContent=JSON.stringify(result,null,2);}catch(error){byId('reportPreview').textContent=error.message;}});
   void restoreSession();
 })();

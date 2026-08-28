@@ -22,8 +22,8 @@ def test_compose_keeps_analytics_datastores_private_and_pinned():
     assert "--no-access-log" in read("backend/Dockerfile")
     analytics_image = read("analytics/Dockerfile")
     assert "python:3.11.10-slim-bookworm" in analytics_image
-    assert "libnss3" in analytics_image and "libgbm1" in analytics_image
-    assert "plotly-2.35.2.min.js" in analytics_image
+    assert "gcc" in analytics_image and "g++" in analytics_image
+    assert "plotly-2.35.2.min.js" not in analytics_image
 
 
 def test_nginx_exposes_only_telemetry_collection_routes_and_privacy_safe_logs():
@@ -128,9 +128,11 @@ def test_dashboard_attributes_country_geolocation_to_dbip():
     assert "IP Geolocation by DB-IP" in dashboard
 
 
-def test_dashboard_uses_plotly_choropleth_with_world_geo():
+def test_dashboard_uses_server_rendered_map_without_plotly():
     dashboard = read("analytics_app/static/index.html").lower()
     app_script = read("analytics_app/static/app.js")
-    assert "plotly-2.35.2.min.js" in dashboard
-    assert "Plotly.newPlot" in app_script
-    assert "world-countries.json" in app_script
+    requirements = read("analytics-requirements.txt")
+    assert "plotly" not in dashboard + app_script.lower()
+    assert "map.png" in app_script
+    assert "matplotlib==3.9.1" in requirements
+    assert "plotly" not in requirements and "kaleido" not in requirements
