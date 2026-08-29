@@ -19,7 +19,7 @@ from PIL import Image
 
 RETURN_PERIODS = (5, 10, 20, 50, 100)
 HAZARD_SUFFIX = ".maxHaz"
-PARAMETER_VERSION = "surface-v1"
+PARAMETER_VERSION = "surface-v2"
 RISK_MATRIX = np.array(
     [[1, 1, 1, 2], [1, 2, 2, 3], [2, 2, 3, 4], [2, 3, 4, 4]],
     dtype=np.uint8,
@@ -382,7 +382,7 @@ def write_rainfall(path: Path, rates: np.ndarray) -> None:
     series = np.append(rates, 0.0)
     integrated = np.sum((series[:-1] + series[1:]) * 0.5) / 60
     series *= (rates.sum() / 60) / integrated
-    rows = [f"{len(series)}\tseconds"]
+    rows = ["# LISFLOOD-FP rainfall time series", f"{len(series)}\tseconds"]
     rows.extend(f"{rate:.8f}\t{minute * 60}" for minute, rate in enumerate(series))
     path.write_text("\n".join(rows) + "\n", encoding="utf-8")
 
@@ -401,7 +401,7 @@ def mass_balance_error(path: Path) -> float:
         header = next(row for row in lines if "Verror" in row)
         volume_index = header.index("Vol")
         error_index = header.index("Verror")
-        rain_index = header.index("Rain-Inf+Evap")
+        rain_index = header.index("Rain-(Inf+Evap)")
     except (StopIteration, ValueError) as error:
         raise ValueError(f"unrecognised mass-balance file: {path}") from error
     rows = [row for row in lines if len(row) > rain_index and row[0][0].isdigit()]

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import os
 import queue
@@ -591,6 +592,9 @@ class Service:
                 self.state.pop(identifier, None)
             return self.status(identifier)
         except Exception:
+            logging.getLogger(__name__).exception(
+                "LISFLOOD job %s for return period %s failed", identifier, period
+            )
             try:
                 if temp.exists() or temp.is_symlink():
                     self._remove_temp(temp)

@@ -33,35 +33,39 @@
       <fieldset class="study-area">
         <legend>Study area</legend>
         <button id="selectArea" type="button">Select area</button>
+        <button id="resetArea" type="button">Reset to Qixia</button>
         <output id="selectedArea" aria-live="polite">Loading default area…</output>
         <button id="runSimulation" type="button" disabled>Run simulation</button>
+        <p id="status" role="status">Loading study area…</p>
       </fieldset>
 
-      <fieldset class="layers">
-        <legend>Map layer</legend>
-        <label><input type="radio" name="layer" value="risk" checked> Population risk</label>
-        <label><input type="radio" name="layer" value="hazard"> Flood hazard</label>
-        <label><input type="radio" name="layer" value="depth"> Maximum depth</label>
-        <label><input type="radio" name="layer" value="population"> Population</label>
-        <label><input type="radio" name="layer" value="dem"> DEM</label>
-      </fieldset>
+      <section id="results" hidden aria-label="Simulation results">
+        <p id="resultMeta" aria-live="polite"></p>
+        <fieldset class="layers">
+          <legend>Map layer</legend>
+          <label><input type="radio" name="layer" value="risk" checked> Population risk</label>
+          <label><input type="radio" name="layer" value="hazard"> Flood hazard</label>
+          <label><input type="radio" name="layer" value="depth"> Maximum depth</label>
+          <label><input type="radio" name="layer" value="population"> Population</label>
+          <label><input type="radio" name="layer" value="dem"> DEM</label>
+        </fieldset>
 
-      <label class="opacity">Layer opacity <input id="opacity" type="range" min="20" max="100" value="78"></label>
+        <label class="opacity">Layer opacity <input id="opacity" type="range" min="20" max="100" value="78"></label>
 
-      <dl class="metrics">
-        <div><dt>Flooded area</dt><dd id="floodedArea">—</dd></div>
-        <div><dt>Exposed population</dt><dd id="exposedPopulation">—</dd></div>
-        <div><dt>Maximum depth</dt><dd id="maximumDepth">—</dd></div>
-      </dl>
+        <dl class="metrics">
+          <div><dt>Flooded area</dt><dd id="floodedArea">—</dd></div>
+          <div><dt>Exposed population</dt><dd id="exposedPopulation">—</dd></div>
+          <div><dt>Maximum depth</dt><dd id="maximumDepth">—</dd></div>
+        </dl>
 
-      <div class="legend" id="legend" aria-label="Map legend" hidden>
-        <strong id="legendTitle">Population risk</strong>
-        <span><i class="low"></i><b>Low</b></span><span><i class="moderate"></i><b>Moderate</b></span>
-        <span><i class="high"></i><b>High</b></span><span><i class="extreme"></i><b>Extreme</b></span>
-      </div>
+        <div class="legend" id="legend" aria-label="Map legend" hidden>
+          <strong id="legendTitle">Population risk</strong>
+          <span><i class="low"></i><b>Low</b></span><span><i class="moderate"></i><b>Moderate</b></span>
+          <span><i class="high"></i><b>High</b></span><span><i class="extreme"></i><b>Extreme</b></span>
+        </div>
+      </section>
 
       <footer>
-        <p id="status" role="status">Loading study area…</p>
         <p><strong>Research demonstration only.</strong> Sewer networks and engineered drainage are not represented; no underground drainage or artificial drainage capacity is modelled. Not for emergency response or engineering design.</p>
         <p class="sources">Data: Copernicus DEM, WorldPop and OpenStreetMap contributors.</p>
       </footer>

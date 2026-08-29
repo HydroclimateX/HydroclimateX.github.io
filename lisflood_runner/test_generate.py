@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import subprocess
@@ -47,6 +48,14 @@ class WindowTests(unittest.TestCase):
         grid = np.arange(100).reshape(10, 10)
         np.testing.assert_array_equal(crop_grid(grid, window), grid[4:9, 1:6])
         self.assertEqual(job_id(window, 20, "8.0.3", "data"), job_id(window, 20, "8.0.3", "data"))
+
+    def test_surface_v2_parameter_version_invalidates_surface_v1_job_ids(self) -> None:
+        window = (1, 1, 6, 6)
+        old_value = "1,1,6,6|20|8.0.3|surface-v1|data"
+        new_value = "1,1,6,6|20|8.0.3|surface-v2|data"
+        self.assertEqual(generate.PARAMETER_VERSION, "surface-v2")
+        self.assertEqual(job_id(window, 20, "8.0.3", "data"), hashlib.sha256(new_value.encode()).hexdigest()[:20])
+        self.assertNotEqual(job_id(window, 20, "8.0.3", "data"), hashlib.sha256(old_value.encode()).hexdigest()[:20])
 
     def test_rejects_area_above_limit(self) -> None:
         large_header = dict(self.HEADER, ncols=1000.0, nrows=1000.0)
@@ -242,8 +251,11 @@ class RainfallTests(unittest.TestCase):
             rates = design_storm(5)
             write_rainfall(path, rates)
             lines = path.read_text(encoding="utf-8").splitlines()
-            self.assertEqual(lines[0], "181\tseconds")
-            file_rates = np.array([float(line.split()[0]) for line in lines[1:]])
+            self.assertTrue(lines[0].startswith("#"))
+            self.assertEqual(lines[1], "181\tseconds")
+            self.assertEqual(len(lines), 183)
+            file_rates = np.array([float(line.split()[0]) for line in lines[2:]])
+            self.assertEqual([int(line.split()[1]) for line in lines[2:]], list(range(0, 10801, 60)))
             integrated = np.sum((file_rates[:-1] + file_rates[1:]) * 0.5) / 60
             self.assertAlmostEqual(float(integrated), float(rates.sum() / 60), places=7)
 
@@ -415,7 +427,7 @@ test -f design.rain
 test -f evaporation.evap
 mkdir -p results
 cat > results/result.mass <<'EOF'
-Time Tstep MinTstep NumTsteps Area Vol Qin Hds Qout Qerror Verror Rain-Inf+Evap
+Time Tstep MinTstep NumTsteps Area Vol Qin Hds Qout Qerror Verror Rain-(Inf+Evap)
 600 1 1 10 20 100 0 0 0 0 0 100
 EOF
 cat > results/result.max <<'EOF'
@@ -622,12 +634,37 @@ EOF
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "result.mass"
             path.write_text(
-                "Time Tstep MinTstep NumTsteps Area Vol Qin Hds Qout Qerror Verror Rain-Inf+Evap\n"
+                "Time Tstep MinTstep NumTsteps Area Vol Qin Hds Qout Qerror Verror Rain-(Inf+Evap)\n"
                 "600 1 1 10 20 100 0 0 0 0 1 50\n"
                 "1200 1 1 20 30 200 0 0 0 0 2 150\n",
                 encoding="utf-8",
             )
             self.assertAlmostEqual(mass_balance_error(path), 0.015)
+
+    def test_mass_balance_rejects_legacy_rain_header(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "result.mass"
+            path.write_text(
+                "Time Tstep MinTstep NumTsteps Area Vol Qin Hds Qout Qerror Verror Rain-Inf+Evap\n"
+                "600 1 1 10 20 100 0 0 0 0 1 50\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "unrecognised mass-balance"):
+                mass_balance_error(path)
+
+
+class DockerfileTests(unittest.TestCase):
+    def test_t025_mass_file_is_checked_by_the_runner_parser_before_cleanup(self) -> None:
+        dockerfile = (Path(__file__).parent / "Dockerfile").read_text(encoding="utf-8")
+        smoke_mass = "cp results_rain/res_rain.mass /tmp/lisflood-t025.mass"
+        parser_import = "from lisflood_runner.generate import mass_balance_error"
+        self.assertIn("curl -fL --retry 3 --retry-all-errors", dockerfile)
+        self.assertIn(smoke_mass, dockerfile)
+        self.assertLess(dockerfile.index(smoke_mass), dockerfile.index("rm -rf /tmp/build /tmp/source /tmp/lisflood.zip"))
+        self.assertIn(parser_import, dockerfile)
+        self.assertIn("mass_balance_error(mass)", dockerfile)
+        self.assertIn("mass.unlink()", dockerfile)
+        self.assertLess(dockerfile.index("COPY lisflood_runner /app/lisflood_runner"), dockerfile.index(parser_import))
 
 
 if __name__ == "__main__":

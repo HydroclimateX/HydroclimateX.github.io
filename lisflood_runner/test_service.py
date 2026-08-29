@@ -233,9 +233,18 @@ class ServiceExecutionTests(unittest.TestCase):
                 return_value=((0, 0, 2, 2), [[1.0, 2.0], [3.0, 4.0]]),
             ):
                 submitted = service.submit([[1, 2], [3, 4]], 20)
-            result = service.run_next()
+            with self.assertLogs("lisflood_runner.service", level="ERROR") as logs:
+                result = service.run_next()
             self.assertEqual(result, {"status": "failed", "error": "Simulation failed"})
             self.assertEqual(service.status(submitted["jobId"]), result)
+            public_response = json.dumps(result)
+            self.assertNotIn("secret/path", public_response)
+            self.assertNotIn("secret/path", json.dumps(service.status(submitted["jobId"])))
+            log_output = "\n".join(logs.output)
+            self.assertIn(submitted["jobId"], log_output)
+            self.assertIn("20", log_output)
+            self.assertIn("secret/path should not be exposed", log_output)
+            self.assertIn("Traceback", log_output)
             self.assertFalse((Path(directory) / f".{submitted['jobId']}.tmp").exists())
 
     def test_worker_blocks_idle_and_processes_later_submission(self) -> None:
@@ -405,7 +414,7 @@ class ServiceExecutionTests(unittest.TestCase):
             with mock.patch(
                 "lisflood_runner.service.generate.snap_bounds",
                 side_effect=windows,
-            ):
+            ), mock.patch("lisflood_runner.service.logging.getLogger"):
                 submitted = []
                 for _ in range(70):
                     submitted.append(service.submit([[1, 2], [3, 4]], 20))
