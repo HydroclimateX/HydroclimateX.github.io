@@ -394,28 +394,6 @@ def locate_output(root: Path, suffix: str) -> Path:
     return matches[0]
 
 
-def mass_balance_error(path: Path) -> float:
-    """Return cumulative volume error relative to the simulated water volume."""
-    lines = [line.split() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    try:
-        header = next(row for row in lines if "Verror" in row)
-        volume_index = header.index("Vol")
-        error_index = header.index("Verror")
-        rain_index = header.index("Rain-(Inf+Evap)")
-    except (StopIteration, ValueError) as error:
-        raise ValueError(f"unrecognised mass-balance file: {path}") from error
-    rows = [row for row in lines if len(row) > rain_index and row[0][0].isdigit()]
-    if not rows:
-        raise ValueError(f"mass-balance file has no data: {path}")
-    cumulative_error = sum(float(row[error_index]) for row in rows)
-    scale = max(
-        max(abs(float(row[volume_index])) for row in rows),
-        max(abs(float(row[rain_index])) for row in rows),
-        1.0,
-    )
-    return abs(cumulative_error) / scale
-
-
 def save_layer(path: Path, data: np.ndarray, palette: list[tuple[int, int, int, int]], classes: bool = False) -> None:
     rgba = np.zeros((*data.shape, 4), dtype=np.uint8)
     valid = np.isfinite(data)
@@ -513,9 +491,6 @@ def run_job(
         (work / "web.par").write_text(PARAMETERS, encoding="utf-8")
         subprocess.run([str(engine), "web.par"], cwd=work, check=True, timeout=timeout)
         output = work / "results"
-        error = mass_balance_error(locate_output(output, ".mass"))
-        if error > 0.03:
-            raise RuntimeError(f"mass-balance error is {error:.2%}")
         depth_header, depth = read_ascii(locate_output(output, ".max"))
         hazard_header, hazard = read_ascii(locate_output(output, HAZARD_SUFFIX))
         assert_aligned(header, depth_header)

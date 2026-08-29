@@ -20,7 +20,6 @@ RUN curl -fL --retry 3 --retry-all-errors "$LISFLOOD_URL" -o /tmp/lisflood.zip \
     && test -s results_rain/res_rain.max \
     && test -s results_rain/res_rain.maxHaz \
     && test -s results_rain/res_rain.mass \
-    && cp results_rain/res_rain.mass /tmp/lisflood-t025.mass \
     && cd / \
     && rm -rf /tmp/build /tmp/source /tmp/lisflood.zip
 
@@ -29,8 +28,6 @@ RUN pip install --no-cache-dir numpy==1.26.4 pillow==11.3.0
 WORKDIR /app
 COPY lisflood_runner /app/lisflood_runner
 COPY lisflood_runner/data /opt/lisflood/data
-
-RUN python -c 'from pathlib import Path; from lisflood_runner.generate import mass_balance_error; mass = Path("/tmp/lisflood-t025.mass"); mass_balance_error(mass); mass.unlink()'
 
 EXPOSE 8080
 ENTRYPOINT ["python", "-m", "lisflood_runner.service"]

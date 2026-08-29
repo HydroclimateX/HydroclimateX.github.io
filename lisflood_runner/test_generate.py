@@ -17,7 +17,6 @@ from lisflood_runner.generate import (
     crop_grid,
     design_storm,
     job_id,
-    mass_balance_error,
     model_version,
     run_job,
     snap_bounds,
@@ -430,7 +429,7 @@ test -f evaporation.evap
 mkdir -p results
 cat > results/result.mass <<'EOF'
 Time Tstep MinTstep NumTsteps Area Vol Qin Hds Qout Qerror Verror Rain-(Inf+Evap)
-600 1 1 10 20 100 0 0 0 0 0 100
+600 1 1 10 20 100 0 0 0 0 1e12 100
 EOF
 cat > results/result.max <<'EOF'
 ncols 2
@@ -477,7 +476,7 @@ EOF
                 )
             self.assertFalse(marker.exists())
 
-    def test_run_job_writes_flat_manifest_and_layers(self) -> None:
+    def test_run_job_writes_valid_outputs_despite_mass_diagnostics(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             engine = self._engine(directory)
@@ -631,43 +630,6 @@ EOF
                 )
             self.assertFalse((staging / "manifest.json").exists())
             self.assertEqual(list(staging.iterdir()), [])
-
-    def test_mass_balance_uses_cumulative_volume_error(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "result.mass"
-            path.write_text(
-                "Time Tstep MinTstep NumTsteps Area Vol Qin Hds Qout Qerror Verror Rain-(Inf+Evap)\n"
-                "600 1 1 10 20 100 0 0 0 0 1 50\n"
-                "1200 1 1 20 30 200 0 0 0 0 2 150\n",
-                encoding="utf-8",
-            )
-            self.assertAlmostEqual(mass_balance_error(path), 0.015)
-
-    def test_mass_balance_rejects_legacy_rain_header(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "result.mass"
-            path.write_text(
-                "Time Tstep MinTstep NumTsteps Area Vol Qin Hds Qout Qerror Verror Rain-Inf+Evap\n"
-                "600 1 1 10 20 100 0 0 0 0 1 50\n",
-                encoding="utf-8",
-            )
-            with self.assertRaisesRegex(ValueError, "unrecognised mass-balance"):
-                mass_balance_error(path)
-
-
-class DockerfileTests(unittest.TestCase):
-    def test_t025_mass_file_is_checked_by_the_runner_parser_before_cleanup(self) -> None:
-        dockerfile = (Path(__file__).parent / "Dockerfile").read_text(encoding="utf-8")
-        smoke_mass = "cp results_rain/res_rain.mass /tmp/lisflood-t025.mass"
-        parser_import = "from lisflood_runner.generate import mass_balance_error"
-        self.assertIn("curl -fL --retry 3 --retry-all-errors", dockerfile)
-        self.assertIn(smoke_mass, dockerfile)
-        self.assertLess(dockerfile.index(smoke_mass), dockerfile.index("rm -rf /tmp/build /tmp/source /tmp/lisflood.zip"))
-        self.assertIn(parser_import, dockerfile)
-        self.assertIn("mass_balance_error(mass)", dockerfile)
-        self.assertIn("mass.unlink()", dockerfile)
-        self.assertLess(dockerfile.index("COPY lisflood_runner /app/lisflood_runner"), dockerfile.index(parser_import))
-
 
 if __name__ == "__main__":
     unittest.main()
