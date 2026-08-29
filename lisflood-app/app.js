@@ -164,14 +164,15 @@ function updateSelectionDisplay() {
     return;
   }
   const area = rectangleAreaKm2(state.bounds);
-  $('selectedArea').textContent = `Approx. ${areaLabel(area)} selected`;
-  if (!geometryIsValid()) {
-    $('selectedArea').textContent += ' (outside the available model area or too large)';
-  }
+  if (area <= 0) $('selectedArea').textContent = 'Select two different corners for a positive-area rectangle.';
+  else if (area > state.config.maxAreaKm2) $('selectedArea').textContent = `Approx. ${areaLabel(area)} selected (maximum ${state.config.maxAreaKm2.toLocaleString()} km²)`;
+  else if (!boundsWithin(state.bounds, state.config.availableBounds)) $('selectedArea').textContent = `Approx. ${areaLabel(area)} selected (must lie within the available model area)`;
+  else $('selectedArea').textContent = `Approx. ${areaLabel(area)} selected`;
 }
 
 function updateControls() {
   $('selectArea').disabled = !state.config || state.running || state.selecting;
+  $('resetArea').disabled = !state.config || state.running;
   $('runSimulation').disabled = !canRun();
   document.querySelectorAll('[data-period], input[name="layer"], #opacity').forEach(control => {
     control.disabled = !state.config || state.running;
@@ -188,17 +189,15 @@ function clearResult() {
   $('exposedPopulation').textContent = '—';
   $('maximumDepth').textContent = '—';
   $('legend').hidden = true;
-}
-
-function layerUrl() {
-  return state.manifest.layers[state.layer];
+  $('resultMeta').textContent = '';
+  $('results').hidden = true;
 }
 
 function render() {
   if (!state.manifest) return;
   const manifest = state.manifest;
   if (state.overlay) map.removeLayer(state.overlay);
-  state.overlay = L.imageOverlay(layerUrl(), manifest.bounds, {
+  state.overlay = L.imageOverlay(manifest.layers[state.layer], manifest.bounds, {
     opacity: Number($('opacity').value) / 100,
     interactive: false,
   }).addTo(map);
@@ -212,7 +211,8 @@ function render() {
   const generatedLabel = generatedAt && !Number.isNaN(generatedAt.getTime())
     ? ` · ${generatedAt.toLocaleDateString()}`
     : '';
-  $('status').textContent = `${returnedPeriod}-year event ready${generatedLabel}`;
+  $('resultMeta').textContent = `${returnedPeriod}-year · ${state.config.modelVersion}${generatedLabel}`;
+  $('results').hidden = false;
 
   const classified = state.layer === 'risk' || state.layer === 'hazard';
   $('legend').hidden = !classified;
@@ -335,6 +335,19 @@ function startSelection() {
   map.once('click', firstCorner);
 }
 
+function resetArea() {
+  if (!state.config || state.running) return;
+  map.off('click', firstCorner);
+  map.off('click', secondCorner);
+  state.corners = [];
+  state.selecting = false;
+  clearResult();
+  setBounds(state.config.defaultBounds, 'Ready');
+  map.fitBounds(state.config.defaultBounds, { padding: [20, 20] });
+  $('error').hidden = true;
+  updateControls();
+}
+
 function normalizeStats(stats) {
   if (!stats || typeof stats !== 'object' || Array.isArray(stats)
     || Object.keys(stats).sort().join(',') !== STAT_NAMES.slice().sort().join(',')) throw new Error('stats');
@@ -376,7 +389,7 @@ function prepareManifest(manifest, jobId, expectedPeriod, expectedBounds, availa
   }
 }
 
-async function pollJob(statusUrl, jobId, expectedPeriod, expectedBounds, availableBounds, snappedNotice = '') {
+async function pollJob(statusUrl, jobId, expectedPeriod, expectedBounds, availableBounds, snappedNotice = '', cached = false) {
   const deadline = Date.now() + POLL_DEADLINE_MS;
   let transientErrors = 0;
   let waitMs = POLL_INTERVAL_MS;
@@ -397,7 +410,7 @@ async function pollJob(statusUrl, jobId, expectedPeriod, expectedBounds, availab
       continue;
     }
     if (!job || typeof job !== 'object') throw new Error('Invalid simulation status');
-    if (job.status === 'failed') throw new Error(job.error || 'Simulation failed');
+    if (job.status === 'failed') throw new Error('Simulation failed');
     if (!isStatusUrl(job.statusUrl, jobId)) throw new Error('Invalid simulation status');
     if (job.effectiveBounds) {
       let statusBounds;
@@ -412,6 +425,7 @@ async function pollJob(statusUrl, jobId, expectedPeriod, expectedBounds, availab
     }
     if (job.status === 'completed') {
       if (!isManifestUrl(job.manifestUrl, jobId)) throw new Error('Invalid simulation result');
+      $('status').textContent = 'Preparing map…';
       let manifest;
       try {
         manifest = await fetchJson(job.manifestUrl, { cache: 'no-store' });
@@ -422,6 +436,7 @@ async function pollJob(statusUrl, jobId, expectedPeriod, expectedBounds, availab
       state.manifest = prepareManifest(manifest, jobId, expectedPeriod, expectedBounds, availableBounds);
       map.fitBounds(state.manifest.bounds, { padding: [20, 20] });
       render();
+      $('status').textContent = cached ? 'Cached result loaded' : 'Result ready';
       return;
     }
     if (job.status !== 'queued' && job.status !== 'running') throw new Error('The service returned an unknown job status');
@@ -434,12 +449,14 @@ async function pollJob(statusUrl, jobId, expectedPeriod, expectedBounds, availab
 }
 
 async function runSimulation() {
-  if (!canRun()) return;
+  if (!geometryIsValid()) return;
+  if (state.running) return;
+  let jobId = null;
   clearResult();
   state.running = true;
   updateControls();
   $('error').hidden = true;
-  $('status').textContent = 'Submitting simulation…';
+  $('status').textContent = 'Simulation queued…';
   try {
     const requestedPeriod = Number(state.period);
     const availableBounds = state.config.availableBounds;
@@ -448,18 +465,23 @@ async function runSimulation() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ bounds: state.bounds, returnPeriod: Number(state.period) }),
     });
-    if (!job || typeof job !== 'object' || !isJobId(job.jobId) || !isStatusUrl(job.statusUrl, job.jobId)) {
+    if (!job || typeof job !== 'object' || !isJobId(job.jobId)) {
       throw new Error('Invalid simulation job');
     }
-    if (job.status === 'failed') throw new Error(job.error || 'Simulation failed');
+    jobId = job.jobId;
+    if (!isStatusUrl(job.statusUrl, jobId)) throw new Error('Invalid simulation job');
+    if (job.status === 'failed') throw new Error('Simulation failed');
     if (!job.effectiveBounds) throw new Error('Invalid simulation result');
     const effectiveBounds = applyEffectiveBounds(job.effectiveBounds);
     const snappedNotice = `snapped area ${areaLabel(rectangleAreaKm2(effectiveBounds))}`;
-    await pollJob(job.statusUrl, job.jobId, requestedPeriod, effectiveBounds, availableBounds, snappedNotice);
+    const cached = job.status === 'completed';
+    await pollJob(job.statusUrl, job.jobId, requestedPeriod, effectiveBounds, availableBounds, snappedNotice, cached);
   } catch (error) {
     console.error(error);
-    $('status').textContent = error instanceof Error ? error.message : 'Simulation failed';
-    $('error').textContent = 'Simulation unavailable. Please try again later.';
+    $('status').textContent = 'Simulation failed';
+    $('error').textContent = jobId
+      ? `Simulation failed. Retry or contact the administrator with job ${jobId}.`
+      : 'Simulation failed. Please retry or contact the administrator.';
     $('error').hidden = false;
   } finally {
     state.running = false;
@@ -479,7 +501,7 @@ document.querySelectorAll('[data-period]').forEach(button => button.addEventList
   state.period = button.dataset.period;
   updatePeriodButtons();
   clearResult();
-  $('status').textContent = `Ready to run ${state.period}-year event`;
+  $('status').textContent = 'Ready';
   updateControls();
 }));
 
@@ -493,6 +515,7 @@ $('opacity').addEventListener('input', () => {
 });
 
 $('selectArea').addEventListener('click', startSelection);
+$('resetArea').addEventListener('click', resetArea);
 $('runSimulation').addEventListener('click', runSimulation);
 
 updateControls();
@@ -507,7 +530,7 @@ fetchJson('/api/lisflood/config', { cache: 'no-store' })
     updateSelectionDisplay();
     updatePeriodButtons();
     map.fitBounds(state.config.defaultBounds, { padding: [20, 20] });
-    $('status').textContent = `Default study area loaded · approx. ${areaLabel(rectangleAreaKm2(state.bounds))}`;
+    $('status').textContent = 'Ready';
     $('error').hidden = true;
     updateControls();
   })

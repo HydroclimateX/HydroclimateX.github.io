@@ -19,6 +19,8 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .study-area legend { grid-column: 1 / -1; }
 .study-area button { width: 100%; }
 #selectedArea { display: block; padding: 8px 9px; border: 1px solid #e1e8ed; border-radius: 6px; color: #5e6b7b; background: #f8fafb; font-size: .72rem; line-height: 1.35; }
+#status { margin: 0; color: #126a78; font-size: .72rem; font-weight: 700; }
+#resultMeta { margin: 16px 0 -4px; color: #5e6b7b; font-size: .72rem; }
 .layers { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 12px; }
 .layers legend { grid-column: 1 / -1; }
 .layers label { font-size: .78rem; }
@@ -37,7 +39,6 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .low { background: #31a354; } .moderate { background: #fee08b; } .high { background: #f46d43; } .extreme { background: #a50026; }
 footer { margin-top: 14px; color: #6a7786; font-size: .66rem; line-height: 1.45; }
 footer p { margin: 5px 0; }
-#status { color: #126a78; font-weight: 700; }
 .sources { border-top: 1px solid #e4e9ee; padding-top: 7px; }
 #error { position: absolute; z-index: 1200; top: 18px; right: 18px; max-width: 310px; padding: 12px 15px; border-radius: 7px; color: #7f1d1d; background: #fee2e2; box-shadow: 0 6px 20px rgba(0,0,0,.15); font-size: .82rem; }
 .leaflet-control-attribution { font-size: 10px; }
