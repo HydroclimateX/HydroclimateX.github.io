@@ -329,6 +329,8 @@ class ModelConfigurationTests(unittest.TestCase):
         self.assertIn("resroot result", parameters)
         self.assertIn("rainfall design.rain", parameters)
         self.assertIn("evaporation evaporation.evap", parameters)
+        self.assertIn("depththresh 0.001", parameters)
+        self.assertNotIn("depththresh 0.01", parameters)
 
     def test_model_version_identifies_official_acc_solver(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -418,7 +420,7 @@ grep -Fxq 'acceleration' web.par
 grep -Fxq 'fpfric 0.06' web.par
 grep -Fxq 'infiltration 0.00001' web.par
 grep -Fxq 'hazard' web.par
-grep -Fxq 'depththresh 0.01' web.par
+grep -Fxq 'depththresh 0.001' web.par
 grep -Fxq 'comp_out' web.par
 grep -Fxq 'rainfall design.rain' web.par
 grep -Fxq 'evaporation evaporation.evap' web.par

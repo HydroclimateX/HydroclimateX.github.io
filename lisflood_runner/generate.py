@@ -37,7 +37,7 @@ acceleration
 fpfric 0.06
 infiltration 0.00001
 hazard
-depththresh 0.01
+depththresh 0.001
 comp_out
 rainfall design.rain
 evaporation evaporation.evap
