@@ -13,6 +13,7 @@ from lisflood_runner import generate
 from lisflood_runner.generate import (
     HAZARD_SUFFIX,
     RETURN_PERIODS,
+    assert_aligned,
     build_risk,
     crop_grid,
     design_storm,
@@ -79,6 +80,24 @@ class WindowTests(unittest.TestCase):
             actual_header, actual = generate.read_ascii(path)
             self.assertEqual(actual_header["ncols"], 3)
             np.testing.assert_allclose(actual, data)
+
+    def test_alignment_accepts_official_float_output_rounding(self) -> None:
+        reference = dict(
+            self.HEADER,
+            xllcorner=683895.77,
+            yllcorner=3546538.43,
+        )
+        candidate = dict(
+            reference,
+            xllcorner=float(np.float32(reference["xllcorner"])),
+            yllcorner=float(np.float32(reference["yllcorner"])),
+        )
+        assert_aligned(reference, candidate)
+
+    def test_alignment_rejects_a_real_grid_shift(self) -> None:
+        candidate = dict(self.HEADER, xllcorner=self.HEADER["xllcorner"] + 15)
+        with self.assertRaisesRegex(ValueError, "grid mismatch for xllcorner"):
+            assert_aligned(self.HEADER, candidate)
 
     def test_snap_uses_all_four_corners_and_returns_ordered_effective_bounds(self) -> None:
         calls = []

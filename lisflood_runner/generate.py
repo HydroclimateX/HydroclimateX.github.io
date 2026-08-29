@@ -374,7 +374,7 @@ def read_ascii(path: Path) -> tuple[dict[str, float], np.ndarray]:
 
 def assert_aligned(reference: dict[str, float], candidate: dict[str, float]) -> None:
     for key in ("ncols", "nrows", "xllcorner", "yllcorner", "cellsize"):
-        if not math.isclose(reference[key], candidate[key], rel_tol=0, abs_tol=1e-6):
+        if np.float32(reference[key]) != np.float32(candidate[key]):
             raise ValueError(f"grid mismatch for {key}: {reference[key]} != {candidate[key]}")
 
 
