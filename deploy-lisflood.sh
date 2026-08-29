@@ -94,4 +94,4 @@ curl --fail --silent --show-error --resolve "$DOMAIN:443:127.0.0.1" "https://$DO
 curl --fail --silent --show-error --resolve "$DOMAIN:443:127.0.0.1" \
   "https://$DOMAIN/api/lisflood/config" | grep -q '"maxAreaKm2"'
 trap - ERR
-info "LISFLOOD Web is available at https://$DOMAIN/"
+info "LISFLOOD Community is available at https://$DOMAIN/"
