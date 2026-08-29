@@ -19,7 +19,7 @@ from PIL import Image
 
 RETURN_PERIODS = (5, 10, 20, 50, 100)
 HAZARD_SUFFIX = ".maxHaz"
-PARAMETER_VERSION = "surface-v2"
+PARAMETER_VERSION = "surface-v3"
 RISK_MATRIX = np.array(
     [[1, 1, 1, 2], [1, 2, 2, 3], [2, 2, 3, 4], [2, 3, 4, 4]],
     dtype=np.uint8,

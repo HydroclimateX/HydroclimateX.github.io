@@ -49,11 +49,11 @@ class WindowTests(unittest.TestCase):
         np.testing.assert_array_equal(crop_grid(grid, window), grid[4:9, 1:6])
         self.assertEqual(job_id(window, 20, "8.0.3", "data"), job_id(window, 20, "8.0.3", "data"))
 
-    def test_surface_v2_parameter_version_invalidates_surface_v1_job_ids(self) -> None:
+    def test_surface_v3_parameter_version_invalidates_surface_v2_job_ids(self) -> None:
         window = (1, 1, 6, 6)
-        old_value = "1,1,6,6|20|8.0.3|surface-v1|data"
-        new_value = "1,1,6,6|20|8.0.3|surface-v2|data"
-        self.assertEqual(generate.PARAMETER_VERSION, "surface-v2")
+        old_value = "1,1,6,6|20|8.0.3|surface-v2|data"
+        new_value = "1,1,6,6|20|8.0.3|surface-v3|data"
+        self.assertEqual(generate.PARAMETER_VERSION, "surface-v3")
         self.assertEqual(job_id(window, 20, "8.0.3", "data"), hashlib.sha256(new_value.encode()).hexdigest()[:20])
         self.assertNotEqual(job_id(window, 20, "8.0.3", "data"), hashlib.sha256(old_value.encode()).hexdigest()[:20])
 
