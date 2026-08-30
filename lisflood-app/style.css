@@ -31,11 +31,10 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .layers { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 12px; }
 .layers legend { grid-column: 1 / -1; }
 .layers label { font-size: .78rem; }
-.layer-subgroup { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 7px 12px; margin-left: 12px; padding-left: 10px; border-left: 2px solid #d8e0e7; }
 .layers input { accent-color: #126a78; }
 .opacity { display: grid; grid-template-columns: 1fr; gap: 3px; margin-top: 15px; }
 .opacity input { width: 100%; accent-color: #126a78; }
-.metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 15px 0; }
+.metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin: 15px 0; }
 .metrics div { min-width: 0; padding: 9px 7px; border-radius: 7px; background: #eef4f6; }
 .metrics dt { color: #657485; font-size: .58rem; line-height: 1.2; text-transform: uppercase; }
 .metrics dd { overflow: hidden; margin: 4px 0 0; color: #0f4f5a; font-size: .92rem; font-weight: 750; text-overflow: ellipsis; }

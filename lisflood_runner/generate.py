@@ -20,7 +20,7 @@ from PIL import Image
 RETURN_PERIODS = (5, 10, 20, 50, 100)
 HAZARD_SUFFIX = ".maxHaz"
 VELOCITY_SUFFIX = ".maxVc"
-PARAMETER_VERSION = "surface-v4"
+PARAMETER_VERSION = "surface-v5"
 RISK_MATRIX = np.array(
     [[1, 1, 1, 2], [1, 2, 2, 3], [2, 2, 3, 4], [2, 3, 4, 4]],
     dtype=np.uint8,
@@ -619,6 +619,9 @@ def run_job(
             "floodedAreaKm2": round(float(flooded.sum() * cell * cell / 1e6), 3),
             "exposedPopulation": round(float(cropped_population[flooded].sum())),
             "maximumDepthM": round(maximum_depth, 3),
+            "maximumVelocityMs": round(
+                float(np.nanmax(velocity_masked)) if np.isfinite(velocity_masked).any() else 0.0, 3
+            ),
         },
     }
     (staging / "manifest.json").write_text(

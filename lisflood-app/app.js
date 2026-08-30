@@ -26,7 +26,7 @@ const $ = id => document.getElementById(id);
 const EARTH_RADIUS_KM = 6371.0088;
 const SUPPORTED_PERIODS = Object.freeze([5, 10, 20, 50, 100]);
 const LAYER_NAMES = Object.freeze(['dem', 'population', 'depth', 'velocity', 'hazard', 'risk']);
-const STAT_NAMES = Object.freeze(['floodedAreaKm2', 'exposedPopulation', 'maximumDepthM']);
+const STAT_NAMES = Object.freeze(['floodedAreaKm2', 'exposedPopulation', 'maximumDepthM', 'maximumVelocityMs']);
 const POLL_INTERVAL_MS = 2000;
 const POLL_DEADLINE_MS = 24 * 60 * 60 * 1000;
 const MAX_TRANSIENT_ERRORS = 3;
@@ -188,6 +188,7 @@ function clearResult() {
   $('floodedArea').textContent = '—';
   $('exposedPopulation').textContent = '—';
   $('maximumDepth').textContent = '—';
+  $('maximumVelocity').textContent = '—';
   $('legend').hidden = true;
   $('resultMeta').textContent = '';
   $('results').hidden = true;
@@ -206,6 +207,7 @@ function render() {
   $('floodedArea').textContent = `${stats.floodedAreaKm2.toLocaleString()} km²`;
   $('exposedPopulation').textContent = Math.round(stats.exposedPopulation).toLocaleString();
   $('maximumDepth').textContent = `${stats.maximumDepthM.toFixed(2)} m`;
+  $('maximumVelocity').textContent = `${stats.maximumVelocityMs.toFixed(2)} m/s`;
   const returnedPeriod = manifest.returnPeriod;
   const generatedAt = manifest.generatedAt ? new Date(manifest.generatedAt) : null;
   const generatedLabel = generatedAt && !Number.isNaN(generatedAt.getTime())
@@ -236,7 +238,7 @@ function renderLegend(manifest, layer) {
     (meta.labels || []).forEach((label, index) => {
       const span = document.createElement('span');
       const swatch = document.createElement('i');
-      swatch.style.background = meta.colors[index];
+      swatch.style.background = meta.colors[index].slice(0, 7); // solid #rrggbb, like the original legend
       const text = document.createElement('b');
       text.textContent = label;
       span.append(swatch, text);

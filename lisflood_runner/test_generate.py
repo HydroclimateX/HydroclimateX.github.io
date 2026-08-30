@@ -49,11 +49,11 @@ class WindowTests(unittest.TestCase):
         np.testing.assert_array_equal(crop_grid(grid, window), grid[4:9, 1:6])
         self.assertEqual(job_id(window, 20, "8.0.3", "data"), job_id(window, 20, "8.0.3", "data"))
 
-    def test_surface_v4_parameter_version_invalidates_surface_v3_job_ids(self) -> None:
+    def test_surface_v5_parameter_version_invalidates_surface_v4_job_ids(self) -> None:
         window = (1, 1, 6, 6)
-        old_value = "1,1,6,6|20|8.0.3|surface-v3|data"
-        new_value = "1,1,6,6|20|8.0.3|surface-v4|data"
-        self.assertEqual(generate.PARAMETER_VERSION, "surface-v4")
+        old_value = "1,1,6,6|20|8.0.3|surface-v4|data"
+        new_value = "1,1,6,6|20|8.0.3|surface-v5|data"
+        self.assertEqual(generate.PARAMETER_VERSION, "surface-v5")
         self.assertEqual(job_id(window, 20, "8.0.3", "data"), hashlib.sha256(new_value.encode()).hexdigest()[:20])
         self.assertNotEqual(job_id(window, 20, "8.0.3", "data"), hashlib.sha256(old_value.encode()).hexdigest()[:20])
 
@@ -543,6 +543,7 @@ EOF
             self.assertEqual(manifest["stats"]["floodedAreaKm2"], 0.003)
             self.assertEqual(manifest["stats"]["exposedPopulation"], 19)
             self.assertEqual(manifest["stats"]["maximumDepthM"], 0.5)
+            self.assertEqual(manifest["stats"]["maximumVelocityMs"], 0.8)
             for name in ("dem", "population", "depth", "velocity", "hazard", "risk"):
                 self.assertTrue((staging / f"{name}.png").is_file())
             self.assertEqual(set(manifest["legends"]), set(manifest["layers"]))

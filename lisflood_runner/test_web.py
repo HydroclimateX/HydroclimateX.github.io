@@ -21,7 +21,7 @@ class WebContractTests(unittest.TestCase):
             self.assertIn(f'data-period="{period}"', html)
         for layer in ("dem", "population", "depth", "velocity", "hazard", "risk"):
             self.assertIn(f'value="{layer}"', html)
-        for metric in ("floodedArea", "exposedPopulation", "maximumDepth"):
+        for metric in ("floodedArea", "exposedPopulation", "maximumDepth", "maximumVelocity"):
             self.assertIn(f'id="{metric}"', html)
         self.assertIn("Research demonstration", html)
         self.assertIn("L.imageOverlay", script)
