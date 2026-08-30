@@ -11,12 +11,17 @@
   <script src="app.js" defer></script>
 </head>
 <body>
+  <div class="topbar">
+    <div class="topbar-brand"><span class="topbar-dot"></span> LISFLOOD-Web · Interactive Demo</div>
+    <a href="https://hydroclimatex.com/showcase/lisflood-web/" class="topbar-link">← LISFLOOD methodology</a>
+  </div>
   <main>
     <section class="panel" aria-label="Flood map controls">
       <header>
         <p class="eyebrow">HydroclimateX Lab</p>
         <h1>LISFLOOD Community</h1>
-        <p>Population flood risk in Qixia District, Nanjing</p>
+        <p>An open, interactive platform for community flood risk assessment</p>
+        <button id="aboutLayers" type="button" class="about-button">About these layers</button>
       </header>
 
       <fieldset>
@@ -43,9 +48,10 @@
         <p id="resultMeta" aria-live="polite"></p>
         <fieldset class="layers">
           <legend>Map layer</legend>
-          <label><input type="radio" name="layer" value="risk" checked> Population risk</label>
+          <label><input type="radio" name="layer" value="risk" checked> Flood risk</label>
           <label><input type="radio" name="layer" value="hazard"> Flood hazard</label>
           <label><input type="radio" name="layer" value="depth"> Maximum depth</label>
+          <label><input type="radio" name="layer" value="velocity"> Maximum velocity</label>
           <label><input type="radio" name="layer" value="population"> Population</label>
           <label><input type="radio" name="layer" value="dem"> DEM</label>
         </fieldset>
@@ -59,9 +65,8 @@
         </dl>
 
         <div class="legend" id="legend" aria-label="Map legend" hidden>
-          <strong id="legendTitle">Population risk</strong>
-          <span><i class="low"></i><b>Low</b></span><span><i class="moderate"></i><b>Moderate</b></span>
-          <span><i class="high"></i><b>High</b></span><span><i class="extreme"></i><b>Extreme</b></span>
+          <strong id="legendTitle">Flood risk</strong>
+          <div id="legendBody"></div>
         </div>
       </section>
 
@@ -73,5 +78,25 @@
     <div id="map" aria-label="Interactive flood risk map"></div>
     <div id="error" role="alert" hidden>Results unavailable. Please try again later.</div>
   </main>
+
+  <dialog id="aboutModal" class="about-modal">
+    <button type="button" id="closeAbout" class="modal-close" aria-label="Close">×</button>
+    <h2>Map layers</h2>
+    <dl>
+      <dt>Flood risk</dt>
+      <dd>Combines physical flood hazard with local population exposure. Each cell is scored by a risk matrix of hazard class × population-exposure class (WorldPop population quartiles within the study area). Cells with maximum depth below 0.10&nbsp;m are outside the floodplain.</dd>
+      <dt>Flood hazard</dt>
+      <dd>Physical danger of the floodwater. The model computes the DEFRA flood-hazard rating <code>HR&nbsp;=&nbsp;d·(v&nbsp;+&nbsp;1.5)</code> (depth × [velocity + 1.5]) at every time step and records its maximum over the event. Hazard describes the water itself and is one input to Flood risk.</dd>
+      <dt>Maximum depth</dt>
+      <dd>Maximum water depth (m) reached anywhere during the simulated storm.</dd>
+      <dt>Maximum velocity</dt>
+      <dd>Maximum flow velocity (m/s) reached anywhere during the simulated storm.</dd>
+      <dt>Population</dt>
+      <dd>2025 population count per grid cell (WorldPop R2025A), used as the exposure input to Flood risk.</dd>
+      <dt>DEM</dt>
+      <dd>Ground elevation in metres above sea level (Copernicus DEM GLO-30).</dd>
+    </dl>
+    <p class="modal-link">Full methodology, formulas and data sources: <a href="https://hydroclimatex.com/showcase/lisflood-web/" target="_blank" rel="noopener noreferrer">LISFLOOD methodology ↗</a></p>
+  </dialog>
 </body>
 </html>

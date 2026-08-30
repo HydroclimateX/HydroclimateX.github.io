@@ -25,7 +25,7 @@ RETURN_PERIODS = (5, 10, 20, 50, 100)
 MAX_BODY_BYTES = 4096
 JOB_ID_PATTERN = re.compile(r"[0-9a-f]{20}\Z")
 STALE_TEMP_PATTERN = re.compile(r"\.[0-9a-f]{20}\.tmp\Z")
-EXPECTED_LAYER_NAMES = frozenset({"dem", "population", "depth", "hazard", "risk"})
+EXPECTED_LAYER_NAMES = frozenset({"dem", "population", "depth", "velocity", "hazard", "risk"})
 FAILED_STATE_LIMIT = 64
 
 

@@ -19,12 +19,44 @@ from PIL import Image
 
 RETURN_PERIODS = (5, 10, 20, 50, 100)
 HAZARD_SUFFIX = ".maxHaz"
-PARAMETER_VERSION = "surface-v3"
+VELOCITY_SUFFIX = ".maxVc"
+PARAMETER_VERSION = "surface-v4"
 RISK_MATRIX = np.array(
     [[1, 1, 1, 2], [1, 2, 2, 3], [2, 2, 3, 4], [2, 3, 4, 4]],
     dtype=np.uint8,
 )
 NODATA = -9999.0
+# Layer palettes (RGBA). Continuous layers are stretched to the 2nd–98th
+# percentile of their data; classified layers map one class index to one stop.
+DEM_PALETTE = [
+    (43, 111, 43, 210), (79, 138, 46, 210), (120, 163, 55, 210), (163, 184, 74, 210),
+    (199, 184, 91, 210), (217, 169, 77, 210), (201, 143, 63, 210), (179, 116, 52, 210),
+    (148, 112, 46, 210), (242, 237, 227, 210),  # hypsometric tint: green lowlands -> near-white peaks
+]
+POPULATION_PALETTE = [(83 + i * 12, 35, 130 + i * 10, 30 + i * 20) for i in range(10)]
+DEPTH_PALETTE = [(16, 100 + i * 14, 180 + i * 7, 30 + i * 20) for i in range(10)]
+VELOCITY_PALETTE = [
+    (255, 237, 160, 30), (254, 217, 118, 50), (254, 178, 76, 70), (253, 141, 60, 90),
+    (252, 78, 42, 110), (227, 26, 28, 130), (189, 0, 38, 150), (150, 0, 24, 170),
+    (120, 0, 15, 190), (90, 0, 10, 210),  # yellow -> red, high contrast for flow speed
+]
+HAZARD_PALETTE = [
+    (0, 0, 0, 0), (254, 229, 153, 170), (253, 174, 97, 190), (240, 59, 32, 210), (122, 1, 119, 220),
+]
+RISK_PALETTE = [
+    (0, 0, 0, 0), (49, 163, 84, 175), (254, 224, 139, 190), (244, 109, 67, 210), (165, 0, 38, 225),
+]
+LEGEND_TITLES = {
+    "dem": "Elevation",
+    "population": "Population",
+    "depth": "Maximum depth",
+    "velocity": "Maximum velocity",
+    "hazard": "Flood hazard",
+    "risk": "Flood risk",
+}
+LEGEND_UNITS = {"dem": "m", "population": "people", "depth": "m", "velocity": "m/s"}
+HAZARD_LABELS = ["Low (<0.75)", "Moderate (0.75–1.25)", "High (1.25–2.5)", "Extreme (≥2.5)"]
+RISK_LABELS = ["Low", "Moderate", "High", "Extreme"]
 PARAMETERS = """\
 DEMfile dem.asc
 resroot result
@@ -394,19 +426,27 @@ def locate_output(root: Path, suffix: str) -> Path:
     return matches[0]
 
 
-def save_layer(path: Path, data: np.ndarray, palette: list[tuple[int, int, int, int]], classes: bool = False) -> None:
+def save_layer(
+    path: Path, data: np.ndarray, palette: list[tuple[int, int, int, int]], classes: bool = False
+) -> tuple[float, float] | None:
+    """Render a grid to an RGBA PNG, returning the stretch bounds for continuous layers."""
     rgba = np.zeros((*data.shape, 4), dtype=np.uint8)
     valid = np.isfinite(data)
     if classes:
         for value, colour in enumerate(palette):
             rgba[(data == value) & valid] = colour
-    elif np.any(valid):
-        low, high = np.nanpercentile(data, [2, 98])
-        scale = np.clip((data - low) / max(high - low, 1e-9), 0, 1)
-        indexes = np.minimum((np.nan_to_num(scale) * (len(palette) - 1)).astype(np.uint8), len(palette) - 1)
-        for value, colour in enumerate(palette):
-            rgba[(indexes == value) & valid] = colour
+        Image.fromarray(rgba, "RGBA").save(path, optimize=True)
+        return None
+    if not np.any(valid):
+        Image.fromarray(rgba, "RGBA").save(path, optimize=True)
+        return None
+    low, high = np.nanpercentile(data, [2, 98])
+    scale = np.clip((data - low) / max(high - low, 1e-9), 0, 1)
+    indexes = np.minimum((np.nan_to_num(scale) * (len(palette) - 1)).astype(np.uint8), len(palette) - 1)
+    for value, colour in enumerate(palette):
+        rgba[(indexes == value) & valid] = colour
     Image.fromarray(rgba, "RGBA").save(path, optimize=True)
+    return low, high
 
 
 def model_version(engine: Path) -> str:
@@ -431,6 +471,11 @@ def model_version(engine: Path) -> str:
             ):
                 return "8.0.3 ACC"
     raise RuntimeError("LISFLOOD-FP 8.0.3 version output was not found")
+
+
+def rgba_hex(colour: tuple[int, int, int, int]) -> str:
+    """Render an RGBA colour as 8-digit hex (#RRGGBBAA) for the web legend."""
+    return "#{:02x}{:02x}{:02x}{:02x}".format(*colour)
 
 
 def run_job(
@@ -493,8 +538,10 @@ def run_job(
         output = work / "results"
         depth_header, depth = read_ascii(locate_output(output, ".max"))
         hazard_header, hazard = read_ascii(locate_output(output, HAZARD_SUFFIX))
+        velocity_header, velocity = read_ascii(locate_output(output, VELOCITY_SUFFIX))
         assert_aligned(header, depth_header)
         assert_aligned(header, hazard_header)
+        assert_aligned(header, velocity_header)
         if not np.isfinite(depth).any():
             raise ValueError("depth output has no finite depth values")
         if np.isinf(depth).any():
@@ -507,45 +554,56 @@ def run_job(
 
     risk, breaks = build_risk(depth, hazard, cropped_population)
     flooded = np.isfinite(depth) & np.isfinite(hazard) & (depth >= 0.10)
-    save_layer(
-        staging / "dem.png",
-        cropped_dem,
-        [(20 + i * 24, 55 + i * 18, 45 + i * 15, 190) for i in range(10)],
+    dem_low, dem_high = save_layer(staging / "dem.png", cropped_dem, DEM_PALETTE)
+    pop_low, pop_high = save_layer(staging / "population.png", cropped_population, POPULATION_PALETTE)
+    depth_low, depth_high = save_layer(
+        staging / "depth.png", np.where(flooded, depth, np.nan), DEPTH_PALETTE
     )
-    save_layer(
-        staging / "population.png",
-        cropped_population,
-        [(83 + i * 12, 35, 130 + i * 10, 30 + i * 20) for i in range(10)],
-    )
-    save_layer(
-        staging / "depth.png",
-        np.where(flooded, depth, np.nan),
-        [(16, 100 + i * 14, 180 + i * 7, 30 + i * 20) for i in range(10)],
+    velocity_masked = np.where(flooded, velocity, np.nan)
+    velocity_low, velocity_high = save_layer(
+        staging / "velocity.png", velocity_masked, VELOCITY_PALETTE
     )
     save_layer(
         staging / "hazard.png",
         np.where(flooded, np.digitize(hazard, [0.75, 1.25, 2.5]) + 1, 0),
-        [
-            (0, 0, 0, 0),
-            (254, 229, 153, 170),
-            (253, 174, 97, 190),
-            (240, 59, 32, 210),
-            (122, 1, 119, 220),
-        ],
+        HAZARD_PALETTE,
         True,
     )
-    save_layer(
-        staging / "risk.png",
-        risk,
-        [
-            (0, 0, 0, 0),
-            (49, 163, 84, 175),
-            (254, 224, 139, 190),
-            (244, 109, 67, 210),
-            (165, 0, 38, 225),
-        ],
-        True,
-    )
+    save_layer(staging / "risk.png", risk, RISK_PALETTE, True)
+
+    def legend_bound(value: float | None) -> float:
+        if value is None or not math.isfinite(value):
+            return 0.0
+        return round(value, 2) if value < 100 else round(value)
+
+    legends = {
+        name: {
+            "type": "continuous",
+            "title": LEGEND_TITLES[name],
+            "unit": LEGEND_UNITS[name],
+            "colors": [rgba_hex(colour) for colour in palette],
+            "min": legend_bound(bounds[0]),
+            "max": legend_bound(bounds[1]),
+        }
+        for name, palette, bounds in (
+            ("dem", DEM_PALETTE, (dem_low, dem_high)),
+            ("population", POPULATION_PALETTE, (pop_low, pop_high)),
+            ("depth", DEPTH_PALETTE, (depth_low, depth_high)),
+            ("velocity", VELOCITY_PALETTE, (velocity_low, velocity_high)),
+        )
+    }
+    legends["hazard"] = {
+        "type": "classes",
+        "title": LEGEND_TITLES["hazard"],
+        "colors": [rgba_hex(colour) for colour in HAZARD_PALETTE[1:]],
+        "labels": HAZARD_LABELS,
+    }
+    legends["risk"] = {
+        "type": "classes",
+        "title": LEGEND_TITLES["risk"],
+        "colors": [rgba_hex(colour) for colour in RISK_PALETTE[1:]],
+        "labels": RISK_LABELS,
+    }
     manifest = {
         "schemaVersion": 1,
         "generatedAt": datetime.now(timezone.utc).isoformat(),
@@ -555,7 +613,8 @@ def run_job(
         "rainfallMm": round(float(rates.sum() / 60), 3),
         "bounds": effective_bounds,
         "populationBreaks": [round(float(value), 6) for value in breaks],
-        "layers": {name: f"{name}.png" for name in ("dem", "population", "depth", "hazard", "risk")},
+        "layers": {name: f"{name}.png" for name in ("dem", "population", "depth", "velocity", "hazard", "risk")},
+        "legends": legends,
         "stats": {
             "floodedAreaKm2": round(float(flooded.sum() * cell * cell / 1e6), 3),
             "exposedPopulation": round(float(cropped_population[flooded].sum())),

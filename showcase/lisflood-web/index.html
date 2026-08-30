@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="LISFLOOD-FP community flood risk assessment — methodology, data and live application from HydroclimateX Lab.">
+  <title>LISFLOOD-FP Flood Risk | HydroclimateX Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../style.css">
+  <script defer src="/analytics.js"></script>
+  <style>
+    .lf-hero {
+      min-height: 560px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr);
+      gap: clamp(2rem, 7vw, 7rem);
+      align-items: center;
+      padding: clamp(4rem, 9vw, 8rem) clamp(1.2rem, 8vw, 8rem);
+      background: radial-gradient(circle at 85% 12%, #cfe3ec, transparent 28%), linear-gradient(145deg, #f9fbfc 48%, #e8f0f4);
+      border-bottom: 1px solid var(--line);
+    }
+    .lf-hero h1 {
+      max-width: 850px;
+      margin: .55rem 0 1.3rem;
+      font: 700 clamp(3.4rem, 7vw, 6.2rem)/.98 'Playfair Display', Georgia, serif;
+      letter-spacing: -.055em;
+    }
+    .lf-hero h1 em { color: var(--teal); }
+    .hero-note {
+      padding: 1.6rem;
+      color: #d6e4f8;
+      background: var(--ink);
+      border-top: 5px solid var(--cyan);
+    }
+    .hero-note strong { display: block; margin-bottom: .65rem; color: #fff; font: 600 1.15rem 'DM Sans'; }
+    .hero-note p { margin: 0; }
+    .intro-actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 2rem; }
+    .intro-actions .text-link { align-self: center; }
+    .layer-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .layer-card {
+      padding: 1.5rem;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+    .layer-card h3 { margin-top: 0; }
+    .layer-card .tag { display: inline-block; margin-bottom: .8rem; padding: .2rem .45rem; color: #fff; background: var(--ink); font: 500 .7rem 'DM Mono'; }
+    .layer-card p { margin: 0 0 .6rem; color: var(--muted); }
+    .layer-card ul { margin: 0; padding-left: 1.2rem; color: var(--muted); }
+    .layer-card code { font: .78rem 'DM Mono'; color: #17375e; }
+    .callout {
+      margin-top: 2rem;
+      padding: 1.5rem 1.6rem;
+      border-left: 5px solid var(--cyan);
+      background: #eef6f8;
+    }
+    .callout h3 { margin: 0 0 .5rem; }
+    .callout p { margin: 0; color: var(--muted); }
+    .spec-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
+    }
+    .spec-card { padding: 1.5rem; border: 1px solid var(--line); background: #fff; }
+    .spec-card h3 { margin-top: 0; color: var(--ink); }
+    .spec-card ul { margin-bottom: 0; padding-left: 1.2rem; color: var(--muted); }
+    .launch-band {
+      display: flex;
+      justify-content: space-between;
+      gap: 2rem;
+      align-items: center;
+      padding: clamp(3rem, 7vw, 6rem) clamp(1.2rem, 8vw, 8rem);
+      color: #fff;
+      background: var(--ink);
+    }
+    .launch-band h2 { margin: 0 0 .7rem; color: #fff; }
+    .launch-band p { max-width: 670px; margin: 0; color: #c4d5f0; }
+    .launch-band .button { flex-shrink: 0; color: var(--ink); background: #fff; border-color: #fff; }
+    .launch-band .button:hover { color: #fff; background: var(--teal); border-color: var(--teal); }
+    @media (max-width: 850px) {
+      .lf-hero, .layer-grid, .spec-grid { grid-template-columns: 1fr 1fr; }
+      .lf-hero { grid-template-columns: 1fr; min-height: auto; }
+    }
+    @media (max-width: 600px) {
+      .layer-grid, .spec-grid { grid-template-columns: 1fr; }
+      .launch-band { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="/"><span>HX</span> HydroclimateX</a>
+    <button class="menu-button" type="button" aria-controls="lf-nav" aria-expanded="false">Menu</button>
+    <nav id="lf-nav" aria-label="LISFLOOD navigation">
+      <a href="#overview">Overview</a>
+      <a href="#methodology">Methodology</a>
+      <a href="#layers">Map layers</a>
+      <a href="#data">Data</a>
+      <a href="#limitations">Limitations</a>
+      <a href="https://lisflood.hydroclimatex.com">Launch LISFLOOD</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <section class="lf-hero" id="overview">
+      <div>
+        <p class="eyebrow">LISFLOOD Overview · Community flood risk</p>
+        <h1>Flood risk, <em>modelled to the community.</em></h1>
+        <p class="lead">LISFLOOD-FP is a physically based, two-dimensional surface-flow model. The online application lets you draw a study area anywhere over Qixia District, Nanjing, run a design rainfall event, and inspect the resulting flood hazard, exposure, depth and velocity layers in your browser.</p>
+        <div class="intro-actions">
+          <a class="button" href="https://lisflood.hydroclimatex.com">Launch LISFLOOD</a>
+          <a class="text-link" href="#methodology">Explore methodology ↓</a>
+        </div>
+      </div>
+      <aside class="hero-note">
+        <strong>A research demonstration, not a forecast</strong>
+        <p>Every layer on the map is computed from an open 2D hydraulics model on Copernicus and WorldPop data. Sewer networks and engineered drainage are not represented, so results are for research and teaching, not emergency response or engineering design.</p>
+      </aside>
+    </section>
+
+    <section class="section research-section" id="methodology">
+      <p class="eyebrow">Methodology</p>
+      <h2>Rainfall in, hazard and risk out.</h2>
+      <p class="section-intro">A design storm is built for the selected return period, the two-dimensional surface-flow model propagates it over the terrain, and the map layers are derived from the model's maximum-depth and maximum-hazard rasters.</p>
+      <div class="spec-grid">
+        <article class="spec-card">
+          <h3>Design rainfall</h3>
+          <ul>
+            <li>Chicago design-storm hyetographs for Qixia District, Nanjing</li>
+            <li>Return periods: 5, 10, 20, 50 and 100 years</li>
+            <li>3-hour storm, 1-minute resolution</li>
+          </ul>
+        </article>
+        <article class="spec-card">
+          <h3>Hydraulic model</h3>
+          <ul>
+            <li>LISFLOOD-FP 8.0.3, acceleration (ACC) solver</li>
+            <li>30 m grid cells, EPSG:32650 (UTM 50N)</li>
+            <li>Surface flow only — no sewer or channel routing</li>
+            <li>Each run: 12 h of simulation time per scenario</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="layers">
+      <p class="eyebrow">Map layers</p>
+      <h2>What each layer means — and how it is computed.</h2>
+      <p class="section-intro">The interactive map shows one layer at a time. Layers are rendered from the model's maximum-over-event rasters; continuous layers are stretched to the 2nd–98th percentile of their values.</p>
+
+      <div class="layer-grid">
+        <article class="layer-card">
+          <span class="tag">Flood risk</span>
+          <h3>Hazard × exposure.</h3>
+          <p>Flood risk combines the physical flood hazard with the local population exposure in a single score. Each grid cell is assigned a hazard class (from the Flood hazard layer) and an exposure class, then looked up in a risk matrix:</p>
+          <ul>
+            <li><strong>Exposure class</strong> — WorldPop population counts within the study area are split at their 25th, 50th and 75th percentiles into four classes.</li>
+            <li><strong>Hazard class</strong> — the Flood hazard rating, classified at 0.75, 1.25 and 2.5 (see below).</li>
+            <li><strong>Risk matrix</strong> <code>[[1,1,1,2],[1,2,2,3],[2,2,3,4],[2,3,4,4]]</code> — indexed by hazard class then exposure class, producing <em>Low, Moderate, High</em> or <em>Extreme</em>.</li>
+            <li>Cells with maximum depth below 0.10&nbsp;m are treated as no flood.</li>
+          </ul>
+        </article>
+
+        <article class="layer-card">
+          <span class="tag">Flood hazard</span>
+          <h3>The physical danger of the water.</h3>
+          <p>The model computes the DEFRA flood-hazard rating at every time step and records its maximum over the event:</p>
+          <p><code>HR = d · (v + 1.5)</code></p>
+          <p>where <code>d</code> is water depth (m) and <code>v</code> is flow velocity (m/s). Deep <em>and</em> fast water scores higher than deep still water. The rating is classified:</p>
+          <ul>
+            <li><strong>Low</strong> — HR &lt; 0.75</li>
+            <li><strong>Moderate</strong> — 0.75 ≤ HR &lt; 1.25</li>
+            <li><strong>High</strong> — 1.25 ≤ HR &lt; 2.5</li>
+            <li><strong>Extreme</strong> — HR ≥ 2.5</li>
+          </ul>
+          <p>Flood hazard describes the <em>water</em>. It is one input to Flood risk and is not a duplicate of it — risk additionally weighs how many people are exposed.</p>
+        </article>
+
+        <article class="layer-card">
+          <span class="tag">Maximum depth</span>
+          <h3>How deep the water gets.</h3>
+          <p>The maximum water depth (m) reached anywhere during the simulated storm, taken from the model's maximum-depth raster and shown only where depth reaches at least 0.10&nbsp;m.</p>
+        </article>
+
+        <article class="layer-card">
+          <span class="tag">Maximum velocity</span>
+          <h3>How fast the water moves.</h3>
+          <p>The maximum flow-velocity magnitude (m/s) reached anywhere during the simulated storm. Fast-moving floodwater is far more dangerous than still water of the same depth — this is the velocity term inside the hazard rating.</p>
+        </article>
+
+        <article class="layer-card">
+          <span class="tag">Population</span>
+          <h3>Who is exposed.</h3>
+          <p>2025 population count per grid cell from WorldPop R2025A (constrained estimate for China), resampled to the model grid with conservative cell-summing so totals are preserved. This is the exposure input to Flood risk.</p>
+        </article>
+
+        <article class="layer-card">
+          <span class="tag">DEM</span>
+          <h3>The terrain the water runs over.</h3>
+          <p>Ground elevation in metres above sea level from Copernicus DEM GLO-30 (30&nbsp;m). Elevation drives where water accumulates and how fast it flows.</p>
+        </article>
+      </div>
+
+      <div class="callout">
+        <h3>Hazard vs. risk — the short version.</h3>
+        <p><strong>Flood hazard</strong> asks "how dangerous is the water here?" It depends only on depth and velocity. <strong>Flood risk</strong> asks "how much danger is there to people here?" It combines the hazard with the population exposure — a remote, hazardous flood cell can still be low risk because nobody lives there. The two are related, not duplicative.</p>
+      </div>
+    </section>
+
+    <section class="section" id="data">
+      <p class="eyebrow">Data sources</p>
+      <h2>Open data, reproducible pipeline.</h2>
+      <div class="spec-grid">
+        <article class="spec-card">
+          <h3>Elevation</h3>
+          <ul>
+            <li><a href="https://copernicus-dem30-30m.s3.amazonaws.com/readme.html" target="_blank" rel="noopener noreferrer">Copernicus DEM GLO-30</a> (30 m, tiles N32E118 / N32E119)</li>
+          </ul>
+        </article>
+        <article class="spec-card">
+          <h3>Population</h3>
+          <ul>
+            <li><a href="https://hub.worldpop.org/doi/10.5258/SOTON/WP00839" target="_blank" rel="noopener noreferrer">WorldPop R2025A</a> constrained 2025 population counts for China (CC BY 4.0)</li>
+          </ul>
+        </article>
+        <article class="spec-card">
+          <h3>Model engine</h3>
+          <ul>
+            <li><a href="https://zenodo.org/record/4073011" target="_blank" rel="noopener noreferrer">LISFLOOD-FP 8.0.3</a> (open source, Zenodo)</li>
+          </ul>
+        </article>
+        <article class="spec-card">
+          <h3>Basemap</h3>
+          <ul>
+            <li>OpenStreetMap contributors</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="section" id="limitations">
+      <p class="eyebrow">Limitations</p>
+      <h2>What the model does not capture.</h2>
+      <div class="prose">
+        <p>This is a research demonstration. Sewer networks and engineered drainage are not represented — there is no underground drainage or artificial drainage capacity in the model, so results are not suitable for emergency response or engineering design. The 30 m grid resolves the floodplain but not street-scale or building-scale detail, and the design storms are synthetic rather than observed events. Always validate against local engineering guidance before use.</p>
+      </div>
+    </section>
+
+    <section class="launch-band" aria-label="Launch LISFLOOD">
+      <div><h2>Run a flood scenario in your browser.</h2><p>Choose a return period, draw a study area anywhere over Qixia District, run the simulation, and inspect Flood risk, Flood hazard, Maximum depth, Maximum velocity, Population and DEM layers.</p></div>
+      <a class="button" href="https://lisflood.hydroclimatex.com">Launch LISFLOOD →</a>
+    </section>
+  </main>
+
+  <footer>
+    <div><strong>HydroclimateX Lab</strong><span>College of Hydrology &amp; Water Resources · Hohai University</span></div>
+    <div class="footer-contacts">
+      <a href="mailto:ze.jiang@hhu.edu.cn">ze.jiang@hhu.edu.cn</a>
+      <a href="mailto:ze.jiang@unsw.edu.au">ze.jiang@unsw.edu.au</a>
+    </div>
+    <span>© <span id="year"></span> · <a href="https://github.com/HydroclimateX" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://scholar.google.com/citations?user=4iVouPYAAAAJ&hl=en" target="_blank" rel="noopener noreferrer">Google Scholar</a> · <a href="https://orcid.org/0000-0002-3472-0829" target="_blank" rel="noopener noreferrer">ORCID</a></span>
+  </footer>
+  <script>
+    (() => {
+      const yearEl = document.getElementById('year');
+      if (yearEl) yearEl.textContent = new Date().getFullYear();
+    })();
+    (() => {
+      const header = document.querySelector('.site-header');
+      const button = document.querySelector('.menu-button');
+      const navigation = document.querySelector('#lf-nav');
+      if (!header || !button || !navigation) return;
+      button.addEventListener('click', () => {
+        const open = header.classList.toggle('open');
+        button.setAttribute('aria-expanded', String(open));
+      });
+      navigation.addEventListener('click', (event) => {
+        if (event.target.closest('a')) {
+          header.classList.remove('open');
+          button.setAttribute('aria-expanded', 'false');
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

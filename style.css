@@ -348,6 +348,19 @@ nav a:hover, .text-link:hover { color: var(--blue); }
   gap: .65rem;
 }
 .wasp-overview-actions .outline { margin-top: 0; }
+.showcase-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  margin-top: 2rem;
+}
+.showcase-grid .wasp-overview-card {
+  grid-template-columns: 1fr;
+  align-items: start;
+  gap: 1.5rem;
+}
+.showcase-grid .wasp-overview-card h3 { font-size: clamp(1.3rem, 2.2vw, 1.8rem); }
+.showcase-grid .software-badges { margin: 1.2rem 0 0; }
 
 /* ---- Team / Contact ---- */
 .team {
@@ -405,6 +418,7 @@ footer a { color: #fff; text-decoration: none; }
   footer { grid-template-columns: 1fr; }
   .research-card { min-height: 200px; }
   .wasp-overview-card { grid-template-columns: 1fr; align-items: start; }
+  .showcase-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 520px) {

@@ -36,8 +36,8 @@
         <p class="lead">We advance the prediction of extreme hydrometeorological events — floods, droughts and compound hazards — by developing wavelet-based spectral transformation methods, multi-model ensemble frameworks, and physics-informed machine learning.</p>
         <div class="hero-actions">
           <a class="button" href="/showcase/wasp-web/">Try WASP Online</a>
-          <!-- <a class="text-link" href="https://github.com/HydroclimateX" target="_blank" rel="noreferrer">GitHub / HydroclimateX ↗</a> -->
-          <a class="text-link" href="https://shxy.hhu.edu.cn/jz/list.htm" target="_blank" rel="noreferrer">Official HHU profile ↗</a>
+          <!-- <a class="text-link" href="https://github.com/HydroclimateX" target="_blank" rel="noopener noreferrer">GitHub / HydroclimateX ↗</a> -->
+          <a class="text-link" href="https://shxy.hhu.edu.cn/jz/list.htm" target="_blank" rel="noopener noreferrer">Official HHU profile ↗</a>
         </div>
       </div>
       <div class="hero-visual">
@@ -62,7 +62,7 @@
       <div class="prose">
         <p>HydroclimateX Lab develops advanced methods for predicting extreme hydrometeorological events — floods, droughts, and compound hazards — across timescales from seasonal to decadal. Our work integrates wavelet-based spectral transformation, multi-model ensemble frameworks, and physics-informed machine learning to bridge cutting-edge research and operational water management.</p>
         <p>We maintain the open-source <strong>WASP</strong> (WAvelet System Prediction) toolkit, available in R, Python and MATLAB, along with companion tools for wavelet-based quantile mapping (<strong>WQM</strong>), predictor identification (<strong>NPRED</strong>), and synthetic data generation (<strong>synthesis</strong>).</p>
-        <a class="text-link" href="https://github.com/HydroclimateX" target="_blank" rel="noreferrer">Explore our open-source tools ↗</a>
+        <a class="text-link" href="https://github.com/HydroclimateX" target="_blank" rel="noopener noreferrer">Explore our open-source tools ↗</a>
       </div>
     </section>
 
@@ -126,35 +126,48 @@
       <div id="publication-list" class="publication-list">
         <!-- Populated by JS -->
       </div>
-      <a class="button outline" href="https://scholar.google.com/citations?user=4iVouPYAAAAJ&hl=en" target="_blank" rel="noreferrer">View full list on Google Scholar</a>
+      <a class="button outline" href="https://scholar.google.com/citations?user=4iVouPYAAAAJ&hl=en" target="_blank" rel="noopener noreferrer">View full list on Google Scholar</a>
     </section>
 
     <!-- ====== 04 / Showcase ====== -->
     <section id="showcase" class="section">
       <p class="eyebrow">04 / Showcase</p>
-      <h2>WASP · WAvelet System Prediction.</h2>
-      <p class="section-intro">WASP refines predictor representation using wavelet theory for improved hydrologic prediction. Explore the published methodology and open-source implementations, then launch the dedicated interactive application.</p>
+      <h2>Open tools in production.</h2>
+      <p class="section-intro">Two open research tools run live from the lab: WASP for wavelet-based prediction and LISFLOOD-FP for community flood risk. Explore the methodology behind each, then launch the interactive application.</p>
 
-      <div class="software-badges">
-        <a href="https://github.com/HydroclimateX/WASP" target="_blank" rel="noreferrer" class="sw-badge"><span class="sw-lang">R</span> WASP <img src="https://cranlogs.r-pkg.org/badges/grand-total/WASP" alt="WASP downloads from the RStudio CRAN mirror" loading="lazy"></a>
-        <a href="https://github.com/HydroclimateX/WASP_python" target="_blank" rel="noreferrer" class="sw-badge"><span class="sw-lang">Python</span> WASP</a>
-        <a href="https://github.com/HydroclimateX/WASP_matlab" target="_blank" rel="noreferrer" class="sw-badge"><span class="sw-lang">MATLAB</span> WASP</a>
-        <a href="https://github.com/HydroclimateX/WQM" target="_blank" rel="noreferrer" class="sw-badge"><span class="sw-lang">R</span> WQM <img src="https://cranlogs.r-pkg.org/badges/grand-total/WQM" alt="WQM downloads from the RStudio CRAN mirror" loading="lazy"></a>
-        <a href="https://github.com/zejiang-unsw/synthesis" target="_blank" rel="noreferrer" class="sw-badge"><span class="sw-lang">R</span> synthesis <img src="https://cranlogs.r-pkg.org/badges/grand-total/synthesis" alt="synthesis downloads from the RStudio CRAN mirror" loading="lazy"></a>
-        <a href="https://github.com/HydroclimateX/NPRED" target="_blank" rel="noreferrer" class="sw-badge"><span class="sw-lang">R</span> NPRED <img src="https://cranlogs.r-pkg.org/badges/grand-total/NPRED" alt="NPRED downloads from the RStudio CRAN mirror" loading="lazy"></a>
+      <div class="showcase-grid">
+        <article class="wasp-overview-card">
+          <div>
+            <p class="eyebrow">Research method · Open software · Live application</p>
+            <h3>WASP · WAvelet System Prediction.</h3>
+            <p>WASP refines predictor representation using wavelet theory for improved hydrologic prediction. Explore the published methodology and open-source R, Python and MATLAB packages, then launch the dedicated interactive application.</p>
+            <div class="software-badges">
+              <a href="https://github.com/HydroclimateX/WASP" target="_blank" rel="noopener noreferrer" class="sw-badge"><span class="sw-lang">R</span> WASP <img src="https://cranlogs.r-pkg.org/badges/grand-total/WASP" alt="WASP downloads from the RStudio CRAN mirror" loading="lazy"></a>
+              <a href="https://github.com/HydroclimateX/WASP_python" target="_blank" rel="noopener noreferrer" class="sw-badge"><span class="sw-lang">Python</span> WASP</a>
+              <a href="https://github.com/HydroclimateX/WASP_matlab" target="_blank" rel="noopener noreferrer" class="sw-badge"><span class="sw-lang">MATLAB</span> WASP</a>
+              <a href="https://github.com/HydroclimateX/WQM" target="_blank" rel="noopener noreferrer" class="sw-badge"><span class="sw-lang">R</span> WQM <img src="https://cranlogs.r-pkg.org/badges/grand-total/WQM" alt="WQM downloads from the RStudio CRAN mirror" loading="lazy"></a>
+              <a href="https://github.com/zejiang-unsw/synthesis" target="_blank" rel="noopener noreferrer" class="sw-badge"><span class="sw-lang">R</span> synthesis <img src="https://cranlogs.r-pkg.org/badges/grand-total/synthesis" alt="synthesis downloads from the RStudio CRAN mirror" loading="lazy"></a>
+              <a href="https://github.com/HydroclimateX/NPRED" target="_blank" rel="noopener noreferrer" class="sw-badge"><span class="sw-lang">R</span> NPRED <img src="https://cranlogs.r-pkg.org/badges/grand-total/NPRED" alt="NPRED downloads from the RStudio CRAN mirror" loading="lazy"></a>
+            </div>
+          </div>
+          <div class="wasp-overview-actions">
+            <a class="button outline" href="/showcase/wasp-web/">Explore methodology</a>
+            <a class="button" href="https://wasp.hydroclimatex.com">Launch WASP</a>
+          </div>
+        </article>
+
+        <article class="wasp-overview-card">
+          <div>
+            <p class="eyebrow">Research method · Live flood simulation</p>
+            <h3>LISFLOOD · Community flood risk.</h3>
+            <p>Run LISFLOOD-FP rainfall scenarios over Qixia District, Nanjing and inspect flood hazard, risk, depth and velocity layers. The methodology page documents the design storms, the DEFRA hazard rating, the risk matrix and every data source.</p>
+          </div>
+          <div class="wasp-overview-actions">
+            <a class="button outline" href="/showcase/lisflood-web/">Explore methodology</a>
+            <a class="button" href="https://lisflood.hydroclimatex.com">Launch LISFLOOD</a>
+          </div>
+        </article>
       </div>
-
-      <article class="wasp-overview-card">
-        <div>
-          <p class="eyebrow">Research method · Open software · Live application</p>
-          <h3>From spectral transformation to refined prediction.</h3>
-          <p>Learn how WASP decomposes, identifies, modulates, and reconstructs predictive signals across wavelet scales. The methodology page also documents the CSV schema, run parameters, publications, and R, Python, and MATLAB packages.</p>
-        </div>
-        <div class="wasp-overview-actions">
-          <a class="button outline" href="/showcase/wasp-web/">Explore methodology</a>
-          <a class="button" href="https://wasp.hydroclimatex.com">Launch WASP</a>
-        </div>
-      </article>
     </section>
 
     <!-- ====== 05 / Contact ====== -->
@@ -180,7 +193,7 @@
       <a href="mailto:ze.jiang@hhu.edu.cn">ze.jiang@hhu.edu.cn</a>
       <a href="mailto:ze.jiang@unsw.edu.au">ze.jiang@unsw.edu.au</a>
     </div>
-    <span>© <span id="year"></span> · <a href="https://github.com/HydroclimateX" target="_blank" rel="noreferrer">GitHub</a> · <a href="https://scholar.google.com/citations?user=4iVouPYAAAAJ&hl=en" target="_blank" rel="noreferrer">Google Scholar</a> · <a href="https://orcid.org/0000-0002-3472-0829" target="_blank" rel="noreferrer">ORCID</a></span>
+    <span>© <span id="year"></span> · <a href="https://github.com/HydroclimateX" target="_blank" rel="noopener noreferrer">GitHub</a> · <a href="https://scholar.google.com/citations?user=4iVouPYAAAAJ&hl=en" target="_blank" rel="noopener noreferrer">Google Scholar</a> · <a href="https://orcid.org/0000-0002-3472-0829" target="_blank" rel="noopener noreferrer">ORCID</a></span>
   </footer>
 
   <script src="main.js"></script>

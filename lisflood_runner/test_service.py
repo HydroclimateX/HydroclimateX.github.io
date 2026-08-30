@@ -31,7 +31,7 @@ HEADER = {
     "cellsize": 30.0,
 }
 
-LAYER_NAMES = ("dem", "population", "depth", "hazard", "risk")
+LAYER_NAMES = ("dem", "population", "depth", "velocity", "hazard", "risk")
 
 
 def manifest_for(*, layer=None, job_id=None, **extra):

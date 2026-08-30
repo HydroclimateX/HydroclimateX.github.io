@@ -19,7 +19,7 @@ class WebContractTests(unittest.TestCase):
         self.assertIn('vendor/leaflet.js', html)
         for period in (5, 10, 20, 50, 100):
             self.assertIn(f'data-period="{period}"', html)
-        for layer in ("dem", "population", "depth", "hazard", "risk"):
+        for layer in ("dem", "population", "depth", "velocity", "hazard", "risk"):
             self.assertIn(f'value="{layer}"', html)
         for metric in ("floodedArea", "exposedPopulation", "maximumDepth"):
             self.assertIn(f'id="{metric}"', html)

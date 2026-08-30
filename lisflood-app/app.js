@@ -25,7 +25,7 @@ const state = {
 const $ = id => document.getElementById(id);
 const EARTH_RADIUS_KM = 6371.0088;
 const SUPPORTED_PERIODS = Object.freeze([5, 10, 20, 50, 100]);
-const LAYER_NAMES = Object.freeze(['dem', 'population', 'depth', 'hazard', 'risk']);
+const LAYER_NAMES = Object.freeze(['dem', 'population', 'depth', 'velocity', 'hazard', 'risk']);
 const STAT_NAMES = Object.freeze(['floodedAreaKm2', 'exposedPopulation', 'maximumDepthM']);
 const POLL_INTERVAL_MS = 2000;
 const POLL_DEADLINE_MS = 24 * 60 * 60 * 1000;
@@ -213,16 +213,45 @@ function render() {
     : '';
   $('resultMeta').textContent = `${returnedPeriod}-year · ${state.config.modelVersion}${generatedLabel}`;
   $('results').hidden = false;
+  renderLegend(manifest, state.layer);
+}
 
-  const classified = state.layer === 'risk' || state.layer === 'hazard';
-  $('legend').hidden = !classified;
-  if (classified) {
-    $('legendTitle').textContent = state.layer === 'risk' ? 'Population risk' : 'Flood hazard';
-    const labels = state.layer === 'risk'
-      ? ['Low', 'Moderate', 'High', 'Extreme']
-      : ['Low (<0.75)', 'Moderate (0.75–1.25)', 'High (1.25–2.5)', 'Extreme (≥2.5)'];
-    document.querySelectorAll('#legend b').forEach((label, index) => { label.textContent = labels[index]; });
+function formatLegendValue(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '—';
+  return number >= 100 ? number.toLocaleString() : String(parseFloat(number.toFixed(2)));
+}
+
+function renderLegend(manifest, layer) {
+  const legend = $('legend');
+  const meta = manifest.legends && manifest.legends[layer];
+  if (!meta || !Array.isArray(meta.colors)) {
+    legend.hidden = true;
+    return;
   }
+  $('legendTitle').textContent = meta.title;
+  const body = $('legendBody');
+  body.replaceChildren();
+  if (meta.type === 'classes') {
+    (meta.labels || []).forEach((label, index) => {
+      const span = document.createElement('span');
+      const swatch = document.createElement('i');
+      swatch.style.background = meta.colors[index];
+      const text = document.createElement('b');
+      text.textContent = label;
+      span.append(swatch, text);
+      body.append(span);
+    });
+  } else {
+    const bar = document.createElement('div');
+    bar.className = 'colorbar';
+    bar.style.background = `linear-gradient(90deg, ${meta.colors.join(', ')})`;
+    const range = document.createElement('div');
+    range.className = 'colorbar-range';
+    range.textContent = `${formatLegendValue(meta.min)} – ${formatLegendValue(meta.max)} ${meta.unit || ''}`;
+    body.append(bar, range);
+  }
+  legend.hidden = false;
 }
 
 function setBounds(bounds, status) {
@@ -517,6 +546,13 @@ $('opacity').addEventListener('input', () => {
 $('selectArea').addEventListener('click', startSelection);
 $('resetArea').addEventListener('click', resetArea);
 $('runSimulation').addEventListener('click', runSimulation);
+
+const aboutModal = $('aboutModal');
+$('aboutLayers').addEventListener('click', () => aboutModal.showModal());
+$('closeAbout').addEventListener('click', () => aboutModal.close());
+aboutModal.addEventListener('click', (event) => {
+  if (event.target === aboutModal) aboutModal.close();
+});
 
 updateControls();
 map.setView([32.12, 118.95], 11);

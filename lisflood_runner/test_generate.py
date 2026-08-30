@@ -49,11 +49,11 @@ class WindowTests(unittest.TestCase):
         np.testing.assert_array_equal(crop_grid(grid, window), grid[4:9, 1:6])
         self.assertEqual(job_id(window, 20, "8.0.3", "data"), job_id(window, 20, "8.0.3", "data"))
 
-    def test_surface_v3_parameter_version_invalidates_surface_v2_job_ids(self) -> None:
+    def test_surface_v4_parameter_version_invalidates_surface_v3_job_ids(self) -> None:
         window = (1, 1, 6, 6)
-        old_value = "1,1,6,6|20|8.0.3|surface-v2|data"
-        new_value = "1,1,6,6|20|8.0.3|surface-v3|data"
-        self.assertEqual(generate.PARAMETER_VERSION, "surface-v3")
+        old_value = "1,1,6,6|20|8.0.3|surface-v3|data"
+        new_value = "1,1,6,6|20|8.0.3|surface-v4|data"
+        self.assertEqual(generate.PARAMETER_VERSION, "surface-v4")
         self.assertEqual(job_id(window, 20, "8.0.3", "data"), hashlib.sha256(new_value.encode()).hexdigest()[:20])
         self.assertNotEqual(job_id(window, 20, "8.0.3", "data"), hashlib.sha256(old_value.encode()).hexdigest()[:20])
 
@@ -416,6 +416,7 @@ class RunnerTests(unittest.TestCase):
                 if nonfinite_hazard
                 else "0.500000 1.300000\n2.700000 3.000000"
             )
+            velocity_rows = "0.300000 0.100000\n0.500000 0.800000"
             script = """#!/bin/sh
 set -eu
 if [ "$1" = "-version" ] || [ "$1" = "-v" ]; then
@@ -468,8 +469,17 @@ cellsize 30.000000
 NODATA_value -9999
 HAZARD_ROWS
 EOF
+cat > results/result.maxVc <<'EOF'
+ncols 2
+nrows 2
+xllcorner 500030.000000
+yllcorner 3500030.000000
+cellsize 30.000000
+NODATA_value -9999
+VELOCITY_ROWS
+EOF
 """
-            script = script.replace("DEPTH_ROWS", depth_rows).replace("HAZARD_ROWS", hazard_rows)
+            script = script.replace("DEPTH_ROWS", depth_rows).replace("HAZARD_ROWS", hazard_rows).replace("VELOCITY_ROWS", velocity_rows)
         engine.write_text(script, encoding="utf-8")
         engine.chmod(0o755)
         return engine
@@ -528,13 +538,23 @@ EOF
             json.dumps(manifest, allow_nan=False)
             self.assertEqual(
                 manifest["layers"],
-                {name: f"{name}.png" for name in ("dem", "population", "depth", "hazard", "risk")},
+                {name: f"{name}.png" for name in ("dem", "population", "depth", "velocity", "hazard", "risk")},
             )
             self.assertEqual(manifest["stats"]["floodedAreaKm2"], 0.003)
             self.assertEqual(manifest["stats"]["exposedPopulation"], 19)
             self.assertEqual(manifest["stats"]["maximumDepthM"], 0.5)
-            for name in ("dem", "population", "depth", "hazard", "risk"):
+            for name in ("dem", "population", "depth", "velocity", "hazard", "risk"):
                 self.assertTrue((staging / f"{name}.png").is_file())
+            self.assertEqual(set(manifest["legends"]), set(manifest["layers"]))
+            self.assertEqual(manifest["legends"]["risk"]["title"], "Flood risk")
+            self.assertEqual(manifest["legends"]["risk"]["type"], "classes")
+            self.assertEqual(manifest["legends"]["risk"]["labels"], generate.RISK_LABELS)
+            self.assertEqual(manifest["legends"]["hazard"]["labels"], generate.HAZARD_LABELS)
+            self.assertEqual(manifest["legends"]["dem"]["unit"], "m")
+            self.assertEqual(manifest["legends"]["velocity"]["unit"], "m/s")
+            self.assertGreater(manifest["legends"]["dem"]["max"], 0)
+            for colour in manifest["legends"]["risk"]["colors"]:
+                self.assertRegex(colour, r"^#[0-9a-f]{8}$")
 
     def test_relative_engine_path_is_resolved_before_temp_cwd(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
