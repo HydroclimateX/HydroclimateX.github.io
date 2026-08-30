@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="LISFLOOD-FP community flood risk assessment — methodology, data and live application from HydroclimateX Lab.">
-  <title>LISFLOOD-FP Flood Risk | HydroclimateX Lab</title>
+  <title>LISFLOOD-FP Web | HydroclimateX Lab</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
@@ -112,9 +112,9 @@
   <main id="main">
     <section class="lf-hero" id="overview">
       <div>
-        <p class="eyebrow">LISFLOOD Overview · Community flood risk</p>
+        <p class="eyebrow">LISFLOOD Overview · Community flood risk assessment</p>
         <h1>Flood risk, <em>modelled to the community.</em></h1>
-        <p class="lead">LISFLOOD-FP is a physically based, two-dimensional surface-flow model. The online application lets you draw a study area anywhere over Qixia District, Nanjing, run a design rainfall event, and inspect the resulting flood hazard, exposure, depth and velocity layers in your browser.</p>
+        <p class="lead">LISFLOOD-FP is a physically based, two-dimensional surface-flow model. The online application lets you draw a study area anywhere over the world. Using the Qixia District, Nanjing as an example, run a design rainfall event, and inspect the resulting flood hazard, exposure, depth and velocity layers in your browser.</p>
         <div class="intro-actions">
           <a class="button" href="https://lisflood.hydroclimatex.com">Launch LISFLOOD</a>
           <a class="text-link" href="#methodology">Explore methodology ↓</a>
@@ -122,14 +122,14 @@
       </div>
       <aside class="hero-note">
         <strong>A research demonstration, not a forecast</strong>
-        <p>Every layer on the map is computed from an open 2D hydraulics model on Copernicus and WorldPop data. Sewer networks and engineered drainage are not represented, so results are for research and teaching, not emergency response or engineering design.</p>
+        <p>Every layer on the map is computed from an open 2D hydraulics model on Copernicus DEM and World Population data. Sewer networks and engineered drainage are not represented, so results are for research and teaching, not emergency response or engineering design.</p>
       </aside>
     </section>
 
     <section class="section research-section" id="methodology">
       <p class="eyebrow">Methodology</p>
       <h2>Rainfall in, hazard and risk out.</h2>
-      <p class="section-intro">A design storm is built for the selected return period, the two-dimensional surface-flow model propagates it over the terrain, and the map layers are derived from the model's maximum-depth and maximum-hazard rasters.</p>
+      <p class="section-intro">A design storm is built for the selected return period, the two-dimensional surface-flow model propagates it over the terrain, and the map layers are derived from the model's maximum depth and maximum velocity simulations.</p>
       <div class="spec-grid">
         <article class="spec-card">
           <h3>Design rainfall</h3>
@@ -210,7 +210,7 @@
       </div>
 
       <div class="callout">
-        <h3>Hazard vs. risk — the short version.</h3>
+        <h3>Hazard vs risk — the short version.</h3>
         <p><strong>Flood hazard</strong> asks "how dangerous is the water here?" It depends only on depth and velocity. <strong>Flood risk</strong> asks "how much danger is there to people here?" It combines the hazard with the population exposure — a remote, hazardous flood cell can still be low risk because nobody lives there. The two are related, not duplicative.</p>
       </div>
     </section>
