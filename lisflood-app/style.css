@@ -3,8 +3,8 @@
 [hidden] { display: none !important; }
 html, body { width: 100%; height: 100%; margin: 0; }
 body { display: flex; flex-direction: column; }
-.topbar { height: 50px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; color: #fff; background: #0f172a; }
-.topbar-brand { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 10px; }
+.topbar { height: 50px; background: #0f172a; color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; flex-shrink: 0; z-index: 10; }
+.topbar-brand { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 10px; }
 .topbar-dot { width: 9px; height: 9px; border-radius: 50%; background: #22c55e; }
 .topbar-link { color: #94a3b8; font-size: 12px; text-decoration: none; transition: color 0.2s; }
 .topbar-link:hover { color: #fff; }
@@ -31,6 +31,7 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .layers { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 12px; }
 .layers legend { grid-column: 1 / -1; }
 .layers label { font-size: .78rem; }
+.layer-subgroup { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 7px 12px; margin-left: 12px; padding-left: 10px; border-left: 2px solid #d8e0e7; }
 .layers input { accent-color: #126a78; }
 .opacity { display: grid; grid-template-columns: 1fr; gap: 3px; margin-top: 15px; }
 .opacity input { width: 100%; accent-color: #126a78; }
