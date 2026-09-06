@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="synthesis statistical data generators, methodology and interactive browser application from HydroclimateX Lab.">
+  <title>synthesis | HydroclimateX Lab</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../style.css">
+  <script defer src="/analytics.js"></script>
+  <style>
+    .tool-hero { min-height: 560px; display: grid; grid-template-columns: minmax(0,1.25fr) minmax(280px,.75fr); gap: clamp(2rem,7vw,7rem); align-items: center; padding: clamp(4rem,9vw,8rem) clamp(1.2rem,8vw,8rem); background: radial-gradient(circle at 84% 12%,#eadfc9,transparent 30%),linear-gradient(145deg,#fbfaf7 48%,#edf0f5); border-bottom: 1px solid var(--line); }
+    .tool-hero h1 { max-width: 850px; margin: .55rem 0 1.3rem; font: 700 clamp(3.4rem,7vw,6.7rem)/.98 'Playfair Display',Georgia,serif; letter-spacing: -.055em; }
+    .tool-hero h1 em { color: #9b6321; }
+    .hero-note { padding: 1.6rem; color: #d6e4f8; background: var(--ink); border-top: 5px solid var(--gold); }
+    .hero-note strong { display: block; margin-bottom: .65rem; color: #fff; font-size: 1.15rem; } .hero-note p { margin: 0; }
+    .actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 2rem; }
+    .model-grid, .workflow, .resource-grid { display: grid; gap: 1rem; margin-top: 2rem; }
+    .model-grid { grid-template-columns: repeat(3,minmax(0,1fr)); } .workflow, .resource-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    .model-grid article, .workflow article, .resource-grid article { padding: 1.5rem; border: 1px solid var(--line); background: #fff; }
+    .model-grid span { font: 500 .72rem 'DM Mono'; color: var(--blue); } .model-grid h3, .workflow h3, .resource-grid h3 { margin: .7rem 0; }
+    .launch { display: flex; justify-content: space-between; gap: 2rem; align-items: center; padding: clamp(3rem,7vw,6rem) clamp(1.2rem,8vw,8rem); color: #fff; background: var(--ink); }
+    .launch h2 { margin: 0 0 .7rem; color: #fff; } .launch p { max-width: 680px; margin: 0; color: #c4d5f0; } .launch .button { flex-shrink: 0; color: var(--ink); background: #fff; border-color: #fff; }
+    @media (max-width:850px) { .tool-hero { grid-template-columns: 1fr; min-height: auto; } .model-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width:600px) { .model-grid, .workflow, .resource-grid { grid-template-columns: 1fr; } .launch { align-items: flex-start; flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header"><a class="brand" href="/"><span>HX</span> HydroclimateX</a><button class="menu-button" type="button" aria-controls="tool-nav" aria-expanded="false">Menu</button><nav id="tool-nav" aria-label="synthesis navigation"><a href="#models">Models</a><a href="#workflow">Workflow</a><a href="#resources">Resources</a><a href="https://synthesis.hydroclimatex.com">Launch synthesis</a></nav></header>
+  <main id="main">
+    <section class="tool-hero"><div><p class="eyebrow">synthesis · Statistical data generator</p><h1>Build known systems. <em>Test honestly.</em></h1><p class="lead">synthesis generates controlled stochastic, nonlinear and chaotic datasets for testing prediction, variable-selection, classification and clustering methods.</p><div class="actions"><a class="button" href="https://synthesis.hydroclimatex.com">Launch synthesis</a><a class="text-link" href="#models">Explore the models ↓</a></div></div><aside class="hero-note"><strong>Three representative generators</strong><p>The browser application reproduces the package equations for AR(1), the Logistic map and the Lorenz system. It runs locally, keeps no data and exports every generated series as CSV.</p></aside></section>
+    <section class="section research-section" id="models"><p class="eyebrow">Included online</p><h2>Stochastic and chaotic benchmarks.</h2><div class="model-grid">
+      <article><span>STOCHASTIC</span><h3>AR(1)</h3><p>A persistent autoregressive process with nine lagged candidate predictors, useful for forecast and variable-selection experiments.</p></article>
+      <article><span>DISCRETE CHAOS</span><h3>Logistic map</h3><p>A compact nonlinear recurrence whose control parameter moves the system from stable behaviour into deterministic chaos.</p></article>
+      <article><span>CONTINUOUS CHAOS</span><h3>Lorenz system</h3><p>A three-state dynamical system integrated with fourth-order Runge–Kutta to reveal its characteristic attractor.</p></article>
+    </div></section>
+    <section class="section" id="workflow"><p class="eyebrow">Online workflow</p><h2>Configure → Generate → Inspect → Export.</h2><div class="workflow"><article><h3>Reproducible controls</h3><p>Choose 100–5000 observations, set an integer seed and noise level, then adjust the parameters exposed for the selected model.</p></article><article><h3>Immediate outputs</h3><p>Inspect the time series, model-specific state-space plot and summary statistics, then download the complete generated dataset.</p></article></div></section>
+    <section class="section methods" id="resources"><p class="eyebrow">Software and research</p><h2>Continue with the complete R package.</h2><div class="resource-grid">
+      <article><h3>synthesis for R</h3><p>The package contains a broader collection of linear, nonlinear, dynamic, classification and water-quality generators.</p><a class="text-link" href="https://github.com/HydroclimateX/synthesis" target="_blank" rel="noreferrer">GitHub ↗</a> · <a class="text-link" href="https://cran.r-project.org/package=synthesis" target="_blank" rel="noreferrer">CRAN ↗</a></article>
+      <article><h3>Advances in Water Resources · 2019</h3><p>Assessing the sensitivity of hydro-climatological change detection methods to model uncertainty and bias.</p><a class="text-link" href="https://doi.org/10.1016/j.advwatres.2019.103430" target="_blank" rel="noreferrer">Read the application paper ↗</a></article>
+    </div></section>
+    <section class="launch"><div><h2>Generate a benchmark dataset.</h2><p>Adjust a model, inspect its behaviour and download a reproducible CSV—all in the browser.</p></div><a class="button" href="https://synthesis.hydroclimatex.com">Launch synthesis →</a></section>
+  </main>
+  <footer><div><strong>HydroclimateX Lab</strong><span>College of Hydrology &amp; Water Resources · Hohai University</span></div><div class="footer-contacts"><a href="mailto:ze.jiang@hhu.edu.cn">ze.jiang@hhu.edu.cn</a><a href="mailto:ze.jiang@unsw.edu.au">ze.jiang@unsw.edu.au</a></div><span>© <span id="year"></span> · <a href="https://github.com/HydroclimateX">GitHub</a></span></footer>
+  <script>document.getElementById('year').textContent=new Date().getFullYear();const h=document.querySelector('.site-header'),b=document.querySelector('.menu-button'),n=document.getElementById('tool-nav');b.addEventListener('click',()=>b.setAttribute('aria-expanded',String(h.classList.toggle('open'))));n.addEventListener('click',e=>{if(e.target.closest('a')){h.classList.remove('open');b.setAttribute('aria-expanded','false')}});</script>
+</body>
+</html>

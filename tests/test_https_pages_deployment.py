@@ -7,6 +7,8 @@ Python standard library in CI and on a fresh server checkout.
 from __future__ import annotations
 
 import csv
+import json
+import math
 import os
 from pathlib import Path
 import re
@@ -270,8 +272,9 @@ class HttpsPagesDeploymentTests(unittest.TestCase):
             root = Path(temporary_directory)
             for filename in ("index.html", "main.js", "style.css"):
                 (root / filename).touch()
-            (root / "showcase" / "wasp-web").mkdir(parents=True)
-            (root / "showcase" / "wasp-web" / "index.html").touch()
+            for page in ("wasp-web", "wqm-web", "synthesis-web"):
+                (root / "showcase" / page).mkdir(parents=True)
+                (root / "showcase" / page / "index.html").touch()
             (root / "data").mkdir()
             (root / "figs").mkdir()
             (root / "figs" / "Flood&Drought.jpeg").touch()
@@ -339,7 +342,7 @@ class HttpsPagesDeploymentTests(unittest.TestCase):
         self.assertGreaterEqual(compose.count('driver: "json-file"'), 2)
         self.assertGreaterEqual(compose.count('max-size: "10m"'), 2)
         self.assertGreaterEqual(compose.count('max-file: "3"'), 2)
-        self.assertEqual(compose.count("restart: unless-stopped"), 2)
+        self.assertEqual(compose.count("restart: unless-stopped"), 3)
         self.assertIn("NGINX_CONFIG=${NGINX_CONFIG:-nginx.conf}", compose)
         self.assertIn("wasp-bootstrap-ready", compose)
         self.assertIn("https://127.0.0.1/api/health", compose)
@@ -1147,6 +1150,160 @@ class HttpsPagesDeploymentTests(unittest.TestCase):
         self.assertIsNotNone(match, "README must state the demo observation count")
         self.assertGreaterEqual(actual_rows, 30)
         self.assertLessEqual(actual_rows, 5000)
+
+
+class StaticResearchToolsTests(unittest.TestCase):
+    def test_public_site_links_all_research_tools_and_papers(self) -> None:
+        homepage = read("index.html")
+        wasp = read("showcase/wasp-web/index.html")
+        wqm = read("showcase/wqm-web/index.html")
+        synthesis = read("showcase/synthesis-web/index.html")
+
+        for slug, domain in (
+            ("wqm", "https://wqm.hydroclimatex.com"),
+            ("synthesis", "https://synthesis.hydroclimatex.com"),
+        ):
+            self.assertIn(f'href="/showcase/{slug}-web/"', homepage)
+            self.assertIn(f'href="{domain}"', homepage)
+        self.assertIn("Variable transformations in the spectral domain", wasp)
+        self.assertIn("S0022169421008660", wasp)
+        self.assertIn("Method, software and applications.", wasp)
+        self.assertIn("MWR-D-22-0217.1", wqm)
+        self.assertIn("https://github.com/HydroclimateX/WQM", wqm)
+        self.assertIn("https://cran.r-project.org/package=WQM", wqm)
+        self.assertIn("https://wqm.hydroclimatex.com", wqm)
+        self.assertIn("https://github.com/HydroclimateX/synthesis", synthesis)
+        self.assertIn("https://cran.r-project.org/package=synthesis", synthesis)
+        self.assertIn("https://synthesis.hydroclimatex.com", synthesis)
+
+    def test_pages_workflow_checks_new_methodology_pages(self) -> None:
+        workflow = read(".github/workflows/static.yml")
+        self.assertIn("_site/showcase/wqm-web/index.html", workflow)
+        self.assertIn("_site/showcase/synthesis-web/index.html", workflow)
+
+    def test_wqm_demo_data_and_client_contract(self) -> None:
+        payload = json.loads(read("interactive-apps/wqm/demo.json"))
+        self.assertEqual(payload["schemaVersion"], 1)
+        self.assertEqual(payload["package"], {"name": "WQM", "version": "0.1.4"})
+        self.assertEqual(payload["parameters"]["method"], "QDM")
+        self.assertEqual(payload["parameters"]["ensembleMembers"], 5)
+        self.assertEqual(len(payload["stations"]), 2)
+        for station in payload["stations"]:
+            columns = station["validation"]
+            names = ("date", "observed", "raw", "corrected", "r1", "r2", "r3", "r4", "r5")
+            self.assertEqual(set(columns), set(names))
+            lengths = {len(columns[name]) for name in names}
+            self.assertEqual(len(lengths), 1)
+            self.assertGreater(next(iter(lengths)), 100)
+            for name in names[1:]:
+                self.assertTrue(all(isinstance(value, (int, float)) and math.isfinite(value) for value in columns[name]))
+            for name in ("observed", "raw", "corrected", "r1", "r2", "r3", "r4", "r5"):
+                self.assertTrue(all(value >= 0 for value in columns[name]))
+
+        html = read("interactive-apps/wqm/index.html")
+        script = read("interactive-apps/wqm/app.js")
+        for element_id in ("station", "member", "metrics", "timeSeries", "download", "status"):
+            self.assertIn(f'id="{element_id}"', html)
+        self.assertIn("demo.json", script)
+        self.assertIn("Plotly.react", script)
+
+        node = subprocess.run(
+            ["node", "-e", textwrap.dedent("""
+                const assert = require('assert');
+                const fs = require('fs');
+                const app = require('./interactive-apps/wqm/app.js');
+                const data = JSON.parse(fs.readFileSync('./interactive-apps/wqm/demo.json', 'utf8'));
+                assert.strictEqual(app.validateDemo(data).stations.length, 2);
+                const station = data.stations[0];
+                const result = app.metrics(station.validation.observed, station.validation.raw, station.validation.corrected);
+                assert(Number.isFinite(result.raw.rmse));
+                assert(Number.isFinite(result.corrected.bias));
+                const csv = app.toCsv(station);
+                assert(csv.startsWith('date,observed,raw,corrected,r1,r2,r3,r4,r5\\n'));
+                assert.strictEqual(csv.trim().split('\\n').length, station.validation.date.length + 1);
+            """)],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(node.returncode, 0, node.stderr)
+
+    def test_wqm_generation_is_pinned_and_reproducible(self) -> None:
+        generator = read("scripts/generate-wqm-demo.R")
+        for expected in (
+            'packageVersion("WQM") == "0.1.4"',
+            "data(\"sample\", package = \"WQM\")",
+            "bc_cwt(",
+            'QM = "QDM"',
+            'wavelet = "morlet"',
+            "number_sim = 5",
+            "seed = 2021",
+            "J <- ncol",
+        ):
+            self.assertIn(expected, generator)
+
+    def test_synthesis_generators_run_in_node(self) -> None:
+        html = read("interactive-apps/synthesis/index.html")
+        for element_id in ("model", "samples", "seed", "noise", "modelParameters", "generate", "download", "timeSeries", "phasePlot", "status"):
+            self.assertIn(f'id="{element_id}"', html)
+
+        node = subprocess.run(
+            ["node", "-e", textwrap.dedent("""
+                const assert = require('assert');
+                const app = require('./interactive-apps/synthesis/app.js');
+                const ar = app.generate('ar1', {n: 100, seed: 7, noise: 0});
+                assert.deepStrictEqual(ar, app.generate('ar1', {n: 100, seed: 7, noise: 0}));
+                assert.notDeepStrictEqual(ar.columns.x, app.generate('ar1', {n: 100, seed: 8, noise: 0}).columns.x);
+                assert.deepStrictEqual(Object.keys(ar.columns), ['index', 'x', 'lag1', 'lag2', 'lag3', 'lag4', 'lag5', 'lag6', 'lag7', 'lag8', 'lag9']);
+                const logistic = app.generate('logistic', {n: 100, seed: 1, noise: 0, r: 4, start: 0.2});
+                assert(Math.abs(logistic.columns.x[1] - 4 * logistic.columns.x[0] * (1 - logistic.columns.x[0])) < 1e-12);
+                const lorenz = app.generate('lorenz', {n: 100, seed: 1, noise: 0, sigma: 10, beta: 8 / 3, rho: 28});
+                assert.strictEqual(lorenz.columns.x.length, 100);
+                assert(Object.values(lorenz.columns).flat().every(Number.isFinite));
+                assert.throws(() => app.generate('ar1', {n: 99, seed: 1, noise: 0}), /100/);
+                assert.throws(() => app.generate('logistic', {n: 100, seed: 1, noise: 0, r: 4.1, start: 0.2}), /r/);
+                assert(app.toCsv(lorenz).startsWith('time,x,y,z\\n'));
+                const stats = app.summary(ar.columns.x);
+                assert(['mean', 'standardDeviation', 'minimum', 'maximum'].every(key => Number.isFinite(stats[key])));
+            """)],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(node.returncode, 0, node.stderr)
+
+    def test_static_tools_are_baked_and_served_with_tls(self) -> None:
+        dockerfile = read("nginx/Dockerfile")
+        selector = read("nginx/select-config.sh")
+        bootstrap = read("nginx.bootstrap.conf")
+        nginx = read("nginx/static-tools.conf")
+        deploy = read("deploy-static-tools.sh")
+
+        self.assertIn("COPY interactive-apps /usr/share/nginx/tools", dockerfile)
+        self.assertIn("COPY nginx/static-tools.conf /opt/wasp/static-tools.conf", dockerfile)
+        self.assertIn("cat /opt/wasp/static-tools.conf", selector)
+        for domain in ("wqm.hydroclimatex.com", "synthesis.hydroclimatex.com"):
+            self.assertIn(domain, bootstrap)
+            self.assertIn(f"server_name {domain}", nginx)
+            self.assertIn(f"/etc/letsencrypt/live/{domain}/fullchain.pem", nginx)
+            self.assertIn(domain, deploy)
+            self.assertIn(f'https://$domain/health', deploy)
+        self.assertEqual(nginx.count('location = /health { access_log off; return 200 "healthy\\n"; }'), 2)
+        self.assertEqual(nginx.count("Content-Security-Policy"), 2)
+        self.assertEqual(nginx.count("Strict-Transport-Security"), 2)
+        self.assertIn("plotly-2.35.2.min.js", nginx)
+        self.assertIn('EXPECTED_IP="8.210.252.61"', deploy)
+        self.assertIn("certbot certonly --webroot", deploy)
+        self.assertIn("restore_proxy", deploy)
+        self.assertIn("docker compose build nginx", deploy)
+        self.assertNotIn("wasp-api", deploy)
+        self.assertTrue(os.access(ROOT / "deploy-static-tools.sh", os.X_OK))
+
+        checklist = read("STATIC_TOOLS.md")
+        self.assertIn("sudo ./deploy-static-tools.sh", checklist)
+        self.assertIn("docker compose config --quiet", checklist)
 
 
 if __name__ == "__main__":

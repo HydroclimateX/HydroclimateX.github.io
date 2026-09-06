@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Interactive reference results from WQM wavelet-based quantile mapping.">
+  <title>WQM-Web · HydroclimateX</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/vendor/plotly-2.35.2.min.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to results</a>
+  <header class="topbar"><div class="brand">WQM-Web · Reference Demo</div><a href="https://hydroclimatex.com/showcase/wqm-web/">← WQM methodology</a></header>
+  <main class="layout" id="main">
+    <aside class="sidebar">
+      <p class="eyebrow">HydroclimateX Lab</p>
+      <h1>Wavelet-based Quantile Mapping</h1>
+      <p class="intro">Compare official WQM 0.1.4 results for two bundled precipitation stations.</p>
+      <fieldset>
+        <legend>Reference run</legend>
+        <label for="station">Station<select id="station" disabled></select></label>
+        <label for="member">Ensemble member<select id="member" disabled><option value="r1">Member 1</option><option value="r2">Member 2</option><option value="r3">Member 3</option><option value="r4">Member 4</option><option value="r5">Member 5</option></select></label>
+      </fieldset>
+      <button class="button secondary" id="download" type="button" disabled>Download station CSV</button>
+      <p class="status" id="status" role="status" aria-live="polite">Loading verified results…</p>
+      <p class="note"><strong>Reference data only.</strong> The first half of each official sample record calibrated QDM; this page shows the held-out half. Use the R package for custom data.</p>
+    </aside>
+    <section class="content" aria-label="WQM results">
+      <div class="metrics" id="metrics"></div>
+      <div class="card"><h2>Validation-period precipitation</h2><div class="plot" id="timeSeries" aria-label="Observed, raw and WQM precipitation time series"></div></div>
+    </section>
+  </main>
+</body>
+</html>
