@@ -59,6 +59,7 @@
       gap: 1rem;
       margin-top: 2rem;
     }
+    .paper-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .spec-card, .paper-card, .software-card {
       padding: 1.5rem;
       border: 1px solid var(--line);
@@ -88,6 +89,7 @@
     .launch-band .button:hover { color: #fff; background: var(--teal); border-color: var(--teal); }
     @media (max-width: 850px) {
       .wasp-hero, .workflow-grid, .software-grid { grid-template-columns: 1fr 1fr; }
+      .paper-grid { grid-template-columns: 1fr 1fr; }
       .wasp-hero { grid-template-columns: 1fr; min-height: auto; }
     }
     @media (max-width: 600px) {
@@ -177,7 +179,7 @@
 
     <section class="section" id="publications">
       <p class="eyebrow">Foundational publications</p>
-      <h2>Method and software.</h2>
+      <h2>Method, software and applications.</h2>
       <div class="paper-grid">
         <article class="paper-card">
           <p class="eyebrow">Water Resources Research · 2020</p>
@@ -190,6 +192,12 @@
           <h3>WASP: a wavelet-based tool to modulate variance in predictors for improved prediction</h3>
           <p>The software paper describes the open implementation and practical modelling workflow.</p>
           <a class="text-link" href="https://www.sciencedirect.com/science/article/pii/S1364815220309646" target="_blank" rel="noreferrer">Read the software paper ↗</a>
+        </article>
+        <article class="paper-card">
+          <p class="eyebrow">Journal of Hydrology · 2021</p>
+          <h3>Variable transformations in the spectral domain – Implications for hydrologic forecasting</h3>
+          <p>An application and extension of spectral variance transformation for long-lead hydrologic forecasting.</p>
+          <a class="text-link" href="https://www.sciencedirect.com/science/article/pii/S0022169421008660" target="_blank" rel="noreferrer">Read the hydrologic forecasting paper ↗</a>
         </article>
       </div>
     </section>

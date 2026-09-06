@@ -1,0 +1,62 @@
+:root {
+  --blue: #0b5ea7;
+  --blue-dark: #083d6e;
+  --gold: #c4922e;
+  --ink: #0f172a;
+  --muted: #64748b;
+  --bg: #f8fafc;
+  --card: #fff;
+  --line: #e2e8f0;
+  --radius: 10px;
+  --sidebar: 310px;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--ink);
+}
+* { box-sizing: border-box; }
+body { min-height: 100vh; margin: 0; background: var(--bg); }
+button, input, select { font: inherit; }
+.skip { position: fixed; left: 1rem; top: -5rem; z-index: 30; padding: .7rem 1rem; color: #fff; background: var(--ink); }
+.skip:focus { top: 1rem; }
+.topbar { min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .7rem 1.25rem; color: #fff; background: var(--ink); }
+.brand { font-weight: 700; }
+.brand::before { content: ""; display: inline-block; width: 9px; height: 9px; margin-right: 10px; border-radius: 50%; background: #22c55e; }
+.topbar a { color: #cbd5e1; font-size: .82rem; }
+.layout { min-height: calc(100vh - 52px); display: grid; grid-template-columns: var(--sidebar) minmax(0,1fr); }
+.sidebar { padding: 1.25rem; border-right: 1px solid var(--line); background: var(--card); }
+.eyebrow { margin: 0 0 .35rem; color: var(--blue); font-size: .72rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+h1 { margin: 0 0 .6rem; font-size: 1.65rem; line-height: 1.15; }
+.intro { margin: 0 0 1.4rem; color: var(--muted); font-size: .88rem; line-height: 1.55; }
+fieldset { min-width: 0; margin: 0 0 1rem; padding: 1rem 0; border: 0; border-top: 1px solid var(--line); }
+legend { padding: 0 0 .8rem; color: var(--muted); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+label { display: block; margin-bottom: .85rem; color: #475569; font-size: .76rem; font-weight: 700; text-transform: uppercase; }
+input, select { width: 100%; min-height: 38px; margin-top: .32rem; padding: .45rem .6rem; color: var(--ink); border: 1px solid var(--line); border-radius: 6px; background: var(--bg); }
+input:focus, select:focus, button:focus-visible { outline: 3px solid rgba(11,94,167,.24); outline-offset: 1px; border-color: var(--blue); }
+.button { width: 100%; min-height: 42px; margin-top: .4rem; border: 0; border-radius: 6px; color: #fff; background: var(--blue); cursor: pointer; font-weight: 700; }
+.button:hover { background: var(--blue-dark); }
+.button.secondary { color: var(--ink); background: #e7d4aa; }
+.button.secondary:hover { background: #dcc18b; }
+.status { min-height: 1.4rem; margin: .8rem 0 0; color: var(--muted); font-size: .8rem; }
+.note { margin-top: 1.1rem; padding: .85rem; border-left: 3px solid var(--gold); color: var(--muted); background: #fffbeb; font-size: .78rem; line-height: 1.45; }
+.content { min-width: 0; padding: 1.4rem; }
+.metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: .75rem; margin-bottom: .9rem; }
+.metric { padding: .85rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.metric span { display: block; color: var(--muted); font-size: .67rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.metric strong { display: block; margin-top: .25rem; color: var(--blue); font-size: 1.18rem; }
+.metric small { display: block; margin-top: .18rem; color: var(--muted); }
+.charts { display: grid; grid-template-columns: minmax(0,1fr); gap: .9rem; }
+.charts.two { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.card { min-width: 0; padding: .9rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.card h2 { margin: 0 0 .4rem; font-size: .9rem; }
+.plot { min-height: 390px; }
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .sidebar { border-right: 0; border-bottom: 1px solid var(--line); }
+  .metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .charts.two { grid-template-columns: 1fr; }
+}
+@media (max-width: 520px) {
+  .topbar { align-items: flex-start; flex-direction: column; }
+  .content { padding: .85rem; }
+  .metrics { grid-template-columns: 1fr; }
+  .plot { min-height: 320px; }
+}

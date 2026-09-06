@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Generate reproducible AR, Logistic and Lorenz datasets in your browser.">
+  <title>synthesis-Web · HydroclimateX</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/vendor/plotly-2.35.2.min.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to results</a>
+  <header class="topbar"><div class="brand">synthesis-Web · Data Generator</div><a href="https://hydroclimatex.com/showcase/synthesis-web/">← synthesis methodology</a></header>
+  <main class="layout" id="main">
+    <aside class="sidebar">
+      <p class="eyebrow">HydroclimateX Lab</p>
+      <h1>Synthetic systems</h1>
+      <p class="intro">Generate package-aligned stochastic and chaotic benchmark data locally in your browser.</p>
+      <fieldset>
+        <legend>Generator</legend>
+        <label for="model">Model<select id="model"><option value="ar1">AR(1)</option><option value="logistic">Logistic map</option><option value="lorenz">Lorenz system</option></select></label>
+        <label for="samples">Observations<input id="samples" type="number" min="100" max="5000" step="1" value="500"></label>
+        <label for="seed">Random seed<input id="seed" type="number" step="1" value="2021"></label>
+        <label for="noise">Additional noise<input id="noise" type="number" min="0" step="0.01" value="0"></label>
+        <div id="modelParameters"></div>
+      </fieldset>
+      <button class="button" id="generate" type="button">Generate data</button>
+      <button class="button secondary" id="download" type="button" disabled>Download CSV</button>
+      <p class="status" id="status" role="status" aria-live="polite">Choose a model and generate data.</p>
+      <p class="note">All computation stays in this browser. The complete R package provides the broader generator catalogue.</p>
+    </aside>
+    <section class="content" aria-label="Synthetic data results">
+      <div class="metrics" id="metrics"></div>
+      <div class="charts two">
+        <div class="card"><h2>Time series</h2><div class="plot" id="timeSeries" aria-label="Generated time series"></div></div>
+        <div class="card"><h2 id="phaseTitle">State-space view</h2><div class="plot" id="phasePlot" aria-label="Generated state-space plot"></div></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
