@@ -3,6 +3,10 @@ FROM python:3.11-slim-bookworm
 ARG LISFLOOD_URL=https://zenodo.org/record/4073011/files/LISFLOOD-FP-8.zip
 ARG LISFLOOD_SHA256=a64fce20557217c628ff2ee2641275fcc576dc209326bb3d7cd6d7edad6f5808
 
+# Alibaba Cloud blocks the Debian mirrors' HTTP endpoints on this host.
+RUN sed -i -E 's|https?://deb.debian.org|https://mirrors.aliyun.com|g; s|https?://security.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
+    sed -i -E 's|https?://deb.debian.org|https://mirrors.aliyun.com|g; s|https?://security.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates cmake curl g++ gdal-bin libnetcdf-dev libnuma-dev make unzip \
     && rm -rf /var/lib/apt/lists/*

@@ -253,6 +253,8 @@ class WebContractTests(unittest.TestCase):
 
     def test_runner_image_builds_pinned_official_engine(self) -> None:
         dockerfile = read("lisflood_runner/Dockerfile")
+        self.assertIn("https://mirrors.aliyun.com", dockerfile)
+        self.assertNotIn("http://mirrors.aliyun.com", dockerfile)
         self.assertIn("https://zenodo.org/record/4073011/files/LISFLOOD-FP-8.zip", dockerfile)
         self.assertIn("a64fce20557217c628ff2ee2641275fcc576dc209326bb3d7cd6d7edad6f5808", dockerfile)
         self.assertIn("cmake --build", dockerfile)

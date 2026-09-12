@@ -22,6 +22,8 @@ def test_compose_keeps_analytics_datastores_private_and_pinned():
     assert "--no-access-log" in read("backend/Dockerfile")
     analytics_image = read("analytics/Dockerfile")
     assert "python:3.11.10-slim-bookworm" in analytics_image
+    assert "https://mirrors.aliyun.com" in analytics_image
+    assert "http://mirrors.aliyun.com" not in analytics_image
     assert "gcc" in analytics_image and "g++" in analytics_image
     assert "plotly-2.35.2.min.js" not in analytics_image
 
