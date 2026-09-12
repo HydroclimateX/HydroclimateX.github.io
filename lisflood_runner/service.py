@@ -286,6 +286,12 @@ class Service:
             "modelVersion": str(self.model_version),
         }
 
+    def readiness(self) -> dict:
+        """Return public readiness after checking the engine and disk reserve."""
+        self._require_engine()
+        ensure_cache_space(self.cache_dir, self.minimum_free_gb)
+        return {"status": "ready"}
+
     def _remove_cache_entry(self, name: str) -> None:
         cache = self.cache_dir.resolve()
         target = self.cache_dir / name
@@ -725,6 +731,20 @@ def make_handler(service: Service):
                     self._send_json(200, service.config())
                 except Exception:
                     self._send_json(500, {"error": "Internal service error"})
+                return
+            if path == "/api/lisflood/ready":
+                try:
+                    self._send_json(200, service.readiness())
+                except InsufficientStorage:
+                    self._send_json(
+                        507, {"status": "unavailable", "reason": "storage"}
+                    )
+                except EngineUnavailable:
+                    self._send_json(
+                        503, {"status": "unavailable", "reason": "engine"}
+                    )
+                except Exception:
+                    self._send_json(500, {"status": "unavailable"})
                 return
             prefix = "/api/lisflood/jobs/"
             if path.startswith(prefix):

@@ -47,8 +47,25 @@ class WebContractTests(unittest.TestCase):
         script = read("lisflood-app/app.js")
         self.assertIn("function geometryIsValid()", script)
         self.assertIn("function canRun()", script)
-        self.assertIn("return geometryIsValid() && !state.running;", script)
+        self.assertIn("return geometryIsValid() && state.serviceReady && !state.running;", script)
         self.assertIn("if (!geometryIsValid())", script)
+
+    def test_frontend_checks_readiness_and_explains_low_storage(self) -> None:
+        script = read("lisflood-app/app.js")
+        self.assertIn("serviceReady: false", script)
+        self.assertIn("fetchJson('/api/lisflood/ready'", script)
+        self.assertIn("requestError.status = response.status", script)
+        self.assertIn("error.status === 507", script)
+        self.assertIn(
+            "Simulation is temporarily unavailable because server storage is low.",
+            script,
+        )
+        self.assertIn("state.serviceReady = false", script)
+        self.assertIn(
+            "setBounds(state.config.defaultBounds, state.serviceReady ? 'Ready' : 'Simulation unavailable')",
+            script,
+        )
+        self.assertIn("$('error').hidden = state.serviceReady", script)
 
     def test_frontend_validates_results_and_resiliently_polls_jobs(self) -> None:
         html = read("lisflood-app/index.html")
@@ -176,7 +193,7 @@ class WebContractTests(unittest.TestCase):
             runner,
         )
         self.assertIn(
-            "http://localhost:8080/api/lisflood/config",
+            "http://localhost:8080/api/lisflood/ready",
             runner,
         )
         self.assertNotIn("LISFLOOD_PRIVATE_DIR", compose)
@@ -225,7 +242,15 @@ class WebContractTests(unittest.TestCase):
         self.assertIn("PRIOR_NGINX_IMAGE", deploy)
         self.assertIn("docker image tag", deploy)
         self.assertIn("/api/lisflood/config", deploy)
-        self.assertIn('grep -q \'"maxAreaKm2"\'', deploy)
+        self.assertIn("/api/lisflood/ready", deploy)
+        self.assertIn('grep -q \'"status":"ready"\'', deploy)
+        self.assertIn('MINIMUM_FREE_GB=15', deploy)
+        self.assertIn("require_cache_reserve()", deploy)
+        self.assertGreaterEqual(deploy.count("require_cache_reserve"), 4)
+        self.assertIn("docker system df", deploy)
+        self.assertIn("docker builder prune -af", deploy)
+        self.assertIn("Do not run docker system prune --volumes", deploy)
+        self.assertNotIn("\ndocker system prune --volumes", deploy)
         self.assertIn("certificate_is_valid()", deploy)
         self.assertIn("openssl x509", deploy)
         self.assertIn("-checkend 86400", deploy)
@@ -250,6 +275,17 @@ class WebContractTests(unittest.TestCase):
         self.assertIn("LISFLOOD_JOB_TIMEOUT_SECONDS=7200", environment)
         self.assertIn("LISFLOOD_CACHE_DIR=/opt/hydroclimatex-wasp/state/lisflood-cache", environment)
         self.assertNotIn("LISFLOOD_MODEL_DIR", environment)
+
+    def test_runner_documentation_has_safe_storage_recovery_steps(self) -> None:
+        documentation = read("lisflood_runner/README.md")
+        for command in (
+            "df -h /opt/hydroclimatex-wasp/state/lisflood-cache",
+            "docker system df",
+            "du -sh /opt/hydroclimatex-wasp/state/lisflood-cache",
+            "docker builder prune -af",
+        ):
+            self.assertIn(command, documentation)
+        self.assertIn("Do not run `docker system prune --volumes`", documentation)
 
     def test_runner_image_builds_pinned_official_engine(self) -> None:
         dockerfile = read("lisflood_runner/Dockerfile")

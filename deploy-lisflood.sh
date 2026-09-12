@@ -6,6 +6,9 @@ EXPECTED_IP="8.210.252.61"
 CERTBOT_EMAIL="ze.jiang@hhu.edu.cn"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 STATE_DIR="${WASP_STATE_DIR:-/opt/hydroclimatex-wasp/state}"
+CACHE_DIR="${LISFLOOD_CACHE_DIR:-$STATE_DIR/lisflood-cache}"
+MINIMUM_FREE_GB=15
+MINIMUM_FREE_KB=$((MINIMUM_FREE_GB * 1024 * 1024))
 NGINX_IMAGE="hydroclimatex/wasp-nginx:current"
 PRIOR_NGINX_IMAGE=""
 PRIOR_NGINX_CONFIG=""
@@ -13,6 +16,28 @@ export WASP_STATE_DIR="$STATE_DIR"
 
 fail() { printf '[lisflood] error: %s\n' "$*" >&2; exit 1; }
 info() { printf '[lisflood] %s\n' "$*"; }
+require_cache_reserve() {
+  local target="$CACHE_DIR"
+  local available_kb
+  while [[ ! -e "$target" && "$target" != "/" ]]; do
+    target="$(dirname "$target")"
+  done
+  available_kb="$(df -Pk "$target" | awk 'NR == 2 {print $4}')"
+  if [[ ! "$available_kb" =~ ^[0-9]+$ ]]; then
+    fail "could not determine free space for $CACHE_DIR"
+  fi
+  if (( available_kb < MINIMUM_FREE_KB )); then
+    info "Storage diagnostics for the LISFLOOD cache filesystem:"
+    df -h "$target" >&2 || true
+    if [[ -e "$CACHE_DIR" ]]; then
+      du -sh "$CACHE_DIR" >&2 || true
+    fi
+    docker system df >&2 || true
+    printf '[lisflood] Reclaim unused build cache with: docker builder prune -af\n' >&2
+    printf '[lisflood] Do not run docker system prune --volumes; expand the disk if cleanup does not restore the reserve.\n' >&2
+    fail "$CACHE_DIR requires at least $MINIMUM_FREE_GB GiB free"
+  fi
+}
 certificate_is_valid() {
   local domain="$1"
   local cert="$STATE_DIR/conf/live/$domain/fullchain.pem"
@@ -67,6 +92,7 @@ records="$(dig +short A "$DOMAIN" | sed '/^[[:space:]]*$/d' | sort -u)"
 install -d -m 0755 "$STATE_DIR/www/.well-known/acme-challenge"
 cd "$SCRIPT_DIR"
 docker compose config --quiet
+require_cache_reserve
 PRIOR_NGINX_CONFIG="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' wasp-nginx 2>/dev/null | sed -n 's/^NGINX_CONFIG=//p' || true)"
 [[ "$PRIOR_NGINX_CONFIG" == "nginx.conf" || "$PRIOR_NGINX_CONFIG" == "nginx.analytics.conf" ]] || fail "existing WASP Nginx config is unsupported"
 PRIOR_NGINX_IMAGE="$(docker inspect --format '{{.Image}}' wasp-nginx 2>/dev/null || true)"
@@ -74,6 +100,7 @@ PRIOR_NGINX_IMAGE="$(docker inspect --format '{{.Image}}' wasp-nginx 2>/dev/null
 [[ "$(docker inspect --format '{{.State.Health.Status}}' wasp-nginx 2>/dev/null || true)" == "healthy" ]] || fail "the existing WASP Nginx container must be healthy"
 info "Building the model runner and static web image."
 docker compose build lisflood-runner nginx
+require_cache_reserve
 info "Starting the LISFLOOD service before changing the public proxy."
 docker compose up -d --build --wait lisflood-runner
 
@@ -89,9 +116,12 @@ if ! certificate_is_valid "$DOMAIN"; then
   fi
 fi
 
+require_cache_reserve
 NGINX_CONFIG=nginx.analytics.conf docker compose up -d --no-build --force-recreate --wait nginx
 curl --fail --silent --show-error --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/health" | grep -qx healthy
 curl --fail --silent --show-error --resolve "$DOMAIN:443:127.0.0.1" \
   "https://$DOMAIN/api/lisflood/config" | grep -q '"maxAreaKm2"'
+curl --fail --silent --show-error --resolve "$DOMAIN:443:127.0.0.1" \
+  "https://$DOMAIN/api/lisflood/ready" | grep -q '"status":"ready"'
 trap - ERR
 info "LISFLOOD Community is available at https://$DOMAIN/"

@@ -157,7 +157,7 @@ services:
     volumes:
       - ${LISFLOOD_CACHE_DIR:-/opt/hydroclimatex-wasp/state/lisflood-cache}:/opt/lisflood/cache
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/lisflood/config')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/lisflood/ready')"]
       interval: 10s
       timeout: 5s
       retries: 12

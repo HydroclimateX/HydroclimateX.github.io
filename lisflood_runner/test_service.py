@@ -541,6 +541,44 @@ class ServiceExecutionTests(unittest.TestCase):
 
 
 class ServiceHTTPTests(HTTPTestCase):
+    def test_readiness_reports_ready_without_exposing_storage_details(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            service = make_service(Path(directory), minimum_free_gb=0)
+            server = self.start_server(service)
+
+            status, content_type, payload = self.request(
+                server, "GET", "/api/lisflood/ready"
+            )
+
+            self.assertEqual(status, 200)
+            self.assertEqual(content_type, "application/json")
+            self.assertEqual(payload, {"status": "ready"})
+
+    def test_readiness_maps_storage_and_engine_failures_to_safe_responses(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            service = make_service(Path(directory), minimum_free_gb=0)
+            server = self.start_server(service)
+            cases = (
+                (InsufficientStorage("secret free bytes"), 507, "storage"),
+                (EngineUnavailable("secret engine path"), 503, "engine"),
+                (RuntimeError("secret internal failure"), 500, None),
+            )
+
+            for exception, expected_status, expected_reason in cases:
+                with self.subTest(exception=type(exception).__name__), mock.patch.object(
+                    service, "readiness", side_effect=exception, create=True
+                ):
+                    status, _, payload = self.request(
+                        server, "GET", "/api/lisflood/ready"
+                    )
+
+                expected = {"status": "unavailable"}
+                if expected_reason is not None:
+                    expected["reason"] = expected_reason
+                self.assertEqual(status, expected_status)
+                self.assertEqual(payload, expected)
+                self.assertNotIn("secret", json.dumps(payload))
+
     def test_config_exposes_contract_and_wgs84_bounds(self) -> None:
         header = dict(HEADER, ncols=1498.0, nrows=825.0)
         with tempfile.TemporaryDirectory() as directory:

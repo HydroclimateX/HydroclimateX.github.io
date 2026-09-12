@@ -21,6 +21,8 @@ LISFLOOD certificate when needed, and verifies HTTPS before reporting success.
 
 - `GET /api/lisflood/config` returns the available rectangle, area limit,
   supported return periods and model version.
+- `GET /api/lisflood/ready` returns `200 {"status":"ready"}` only when the
+  model engine is available and the cache filesystem has at least 15 GiB free.
 - `POST /api/lisflood/run` accepts
   `{"bounds":[[south,west],[north,east]],"returnPeriod":20}` and returns a
   job identifier. The rectangle must be within the configured domain and
@@ -59,3 +61,26 @@ The first build downloads the pinned official LISFLOOD-FP 8 archive from
 `LISFLOOD_JOB_TIMEOUT_SECONDS` limits one model run (default `7200`).
 `LISFLOOD_CACHE_DIR` selects the persistent result cache and normally remains
 `/opt/hydroclimatex-wasp/state/lisflood-cache`.
+
+## Low-storage recovery
+
+The runner deliberately rejects new jobs when the cache filesystem has less
+than 15 GiB free. Inspect the host before redeploying:
+
+```bash
+df -h /opt/hydroclimatex-wasp/state/lisflood-cache
+docker system df
+du -sh /opt/hydroclimatex-wasp/state/lisflood-cache
+```
+
+Unused Docker build cache can be safely regenerated and reclaimed with:
+
+```bash
+docker builder prune -af
+```
+
+Run the inspection commands again. If the filesystem still has less than
+15 GiB free, expand the server disk instead of weakening the reserve.
+Do not run `docker system prune --volumes`; the named volumes contain persistent
+analytics and application data. Completed LISFLOOD results are also retained
+unless an administrator explicitly removes them while the runner is stopped.

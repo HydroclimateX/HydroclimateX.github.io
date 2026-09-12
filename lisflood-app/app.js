@@ -21,6 +21,7 @@ const state = {
   manifest: null,
   selecting: false,
   running: false,
+  serviceReady: false,
 };
 const $ = id => document.getElementById(id);
 const EARTH_RADIUS_KM = 6371.0088;
@@ -80,7 +81,7 @@ function geometryIsValid() {
 }
 
 function canRun() {
-  return geometryIsValid() && !state.running;
+  return geometryIsValid() && state.serviceReady && !state.running;
 }
 
 function normalizeConfig(config) {
@@ -308,6 +309,7 @@ async function fetchJson(url, options = {}) {
       const message = await responseError(response);
       if (controller.signal.aborted) throw timedOut();
       const requestError = new Error(message);
+      requestError.status = response.status;
       requestError.transient = response.status >= 500;
       throw requestError;
     }
@@ -321,6 +323,30 @@ async function fetchJson(url, options = {}) {
     }
   } finally {
     clearTimeout(timeoutId);
+  }
+}
+
+function showServiceUnavailable(error) {
+  state.serviceReady = false;
+  $('status').textContent = 'Simulation unavailable';
+  $('error').textContent = error && error.status === 507
+    ? 'Simulation is temporarily unavailable because server storage is low.'
+    : 'Simulation service is temporarily unavailable. Please try again later.';
+  $('error').hidden = false;
+  updateControls();
+}
+
+async function checkServiceReadiness() {
+  try {
+    const readiness = await fetchJson('/api/lisflood/ready', { cache: 'no-store' });
+    if (!readiness || readiness.status !== 'ready') throw new Error('Invalid readiness response');
+    state.serviceReady = true;
+    $('status').textContent = 'Ready';
+    $('error').hidden = true;
+    updateControls();
+  } catch (error) {
+    console.error(error);
+    showServiceUnavailable(error);
   }
 }
 
@@ -373,9 +399,9 @@ function resetArea() {
   state.corners = [];
   state.selecting = false;
   clearResult();
-  setBounds(state.config.defaultBounds, 'Ready');
+  setBounds(state.config.defaultBounds, state.serviceReady ? 'Ready' : 'Simulation unavailable');
   map.fitBounds(state.config.defaultBounds, { padding: [20, 20] });
-  $('error').hidden = true;
+  $('error').hidden = state.serviceReady;
   updateControls();
 }
 
@@ -481,6 +507,7 @@ async function pollJob(statusUrl, jobId, expectedPeriod, expectedBounds, availab
 
 async function runSimulation() {
   if (!geometryIsValid()) return;
+  if (!state.serviceReady) return;
   if (state.running) return;
   let jobId = null;
   clearResult();
@@ -510,11 +537,15 @@ async function runSimulation() {
     if (window.umami && typeof window.umami.track === 'function') window.umami.track('lisflood_run');
   } catch (error) {
     console.error(error);
-    $('status').textContent = 'Simulation failed';
-    $('error').textContent = jobId
-      ? `Simulation failed. Retry or contact the administrator with job ${jobId}.`
-      : 'Simulation failed. Please retry or contact the administrator.';
-    $('error').hidden = false;
+    if (error.status === 507) {
+      showServiceUnavailable(error);
+    } else {
+      $('status').textContent = 'Simulation failed';
+      $('error').textContent = jobId
+        ? `Simulation failed. Retry or contact the administrator with job ${jobId}.`
+        : 'Simulation failed. Please retry or contact the administrator.';
+      $('error').hidden = false;
+    }
   } finally {
     state.running = false;
     updateControls();
@@ -533,7 +564,7 @@ document.querySelectorAll('[data-period]').forEach(button => button.addEventList
   state.period = button.dataset.period;
   updatePeriodButtons();
   clearResult();
-  $('status').textContent = 'Ready';
+  $('status').textContent = state.serviceReady ? 'Ready' : 'Simulation unavailable';
   updateControls();
 }));
 
@@ -569,9 +600,9 @@ fetchJson('/api/lisflood/config', { cache: 'no-store' })
     updateSelectionDisplay();
     updatePeriodButtons();
     map.fitBounds(state.config.defaultBounds, { padding: [20, 20] });
-    $('status').textContent = 'Ready';
-    $('error').hidden = true;
+    $('status').textContent = 'Checking simulation service…';
     updateControls();
+    checkServiceReadiness();
   })
   .catch(error => {
     console.error(error);
