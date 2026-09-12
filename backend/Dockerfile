@@ -1,16 +1,16 @@
 # WASP-Web FastAPI Backend
 # Deployed on Alibaba Cloud ECS
-FROM python:3.11-slim
+FROM python:3.11-slim-bookworm
 
 LABEL maintainer="HydroclimateX Lab"
 LABEL description="WASP-Web: WAvelet System Prediction API"
 
-# Switch apt sources to Alibaba Cloud mirror (host-only replace, keeps /debian path)
+# Switch apt sources to Alibaba Cloud over HTTPS (keeps /debian paths)
 # Handles both deb822 format (bookworm+) and legacy sources.list
-RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
-    sed -i 's|deb.debian.org|mirrors.aliyun.com|g; s|security.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
+RUN sed -i -E 's|https?://deb.debian.org|https://mirrors.aliyun.com|g; s|https?://security.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true; \
+    sed -i -E 's|https?://deb.debian.org|https://mirrors.aliyun.com|g; s|https?://security.debian.org|https://mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
 
-# System dependencies for scientific Python (via Alibaba mirror)
+# System dependencies for scientific Python (via Alibaba HTTPS mirror)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \

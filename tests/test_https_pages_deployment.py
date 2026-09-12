@@ -242,6 +242,9 @@ class HttpsPagesDeploymentTests(unittest.TestCase):
     def test_api_container_runs_exactly_one_worker(self) -> None:
         dockerfile = read("backend/Dockerfile")
 
+        self.assertIn("FROM python:3.11-slim-bookworm", dockerfile)
+        self.assertIn("https://mirrors.aliyun.com", dockerfile)
+        self.assertNotIn("http://mirrors.aliyun.com", dockerfile)
         self.assertIn('"--workers", "1"', dockerfile)
         self.assertIn("http://localhost:8000/api/health", dockerfile)
 
