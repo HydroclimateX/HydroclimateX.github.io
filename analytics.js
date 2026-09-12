@@ -3,7 +3,7 @@
 
   const telemetryOrigin = 'https://telemetry.hydroclimatex.com';
   const configUrl = 'https://telemetry.hydroclimatex.com/config.json';
-  const allowedDomains = 'hydroclimatex.com,www.hydroclimatex.com';
+  const allowedDomains = 'hydroclimatex.com,www.hydroclimatex.com,lisflood.hydroclimatex.com';
 
   fetch(configUrl, { credentials: 'omit', cache: 'no-store' })
     .then(response => {
@@ -27,6 +27,7 @@
     const path = url.pathname.toLowerCase();
     if (anchor.hasAttribute('download') || /\.(csv|zip|pdf|r|py|m)(?:$|\?)/i.test(path)) return 'file_download';
     if (url.hostname === 'wasp.hydroclimatex.com') return 'wasp_launch';
+    if (url.hostname === 'lisflood.hydroclimatex.com') return 'lisflood_launch';
     if (url.hostname === 'github.com' || url.hostname.endsWith('.github.com')) return 'github_click';
     if (anchor.closest('#publications') || url.hostname.includes('scholar.google.')) return 'publication_click';
     return null;

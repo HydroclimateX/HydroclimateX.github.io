@@ -140,6 +140,8 @@ class ReportService:
         <tr><td>Page views</td><td>{display(website.get('pageviews'))}</td></tr>
         <tr><td>Countries</td><td>{display(website.get('countries'))}</td></tr>
         <tr><td>WASP launches</td><td>{display(website.get('wasp_launches'))}</td></tr>
+        <tr><td>LISFLOOD launches</td><td>{display(website.get('lisflood_launches'))}</td></tr>
+        <tr><td>LISFLOOD runs</td><td>{display(website.get('lisflood_runs'))}</td></tr>
         <tr><td>GitHub clicks</td><td>{display(website.get('github_clicks'))}</td></tr>
         <tr><td>Publication clicks</td><td>{display(website.get('publication_clicks'))}</td></tr>
         <tr><td>File downloads</td><td>{display(website.get('file_downloads'))}</td></tr></table>

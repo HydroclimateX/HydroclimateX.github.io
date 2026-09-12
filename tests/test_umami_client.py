@@ -33,6 +33,8 @@ def test_summary_reads_stats_country_and_named_event_metrics() -> None:
         if request.url.params.get("type") == "event":
             return httpx.Response(200, json=[
                 {"x": "wasp_launch", "y": 8},
+                {"x": "lisflood_launch", "y": 6},
+                {"x": "lisflood_run", "y": 5},
                 {"x": "github_click", "y": 4},
                 {"x": "publication_click", "y": 3},
                 {"x": "file_download", "y": 1},
@@ -50,6 +52,8 @@ def test_summary_reads_stats_country_and_named_event_metrics() -> None:
         "pageviews": 3682,
         "countries": 2,
         "wasp_launches": 8,
+        "lisflood_launches": 6,
+        "lisflood_runs": 5,
         "publication_clicks": 3,
         "github_clicks": 4,
         "file_downloads": 1,

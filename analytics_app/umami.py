@@ -10,6 +10,8 @@ from .domain import NORMALIZE_COUNTRY, Period, resolve_period
 
 EVENT_METRICS = {
     "wasp_launch": "wasp_launches",
+    "lisflood_launch": "lisflood_launches",
+    "lisflood_run": "lisflood_runs",
     "publication_click": "publication_clicks",
     "github_click": "github_clicks",
     "file_download": "file_downloads",
@@ -59,6 +61,8 @@ class UmamiClient:
             "pageviews": None,
             "countries": None,
             "wasp_launches": None,
+            "lisflood_launches": None,
+            "lisflood_runs": None,
             "publication_clicks": None,
             "github_clicks": None,
             "file_downloads": None,
@@ -106,6 +110,8 @@ class UmamiClient:
             ("Page views", "pageviews"),
             ("Countries", "countries"),
             ("WASP launches", "wasp_launches"),
+            ("LISFLOOD launches", "lisflood_launches"),
+            ("LISFLOOD runs", "lisflood_runs"),
             ("Publication clicks", "publication_clicks"),
             ("GitHub clicks", "github_clicks"),
             ("File downloads", "file_downloads"),

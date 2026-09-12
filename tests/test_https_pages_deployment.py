@@ -1175,6 +1175,15 @@ class StaticResearchToolsTests(unittest.TestCase):
         self.assertIn("https://github.com/HydroclimateX/synthesis", synthesis)
         self.assertIn("https://cran.r-project.org/package=synthesis", synthesis)
         self.assertIn("https://synthesis.hydroclimatex.com", synthesis)
+        self.assertIn("https://cranlogs.r-pkg.org/badges/grand-total/WQM", homepage)
+        self.assertIn("https://cranlogs.r-pkg.org/badges/grand-total/synthesis", homepage)
+        self.assertIn("https://github.com/HydroclimateX/HydroclimateX.github.io/tree/main/lisflood_runner", homepage)
+
+    def test_publications_with_missing_year_are_not_rendered(self) -> None:
+        script = read("main.js")
+
+        self.assertIn(".filter(p => Number.isInteger(p.year))", script)
+        self.assertNotIn("p.year || 'n/a'", script)
 
     def test_pages_workflow_checks_new_methodology_pages(self) -> None:
         workflow = read(".github/workflows/static.yml")
@@ -1186,6 +1195,8 @@ class StaticResearchToolsTests(unittest.TestCase):
         self.assertEqual(payload["schemaVersion"], 1)
         self.assertEqual(payload["package"], {"name": "WQM", "version": "0.1.4"})
         self.assertEqual(payload["parameters"]["method"], "QDM")
+        self.assertEqual(payload["parameters"]["wavelet"], "morlet")
+        self.assertEqual(payload["parameters"]["levels"], 9)
         self.assertEqual(payload["parameters"]["ensembleMembers"], 5)
         self.assertEqual(len(payload["stations"]), 2)
         for station in payload["stations"]:
@@ -1202,7 +1213,7 @@ class StaticResearchToolsTests(unittest.TestCase):
 
         html = read("interactive-apps/wqm/index.html")
         script = read("interactive-apps/wqm/app.js")
-        for element_id in ("station", "member", "metrics", "timeSeries", "download", "status"):
+        for element_id in ("station", "method", "wavelet", "levels", "threshold", "member", "run", "metrics", "timeSeries", "download", "status"):
             self.assertIn(f'id="{element_id}"', html)
         self.assertIn("demo.json", script)
         self.assertIn("Plotly.react", script)
@@ -1218,6 +1229,8 @@ class StaticResearchToolsTests(unittest.TestCase):
                 const result = app.metrics(station.validation.observed, station.validation.raw, station.validation.corrected);
                 assert(Number.isFinite(result.raw.rmse));
                 assert(Number.isFinite(result.corrected.bias));
+                const dryOnly = app.metrics([0, 1], [0.2, 0.9], [0.1, 1], 0.5);
+                assert.strictEqual(dryOnly.raw.wetFrequency, 0.5);
                 const csv = app.toCsv(station);
                 assert(csv.startsWith('date,observed,raw,corrected,r1,r2,r3,r4,r5\\n'));
                 assert.strictEqual(csv.trim().split('\\n').length, station.validation.date.length + 1);

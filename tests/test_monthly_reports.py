@@ -13,6 +13,8 @@ class FakeUmami:
             "pageviews": 3682,
             "countries": 46,
             "wasp_launches": 382,
+            "lisflood_launches": 78,
+            "lisflood_runs": 64,
             "publication_clicks": 126,
             "github_clicks": 174,
             "file_downloads": 91,
@@ -85,6 +87,7 @@ def test_monthly_email_contains_html_inline_map_and_csv_attachment() -> None:
     assert "image/png" in payload_types
     assert "text/csv" in payload_types
     assert "Successful runs" in message.as_string()
+    assert "LISFLOOD runs" in message.as_string()
     report_bodies = "\n".join(
         part.get_content()
         for part in message.walk()

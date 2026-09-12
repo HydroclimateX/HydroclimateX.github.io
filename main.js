@@ -112,7 +112,7 @@ function fmtDate(iso) {
     list.innerHTML = pubs.map(p => `
       <article class="publication" data-tag="${escapeHtml(p.tag)}">
         <div class="meta">
-          <strong>${escapeHtml(p.year || 'n/a')}</strong><br>
+          <strong>${escapeHtml(p.year)}</strong><br>
           <span>${escapeHtml(p.type || '—')}</span>
         </div>
         <div>
@@ -146,6 +146,7 @@ function fmtDate(iso) {
       const data = await resp.json();
       if (!Array.isArray(data) || data.length === 0) throw new Error('empty list');
       PUBLICATIONS = data
+        .filter(p => Number.isInteger(p.year))
         .sort((a, b) => (b.year || 0) - (a.year || 0))
         .map(p => ({ ...p, tag: tagPublication(p) }));
       const active = document.querySelector('.filters button.active');

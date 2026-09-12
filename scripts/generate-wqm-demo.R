@@ -81,6 +81,7 @@ payload <- list(
     wavelet = "morlet",
     dt = 1,
     dj = 1,
+    levels = J,
     precipitationThreshold = 0.1,
     phaseMethod = "M2",
     block = 3,

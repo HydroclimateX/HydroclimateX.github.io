@@ -11,14 +11,21 @@ def read(path: str) -> str:
 def test_public_pages_load_privacy_first_telemetry_bootstrap() -> None:
     homepage = read("index.html")
     showcase = read("showcase/wasp-web/index.html")
+    lisflood = read("lisflood-app/index.html")
+    lisflood_app = read("lisflood-app/app.js")
+    dockerfile = read("nginx/Dockerfile")
     tracker = read("analytics.js")
 
     assert 'src="/analytics.js"' in homepage
     assert 'src="/analytics.js"' in showcase
+    assert 'src="/analytics.js"' in lisflood
     assert "https://telemetry.hydroclimatex.com/config.json" in tracker
+    assert "lisflood.hydroclimatex.com" in tracker
     assert "data-domains" in tracker
-    for event in ("wasp_launch", "publication_click", "github_click", "file_download"):
+    for event in ("wasp_launch", "lisflood_launch", "publication_click", "github_click", "file_download"):
         assert event in tracker
+    assert "lisflood_run" in lisflood_app
+    assert "COPY analytics.js /usr/share/nginx/lisflood/analytics.js" in dockerfile
     assert "email" not in tracker.lower()
 
 

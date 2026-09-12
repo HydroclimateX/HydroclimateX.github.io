@@ -3,6 +3,7 @@ FROM nginx:1.27-alpine
 COPY wasp-app /usr/share/nginx/html
 COPY software /usr/share/nginx/html/downloads
 COPY lisflood-app /usr/share/nginx/lisflood
+COPY analytics.js /usr/share/nginx/lisflood/analytics.js
 COPY interactive-apps /usr/share/nginx/tools
 COPY figs/WASP.jpg /usr/share/nginx/html/assets/WASP.jpg
 COPY nginx.conf /opt/wasp/nginx.conf

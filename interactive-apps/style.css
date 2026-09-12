@@ -33,6 +33,7 @@ input, select { width: 100%; min-height: 38px; margin-top: .32rem; padding: .45r
 input:focus, select:focus, button:focus-visible { outline: 3px solid rgba(11,94,167,.24); outline-offset: 1px; border-color: var(--blue); }
 .button { width: 100%; min-height: 42px; margin-top: .4rem; border: 0; border-radius: 6px; color: #fff; background: var(--blue); cursor: pointer; font-weight: 700; }
 .button:hover { background: var(--blue-dark); }
+.button:disabled { cursor: not-allowed; opacity: .55; }
 .button.secondary { color: var(--ink); background: #e7d4aa; }
 .button.secondary:hover { background: #dcc18b; }
 .status { min-height: 1.4rem; margin: .8rem 0 0; color: var(--muted); font-size: .8rem; }

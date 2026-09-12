@@ -67,6 +67,12 @@ def make_umami_fake():
                 site = {"id": f"site-{len(state['websites']) + 1}", **body}
                 state["websites"].append(site)
                 return httpx.Response(200, json=site)
+        if path.startswith("/api/websites/") and method == "POST":
+            site_id = path.rsplit("/", 1)[-1]
+            body = json.loads(request.content)
+            site = next(site for site in state["websites"] if site["id"] == site_id)
+            site.update(body)
+            return httpx.Response(200, json=site)
         raise AssertionError(f"unexpected request: {method} {path}")
 
     return state, handler
@@ -113,6 +119,28 @@ def test_rerun_is_idempotent_and_creates_nothing() -> None:
     }
     assert "POST /api/users" not in state["calls"]
     assert "POST /api/websites" not in state["calls"]
+
+
+def test_existing_hydroclimatex_website_adds_lisflood_without_duplicate() -> None:
+    state, handler = make_umami_fake()
+    seed_defaults(state)
+    state["users"].append({"id": "user-2", "username": "dashboard-reader", "password": "existing-reader-pw", "role": "user"})
+    state["websites"].append({
+        "id": "site-9",
+        "name": "HydroclimateX",
+        "domain": "hydroclimatex.com,www.hydroclimatex.com",
+    })
+    client = httpx.Client(base_url="http://umami:3000", transport=httpx.MockTransport(handler))
+
+    result = init_umami(
+        make_settings(umami_username="dashboard-reader", umami_password="existing-reader-pw"),
+        http_client=client,
+    )
+
+    assert result["UMAMI_WEBSITE_ID"] == "site-9"
+    assert len(state["websites"]) == 1
+    assert state["websites"][0]["domain"] == WEBSITE_DOMAIN
+    assert "POST /api/websites/site-9" in state["calls"]
 
 
 def test_reader_exists_but_password_unknown_rotates_reader_password() -> None:

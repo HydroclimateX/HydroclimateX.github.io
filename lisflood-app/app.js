@@ -507,6 +507,7 @@ async function runSimulation() {
     const snappedNotice = `snapped area ${areaLabel(rectangleAreaKm2(effectiveBounds))}`;
     const cached = job.status === 'completed';
     await pollJob(job.statusUrl, job.jobId, requestedPeriod, effectiveBounds, availableBounds, snappedNotice, cached);
+    if (window.umami && typeof window.umami.track === 'function') window.umami.track('lisflood_run');
   } catch (error) {
     console.error(error);
     $('status').textContent = 'Simulation failed';

@@ -59,9 +59,9 @@
     return Number(value).toLocaleString(undefined, {maximumFractionDigits: digits});
   }
 
-  function renderMetrics(station) {
-    const values = metrics(station.validation.observed, station.validation.raw, station.validation.corrected);
-    const observedWet = score(station.validation.observed, station.validation.observed, 0.1).wetFrequency;
+  function renderMetrics(station, threshold) {
+    const values = metrics(station.validation.observed, station.validation.raw, station.validation.corrected, threshold);
+    const observedWet = score(station.validation.observed, station.validation.observed, threshold).wetFrequency;
     const items = [
       ['Raw RMSE', values.raw.rmse, `WQM ${format(values.corrected.rmse)}`],
       ['Raw mean bias', values.raw.bias, `WQM ${format(values.corrected.bias)}`],
@@ -116,16 +116,29 @@
       const data = validateDemo(await response.json());
       const stationSelect = document.getElementById('station');
       const memberSelect = document.getElementById('member');
+      const levelsSelect = document.getElementById('levels');
+      const thresholdInput = document.getElementById('threshold');
+      const runButton = document.getElementById('run');
       const downloadButton = document.getElementById('download');
       data.stations.forEach(station => stationSelect.add(new Option(station.id, station.id)));
+      levelsSelect.add(new Option(`All ${data.parameters.levels} levels`, data.parameters.levels));
+      thresholdInput.value = data.parameters.precipitationThreshold;
       const current = () => data.stations.find(station => station.id === stationSelect.value);
-      const render = () => { renderMetrics(current()); renderChart(current(), memberSelect.value); };
-      stationSelect.addEventListener('change', render);
-      memberSelect.addEventListener('change', () => renderChart(current(), memberSelect.value));
+      const render = () => {
+        const threshold = Number(thresholdInput.value);
+        if (!Number.isFinite(threshold) || threshold < 0) {
+          status.textContent = 'Enter a non-negative wet-day threshold.';
+          thresholdInput.focus();
+          return;
+        }
+        renderMetrics(current(), threshold);
+        renderChart(current(), memberSelect.value);
+        status.textContent = `Run complete · ${stationSelect.value} · Morlet · ${data.parameters.levels} levels`;
+      };
+      runButton.addEventListener('click', render);
       downloadButton.addEventListener('click', () => download(current()));
-      stationSelect.disabled = memberSelect.disabled = downloadButton.disabled = false;
+      stationSelect.disabled = memberSelect.disabled = thresholdInput.disabled = runButton.disabled = downloadButton.disabled = false;
       render();
-      status.textContent = `Ready · WQM ${data.package.version} · QDM reference run`;
     } catch (error) {
       status.textContent = 'Reference results are unavailable. Please reload the page.';
     }

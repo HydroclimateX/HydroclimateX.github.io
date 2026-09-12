@@ -39,7 +39,7 @@ def test_nginx_exposes_only_telemetry_collection_routes_and_privacy_safe_logs():
     assert "$http_user_agent" not in log_format
     assert "$request_uri" not in log_format
     assert "$uri" in log_format
-    assert "~^https://(www\\.)?hydroclimatex\\.com$" in config
+    assert "~^https://((www|lisflood)\\.)?hydroclimatex\\.com$" in config
     assert "Access-Control-Allow-Origin $telemetry_cors_origin" in telemetry
     analytics_server = config.split("server_name analytics.hydroclimatex.com", 2)[-1].split("server_name telemetry.hydroclimatex.com", 1)[0]
     assert "location ^~ /internal/ { return 404; }" in analytics_server

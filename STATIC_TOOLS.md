@@ -2,6 +2,8 @@
 
 The two interactive applications are static assets served by the existing Nginx container. They add no API, database, persistent volume or Compose service.
 
+WQM remains a verified static reference run: the browser exposes the station, fixed QDM/Morlet configuration, actual CWT level count, wet-day threshold and ensemble member, then redraws the held-out results when the user runs the analysis. Arbitrary method, wavelet or level choices require `WQM::bc_cwt()` in R and are intentionally not simulated in JavaScript.
+
 ## Before deployment
 
 - Point `wqm.hydroclimatex.com` and `synthesis.hydroclimatex.com` to the single A record `8.210.252.61`; do not publish AAAA records yet.

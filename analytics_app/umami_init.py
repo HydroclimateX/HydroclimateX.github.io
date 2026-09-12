@@ -8,7 +8,7 @@ from .config import Settings
 
 
 WEBSITE_NAME = "HydroclimateX"
-WEBSITE_DOMAIN = "hydroclimatex.com,www.hydroclimatex.com"
+WEBSITE_DOMAIN = "hydroclimatex.com,www.hydroclimatex.com,lisflood.hydroclimatex.com"
 READER_ROLE = "user"
 
 
@@ -45,10 +45,11 @@ def _find_reader(http: httpx.Client, admin_token: str, username: str) -> dict[st
 def _find_website(http: httpx.Client, token: str, domain: str) -> dict[str, object] | None:
     response = http.get("/api/websites", headers=_bearer(token))
     response.raise_for_status()
-    for site in _rows(response):
+    sites = _rows(response)
+    for site in sites:
         if site.get("domain") == domain:
             return site
-    return None
+    return next((site for site in sites if site.get("name") == WEBSITE_NAME), None)
 
 
 def init_umami(settings: Settings, *, http_client: httpx.Client | None = None) -> dict[str, str]:
@@ -92,6 +93,14 @@ def init_umami(settings: Settings, *, http_client: httpx.Client | None = None) -
     if website is None:
         response = http.post(
             "/api/websites",
+            json={"name": WEBSITE_NAME, "domain": WEBSITE_DOMAIN},
+            headers=_bearer(reader_token),
+        )
+        response.raise_for_status()
+        website = response.json()
+    elif website.get("domain") != WEBSITE_DOMAIN:
+        response = http.post(
+            f"/api/websites/{website['id']}",
             json={"name": WEBSITE_NAME, "domain": WEBSITE_DOMAIN},
             headers=_bearer(reader_token),
         )
