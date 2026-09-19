@@ -1262,6 +1262,83 @@ class HostFrontDoorTests(unittest.TestCase):
         self.assertNotIn("sites-available/default", deploy)
         self.assertTrue(os.access(ROOT / "deploy-host-frontdoor.sh", os.X_OK))
 
+    def test_frontdoor_exports_state_dir_to_docker_compose(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            host = root / "nginx"
+            state = root / "state"
+            env_file = root / ".env"
+            renewal_file = root / "renew-wasp-cert"
+            env_file.write_text("KEEP=original\n", encoding="utf-8")
+            for domain in self.DOMAINS:
+                live = state / "conf" / "live" / domain
+                live.mkdir(parents=True)
+                (live / "fullchain.pem").write_text("certificate\n", encoding="utf-8")
+                (live / "privkey.pem").write_text("private-key\n", encoding="utf-8")
+
+            stubs = root / "stubs"
+            stubs.mkdir()
+            log = root / "calls.log"
+            for command in ("nginx", "systemctl", "curl"):
+                write_command_stub(stubs, command)
+            openssl = stubs / "openssl"
+            openssl.write_text(
+                "#!/usr/bin/env bash\n"
+                "if [[ \"$*\" == *'-checkend'* ]]; then exit 0; fi\n"
+                "if [[ \"$*\" == *'x509'*'-pubkey'* ]]; then printf 'public-key'; exit 0; fi\n"
+                "if [[ \"$*\" == *'pkey'* ]]; then printf 'public-key'; exit 0; fi\n"
+                "exit 0\n",
+                encoding="utf-8",
+            )
+            openssl.chmod(0o755)
+            docker = stubs / "docker"
+            docker.write_text(
+                "#!/usr/bin/env bash\n"
+                "printf 'docker state=%s args=%s\\n' \"${WASP_STATE_DIR:-unset}\" \"$*\" >> \"$WASP_TEST_LOG\"\n"
+                "exit 0\n",
+                encoding="utf-8",
+            )
+            docker.chmod(0o755)
+            ss = stubs / "ss"
+            ss.write_text(
+                "#!/usr/bin/env bash\nprintf 'LISTEN 0 4096 *:18082 *:*\\n'\n",
+                encoding="utf-8",
+            )
+            ss.chmod(0o755)
+            environment = os.environ.copy()
+            environment.pop("WASP_STATE_DIR", None)
+            environment.update(
+                {
+                    "PATH": f"{stubs}{os.pathsep}{environment['PATH']}",
+                    "WASP_TEST_LOG": str(log),
+                    "HOST_NGINX_ROOT": str(host),
+                    "HYDROCLIMATEX_ENV_FILE": str(env_file),
+                    "WASP_RENEWAL_SCRIPT": str(renewal_file),
+                    "FRONTDOOR_ALLOW_NON_ROOT": "1",
+                }
+            )
+            command = 'WASP_STATE_DIR="$1"; source "$2"; main'
+            result = subprocess.run(
+                [
+                    "bash",
+                    "-c",
+                    command,
+                    "bash",
+                    str(state),
+                    str(ROOT / "deploy-host-frontdoor.sh"),
+                ],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                env=environment,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            calls = log.read_text(encoding="utf-8")
+            self.assertIn(f"docker state={state} args=compose config --quiet", calls)
+            self.assertNotIn("docker state=unset args=compose", calls)
+
     def test_frontdoor_rollback_restores_env_and_host_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

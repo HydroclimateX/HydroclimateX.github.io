@@ -139,6 +139,7 @@ rollback() {
 
 main() {
   [[ "$EUID" -eq 0 || "${FRONTDOOR_ALLOW_NON_ROOT:-0}" == "1" ]] || fail "run as root"
+  export WASP_STATE_DIR="$STATE_DIR"
   for command in docker curl openssl sha256sum nginx systemctl ss; do
     command -v "$command" >/dev/null 2>&1 || fail "missing required command: $command"
   done
