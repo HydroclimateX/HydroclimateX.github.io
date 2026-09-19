@@ -242,6 +242,10 @@ cd "$SCRIPT_DIR"
 export WASP_STATE_DIR="$WASP_STATE_DIR"
 docker compose run --rm certbot renew --webroot --webroot-path /var/www/certbot
 docker compose exec -T nginx nginx -s reload
+if command -v systemctl >/dev/null 2>&1 && systemctl is-active --quiet nginx; then
+  nginx -t
+  systemctl reload nginx
+fi
 EOF
 chmod 0755 "$RENEWAL_SCRIPT"
 

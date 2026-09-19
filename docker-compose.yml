@@ -180,8 +180,8 @@ services:
     environment:
       - NGINX_CONFIG=${NGINX_CONFIG:-nginx.conf}
     ports:
-      - "80:80"
-      - "443:443"
+      - "${NGINX_HTTP_PUBLISH:-0.0.0.0:80}:80"
+      - "${NGINX_HTTPS_PUBLISH:-0.0.0.0:443}:443"
     volumes:
       - ${WASP_STATE_DIR:-./certbot}/www:/var/www/certbot:ro
       - ${WASP_STATE_DIR:-./certbot}/conf:/etc/letsencrypt:ro

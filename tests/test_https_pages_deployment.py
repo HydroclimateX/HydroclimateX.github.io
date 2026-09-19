@@ -136,7 +136,7 @@ def deploy_test_environment(root: Path) -> tuple[dict[str, str], Path]:
     script.chmod(0o755)
     stub_directory = root / "stubs"
     stub_directory.mkdir()
-    for command in ("docker", "systemctl", "getent", "dig", "openssl", "curl"):
+    for command in ("docker", "systemctl", "nginx", "getent", "dig", "openssl", "curl"):
         write_command_stub(stub_directory, command)
     log = root / "calls.log"
     environment = os.environ.copy()
@@ -332,8 +332,8 @@ class HttpsPagesDeploymentTests(unittest.TestCase):
         self.assertNotRegex(compose, r"(?m)^version:")
         self.assertIn("expose:\n      - \"8000\"", compose)
         self.assertNotIn('"8000:8000"', compose)
-        self.assertIn('"80:80"', compose)
-        self.assertIn('"443:443"', compose)
+        self.assertIn('"${NGINX_HTTP_PUBLISH:-0.0.0.0:80}:80"', compose)
+        self.assertIn('"${NGINX_HTTPS_PUBLISH:-0.0.0.0:443}:443"', compose)
         self.assertIn("image: hydroclimatex/wasp-api:current", compose)
         self.assertIn("image: hydroclimatex/wasp-nginx:current", compose)
         self.assertRegex(compose, r"(?s)nginx:.*?build:.*?dockerfile: nginx/Dockerfile")
@@ -424,6 +424,11 @@ class HttpsPagesDeploymentTests(unittest.TestCase):
             self.assertIn(renew, calls)
             self.assertIn(reload_nginx, calls)
             self.assertLess(calls.index(renew), calls.index(reload_nginx))
+
+            renewal = (root / "renew-wasp-cert").read_text(encoding="utf-8")
+            self.assertIn("systemctl is-active --quiet nginx", renewal)
+            self.assertIn("nginx -t", renewal)
+            self.assertIn("systemctl reload nginx", renewal)
 
     def test_generated_renewal_script_does_not_reload_after_renew_failure(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -1180,7 +1185,259 @@ class StaticResearchToolsTests(unittest.TestCase):
         self.assertIn("https://synthesis.hydroclimatex.com", synthesis)
         self.assertIn("https://cranlogs.r-pkg.org/badges/grand-total/WQM", homepage)
         self.assertIn("https://cranlogs.r-pkg.org/badges/grand-total/synthesis", homepage)
-        self.assertIn("https://github.com/HydroclimateX/HydroclimateX.github.io/tree/main/lisflood_runner", homepage)
+        self.assertIn("https://github.com/HydroclimateX/lisflood-web", homepage)
+
+
+class HostFrontDoorTests(unittest.TestCase):
+    DOMAINS = (
+        "wasp.hydroclimatex.com",
+        "lisflood.hydroclimatex.com",
+        "analytics.hydroclimatex.com",
+        "telemetry.hydroclimatex.com",
+        "wqm.hydroclimatex.com",
+        "synthesis.hydroclimatex.com",
+    )
+
+    def test_host_frontdoor_routes_only_application_domains(self) -> None:
+        config = read("host-nginx/hydroclimatex-apps.conf")
+        proxy = read("host-nginx/hydroclimatex-docker-proxy.conf")
+
+        self.assertNotIn("cloud.hydroclimatex.com", config)
+        self.assertIn("127.0.0.1:18080", config)
+        self.assertIn("127.0.0.1:18443", proxy)
+        self.assertIn("proxy_ssl_server_name on", proxy)
+        self.assertIn("proxy_ssl_name $host", proxy)
+        self.assertIn("proxy_ssl_verify on", proxy)
+        self.assertIn("proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt", proxy)
+        self.assertIn("proxy_set_header Host $host", proxy)
+        self.assertIn("proxy_set_header X-Real-IP $remote_addr", proxy)
+        self.assertIn("proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for", proxy)
+        for domain in self.DOMAINS:
+            self.assertIn(f"server_name {domain}", config)
+            self.assertIn(
+                f"/opt/hydroclimatex-wasp/state/conf/live/{domain}/fullchain.pem",
+                config,
+            )
+            self.assertIn(
+                f"/opt/hydroclimatex-wasp/state/conf/live/{domain}/privkey.pem",
+                config,
+            )
+
+    def test_container_nginx_trusts_only_private_front_proxy_ranges(self) -> None:
+        for path in ("nginx.conf", "nginx.analytics.conf"):
+            config = read(path)
+            self.assertIn("set_real_ip_from 172.16.0.0/12", config)
+            self.assertIn("real_ip_header X-Forwarded-For", config)
+            self.assertIn("real_ip_recursive on", config)
+            self.assertNotIn("set_real_ip_from 0.0.0.0/0", config)
+
+    def test_frontdoor_deployer_preserves_cloud_and_has_rollback(self) -> None:
+        deploy = read("deploy-host-frontdoor.sh")
+
+        for expected in (
+            'NGINX_HTTP_PUBLISH="127.0.0.1:18080"',
+            'NGINX_HTTPS_PUBLISH="127.0.0.1:18443"',
+            'HOST_NGINX_ROOT="${HOST_NGINX_ROOT:-/etc/nginx}"',
+            'HOST_SITE_AVAILABLE="$HOST_NGINX_ROOT/sites-available/hydroclimatex-apps"',
+            'HOST_PROXY_SNIPPET="$HOST_NGINX_ROOT/snippets/hydroclimatex-docker-proxy.conf"',
+            'RENEWAL_SCRIPT="${WASP_RENEWAL_SCRIPT:-/usr/local/sbin/renew-wasp-cert}"',
+            "docker compose build nginx",
+            "docker compose up -d --no-build --force-recreate --wait",
+            "PRIOR_NGINX_IMAGE",
+            'docker image tag "$PRIOR_NGINX_IMAGE" hydroclimatex/wasp-nginx:current',
+            "nginx -t",
+            "systemctl reload nginx",
+            "rollback",
+            "unset NGINX_HTTP_PUBLISH NGINX_HTTPS_PUBLISH",
+            "18082",
+            "ensure_publish_port_available_or_owned 18080 80",
+            "ensure_publish_port_available_or_owned 18443 443",
+            'backup_path "$RENEWAL_SCRIPT" renewal',
+            'restore_path "$RENEWAL_SCRIPT" renewal',
+            "status.php",
+        ):
+            self.assertIn(expected, deploy)
+        self.assertNotIn("systemctl restart nginx", deploy)
+        self.assertNotIn("systemctl restart frps", deploy)
+        self.assertNotIn("sites-available/default", deploy)
+        self.assertTrue(os.access(ROOT / "deploy-host-frontdoor.sh", os.X_OK))
+
+    def test_frontdoor_rollback_restores_env_and_host_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            host = root / "nginx"
+            available = host / "sites-available"
+            enabled = host / "sites-enabled"
+            snippets = host / "snippets"
+            for directory in (available, enabled, snippets):
+                directory.mkdir(parents=True, exist_ok=True)
+            env_file = root / ".env"
+            site_file = available / "hydroclimatex-apps"
+            enabled_file = enabled / "hydroclimatex-apps"
+            snippet_file = snippets / "hydroclimatex-docker-proxy.conf"
+            renewal_file = root / "renew-wasp-cert"
+            env_file.write_text("KEEP=original\n", encoding="utf-8")
+            site_file.write_text("old site\n", encoding="utf-8")
+            snippet_file.write_text("old snippet\n", encoding="utf-8")
+            renewal_file.write_text("old renewal\n", encoding="utf-8")
+            enabled_file.symlink_to(site_file)
+
+            stubs = root / "stubs"
+            stubs.mkdir()
+            log = root / "calls.log"
+            for command in ("docker", "nginx", "systemctl"):
+                write_command_stub(stubs, command)
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{stubs}{os.pathsep}{environment['PATH']}",
+                    "WASP_TEST_LOG": str(log),
+                    "HOST_NGINX_ROOT": str(host),
+                    "HYDROCLIMATEX_ENV_FILE": str(env_file),
+                    "WASP_RENEWAL_SCRIPT": str(renewal_file),
+                }
+            )
+            backup = root / "backup"
+            backup.mkdir()
+            command = textwrap.dedent(
+                """
+                source "$1"
+                BACKUP_DIR="$2"
+                ROLLBACK_ARMED=1
+                PRIOR_NGINX_RUNNING=false
+                PRIOR_NGINX_IMAGE=old-image-id
+                backup_path "$ENV_FILE" env
+                backup_path "$HOST_SITE_AVAILABLE" site-available
+                backup_path "$HOST_SITE_ENABLED" site-enabled
+                backup_path "$HOST_PROXY_SNIPPET" proxy-snippet
+                backup_path "$RENEWAL_SCRIPT" renewal
+                printf 'changed\n' > "$ENV_FILE"
+                printf 'changed\n' > "$HOST_SITE_AVAILABLE"
+                printf 'changed\n' > "$HOST_PROXY_SNIPPET"
+                printf 'changed\n' > "$RENEWAL_SCRIPT"
+                ln -sfn /tmp/changed "$HOST_SITE_ENABLED"
+                rollback 7
+                """
+            )
+            result = subprocess.run(
+                ["bash", "-c", command, "bash", str(ROOT / "deploy-host-frontdoor.sh"), str(backup)],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                env=environment,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 7, result.stdout + result.stderr)
+            self.assertEqual(env_file.read_text(encoding="utf-8"), "KEEP=original\n")
+            self.assertEqual(site_file.read_text(encoding="utf-8"), "old site\n")
+            self.assertEqual(snippet_file.read_text(encoding="utf-8"), "old snippet\n")
+            self.assertEqual(renewal_file.read_text(encoding="utf-8"), "old renewal\n")
+            self.assertTrue(enabled_file.is_symlink())
+            self.assertEqual(enabled_file.resolve(), site_file.resolve())
+            calls = log.read_text(encoding="utf-8")
+            self.assertIn("image tag old-image-id hydroclimatex/wasp-nginx:current", calls)
+            self.assertIn("compose stop nginx", calls)
+            self.assertIn("nginx NGINX_CONFIG= args=-t", calls)
+            self.assertIn("systemctl NGINX_CONFIG= args=reload nginx", calls)
+
+    def test_frontdoor_deployer_stages_loopback_proxy_without_touching_cloud(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            host = root / "nginx"
+            state = root / "state"
+            env_file = root / ".env"
+            renewal_file = root / "renew-wasp-cert"
+            env_file.write_text("KEEP=original\n", encoding="utf-8")
+            for domain in self.DOMAINS:
+                live = state / "conf" / "live" / domain
+                live.mkdir(parents=True)
+                (live / "fullchain.pem").write_text("certificate\n", encoding="utf-8")
+                (live / "privkey.pem").write_text("private-key\n", encoding="utf-8")
+
+            stubs = root / "stubs"
+            stubs.mkdir()
+            log = root / "calls.log"
+            for command in ("docker", "nginx", "systemctl", "openssl", "curl"):
+                write_command_stub(stubs, command)
+            openssl = stubs / "openssl"
+            openssl.write_text(
+                "#!/usr/bin/env bash\n"
+                "printf 'openssl NGINX_CONFIG=%s args=%s\\n' \"${NGINX_CONFIG:-}\" \"$*\" >> \"$WASP_TEST_LOG\"\n"
+                "if [[ \"$*\" == *'-checkend'* ]]; then exit 0; fi\n"
+                "if [[ \"$*\" == *'x509'*'-pubkey'* ]]; then printf 'public-key'; exit 0; fi\n"
+                "if [[ \"$*\" == *'pkey'* ]]; then printf 'public-key'; exit 0; fi\n"
+                "exit 0\n",
+                encoding="utf-8",
+            )
+            openssl.chmod(0o755)
+            ss = stubs / "ss"
+            ss.write_text(
+                "#!/usr/bin/env bash\nprintf 'LISTEN 0 4096 *:18082 *:*\\n'\n",
+                encoding="utf-8",
+            )
+            ss.chmod(0o755)
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{stubs}{os.pathsep}{environment['PATH']}",
+                    "WASP_TEST_LOG": str(log),
+                    "WASP_STATE_DIR": str(state),
+                    "HOST_NGINX_ROOT": str(host),
+                    "HYDROCLIMATEX_ENV_FILE": str(env_file),
+                    "WASP_RENEWAL_SCRIPT": str(renewal_file),
+                    "FRONTDOOR_ALLOW_NON_ROOT": "1",
+                    "WASP_HEALTH_COUNT_FILE": str(root / "health-count"),
+                }
+            )
+            result = subprocess.run(
+                [str(ROOT / "deploy-host-frontdoor.sh")],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                env=environment,
+                check=False,
+            )
+
+            self.assertEqual(
+                result.returncode,
+                0,
+                result.stdout + result.stderr + log.read_text(encoding="utf-8"),
+            )
+            env = env_file.read_text(encoding="utf-8")
+            self.assertIn("KEEP=original", env)
+            self.assertIn("NGINX_HTTP_PUBLISH=127.0.0.1:18080", env)
+            self.assertIn("NGINX_HTTPS_PUBLISH=127.0.0.1:18443", env)
+            site = host / "sites-available" / "hydroclimatex-apps"
+            enabled = host / "sites-enabled" / "hydroclimatex-apps"
+            self.assertEqual(site.read_text(encoding="utf-8"), read("host-nginx/hydroclimatex-apps.conf"))
+            self.assertTrue(enabled.is_symlink())
+            self.assertNotIn("cloud.hydroclimatex.com", site.read_text(encoding="utf-8"))
+            renewal = renewal_file.read_text(encoding="utf-8")
+            self.assertIn("docker compose run --rm certbot renew", renewal)
+            self.assertIn("docker compose exec -T nginx nginx -s reload", renewal)
+            self.assertIn("systemctl reload nginx", renewal)
+            calls = log.read_text(encoding="utf-8")
+            self.assertIn("compose up -d --no-build --force-recreate --wait --wait-timeout 180 nginx", calls)
+            self.assertIn("systemctl NGINX_CONFIG= args=reload nginx", calls)
+            self.assertNotIn("restart frps", calls)
+
+    def test_frontdoor_runbook_documents_safe_cutover(self) -> None:
+        runbook = read("HOST_FRONTDOOR.md")
+        environment = read(".env.example")
+
+        for expected in (
+            "sudo ./deploy-host-frontdoor.sh",
+            "cloud.hydroclimatex.com/status.php",
+            "127.0.0.1:18080",
+            "127.0.0.1:18443",
+            "docker compose config --quiet",
+            "nginx -t",
+        ):
+            self.assertIn(expected, runbook)
+        self.assertIn("Do not open", runbook)
+        self.assertIn("NGINX_HTTP_PUBLISH=0.0.0.0:80", environment)
+        self.assertIn("NGINX_HTTPS_PUBLISH=0.0.0.0:443", environment)
 
     def test_publications_with_missing_year_are_not_rendered(self) -> None:
         script = read("main.js")
