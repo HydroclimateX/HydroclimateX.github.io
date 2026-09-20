@@ -1208,6 +1208,7 @@ class HostFrontDoorTests(unittest.TestCase):
         self.assertIn("proxy_ssl_server_name on", proxy)
         self.assertIn("proxy_ssl_name $host", proxy)
         self.assertIn("proxy_ssl_verify on", proxy)
+        self.assertIn("proxy_ssl_session_reuse off", proxy)
         self.assertIn("proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt", proxy)
         self.assertIn("proxy_set_header Host $host", proxy)
         self.assertIn("proxy_set_header X-Real-IP $remote_addr", proxy)

@@ -26,7 +26,8 @@ proxy on loopback, runs `nginx -t`, and gracefully reloads the host Nginx. It
 does not stop or restart Nextcloud or FRP. A rollback snapshot is retained
 under `/opt/hydroclimatex-wasp/state/frontdoor-backups/`. It also updates the
 existing certificate-renewal command so successful renewals reload both the
-Docker proxy and the host Nginx.
+Docker proxy and the host Nginx. The host proxy disables upstream TLS session
+reuse because all six SNI names share the same loopback TLS endpoint.
 
 If Cloud/FRP is already unavailable but the six application sites must be
 restored independently, use the explicit recovery mode:
