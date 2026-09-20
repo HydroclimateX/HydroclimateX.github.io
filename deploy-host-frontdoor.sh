@@ -11,6 +11,7 @@ HOST_PROXY_SNIPPET="$HOST_NGINX_ROOT/snippets/hydroclimatex-docker-proxy.conf"
 RENEWAL_SCRIPT="${WASP_RENEWAL_SCRIPT:-/usr/local/sbin/renew-wasp-cert}"
 NGINX_HTTP_PUBLISH="127.0.0.1:18080"
 NGINX_HTTPS_PUBLISH="127.0.0.1:18443"
+ALLOW_CLOUD_UNAVAILABLE="${FRONTDOOR_ALLOW_CLOUD_UNAVAILABLE:-0}"
 DOMAINS=(
   wasp.hydroclimatex.com
   lisflood.hydroclimatex.com
@@ -139,15 +140,21 @@ rollback() {
 
 main() {
   [[ "$EUID" -eq 0 || "${FRONTDOOR_ALLOW_NON_ROOT:-0}" == "1" ]] || fail "run as root"
+  [[ "$ALLOW_CLOUD_UNAVAILABLE" == "0" || "$ALLOW_CLOUD_UNAVAILABLE" == "1" ]] \
+    || fail "FRONTDOOR_ALLOW_CLOUD_UNAVAILABLE must be 0 or 1"
   export WASP_STATE_DIR="$STATE_DIR"
   for command in docker curl openssl sha256sum nginx systemctl ss; do
     command -v "$command" >/dev/null 2>&1 || fail "missing required command: $command"
   done
   systemctl is-active --quiet nginx || fail "host Nginx is not active"
-  systemctl is-active --quiet frps || fail "FRP server is not active"
-  ss -ltn | grep -Eq '[:.]18082[[:space:]]' || fail "FRP Nextcloud endpoint is not listening on port 18082"
-  curl --fail --silent --show-error --max-time 20 --noproxy '*' \
-    https://cloud.hydroclimatex.com/status.php >/dev/null || fail "Nextcloud status endpoint is unavailable"
+  if [[ "$ALLOW_CLOUD_UNAVAILABLE" == "1" ]]; then
+    info "Cloud/FRP availability checks skipped; Nextcloud and FRP will not be modified."
+  else
+    systemctl is-active --quiet frps || fail "FRP server is not active"
+    ss -ltn | grep -Eq '[:.]18082[[:space:]]' || fail "FRP Nextcloud endpoint is not listening on port 18082"
+    curl --fail --silent --show-error --max-time 20 --noproxy '*' \
+      https://cloud.hydroclimatex.com/status.php >/dev/null || fail "Nextcloud status endpoint is unavailable"
+  fi
   for domain in "${DOMAINS[@]}"; do
     certificate_is_valid "$domain" || fail "missing, mismatched, or expiring certificate for $domain"
   done
@@ -194,7 +201,9 @@ main() {
   nginx -t
   systemctl reload nginx
 
-  verify_public_endpoint cloud.hydroclimatex.com /status.php
+  if [[ "$ALLOW_CLOUD_UNAVAILABLE" == "0" ]]; then
+    verify_public_endpoint cloud.hydroclimatex.com /status.php
+  fi
   verify_public_endpoint wasp.hydroclimatex.com /api/health
   verify_public_endpoint lisflood.hydroclimatex.com /health
   verify_public_endpoint analytics.hydroclimatex.com /health

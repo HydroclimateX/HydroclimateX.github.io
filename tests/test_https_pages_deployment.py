@@ -1249,6 +1249,7 @@ class HostFrontDoorTests(unittest.TestCase):
             "systemctl reload nginx",
             "rollback",
             "unset NGINX_HTTP_PUBLISH NGINX_HTTPS_PUBLISH",
+            "FRONTDOOR_ALLOW_CLOUD_UNAVAILABLE",
             "18082",
             "ensure_publish_port_available_or_owned 18080 80",
             "ensure_publish_port_available_or_owned 18443 443",
@@ -1499,12 +1500,83 @@ class HostFrontDoorTests(unittest.TestCase):
             self.assertIn("systemctl NGINX_CONFIG= args=reload nginx", calls)
             self.assertNotIn("restart frps", calls)
 
+    def test_frontdoor_can_restore_apps_while_cloud_is_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            host = root / "nginx"
+            state = root / "state"
+            env_file = root / ".env"
+            renewal_file = root / "renew-wasp-cert"
+            env_file.write_text("KEEP=original\n", encoding="utf-8")
+            for domain in self.DOMAINS:
+                live = state / "conf" / "live" / domain
+                live.mkdir(parents=True)
+                (live / "fullchain.pem").write_text("certificate\n", encoding="utf-8")
+                (live / "privkey.pem").write_text("private-key\n", encoding="utf-8")
+
+            stubs = root / "stubs"
+            stubs.mkdir()
+            log = root / "calls.log"
+            for command in ("docker", "nginx", "systemctl", "openssl", "curl"):
+                write_command_stub(stubs, command)
+            openssl = stubs / "openssl"
+            openssl.write_text(
+                "#!/usr/bin/env bash\n"
+                "printf 'openssl NGINX_CONFIG=%s args=%s\\n' \"${NGINX_CONFIG:-}\" \"$*\" >> \"$WASP_TEST_LOG\"\n"
+                "if [[ \"$*\" == *'-checkend'* ]]; then exit 0; fi\n"
+                "if [[ \"$*\" == *'x509'*'-pubkey'* ]]; then printf 'public-key'; exit 0; fi\n"
+                "if [[ \"$*\" == *'pkey'* ]]; then printf 'public-key'; exit 0; fi\n"
+                "exit 0\n",
+                encoding="utf-8",
+            )
+            openssl.chmod(0o755)
+            ss = stubs / "ss"
+            ss.write_text(
+                "#!/usr/bin/env bash\nprintf 'LISTEN 0 4096 *:7000 *:*\\n'\n",
+                encoding="utf-8",
+            )
+            ss.chmod(0o755)
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{stubs}{os.pathsep}{environment['PATH']}",
+                    "WASP_TEST_LOG": str(log),
+                    "WASP_STATE_DIR": str(state),
+                    "HOST_NGINX_ROOT": str(host),
+                    "HYDROCLIMATEX_ENV_FILE": str(env_file),
+                    "WASP_RENEWAL_SCRIPT": str(renewal_file),
+                    "FRONTDOOR_ALLOW_NON_ROOT": "1",
+                    "FRONTDOOR_ALLOW_CLOUD_UNAVAILABLE": "1",
+                    "WASP_HEALTH_COUNT_FILE": str(root / "health-count"),
+                }
+            )
+            result = subprocess.run(
+                [str(ROOT / "deploy-host-frontdoor.sh")],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                env=environment,
+                check=False,
+            )
+
+            self.assertEqual(
+                result.returncode,
+                0,
+                result.stdout + result.stderr + log.read_text(encoding="utf-8"),
+            )
+            self.assertIn("Cloud/FRP availability checks skipped", result.stdout)
+            calls = log.read_text(encoding="utf-8")
+            self.assertNotIn("cloud.hydroclimatex.com/status.php", calls)
+            self.assertIn("https://lisflood.hydroclimatex.com/health", calls)
+            self.assertIn("https://wasp.hydroclimatex.com/api/health", calls)
+
     def test_frontdoor_runbook_documents_safe_cutover(self) -> None:
         runbook = read("HOST_FRONTDOOR.md")
         environment = read(".env.example")
 
         for expected in (
             "sudo ./deploy-host-frontdoor.sh",
+            "sudo FRONTDOOR_ALLOW_CLOUD_UNAVAILABLE=1 ./deploy-host-frontdoor.sh",
             "cloud.hydroclimatex.com/status.php",
             "127.0.0.1:18080",
             "127.0.0.1:18443",

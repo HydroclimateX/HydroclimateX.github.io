@@ -28,6 +28,19 @@ under `/opt/hydroclimatex-wasp/state/frontdoor-backups/`. It also updates the
 existing certificate-renewal command so successful renewals reload both the
 Docker proxy and the host Nginx.
 
+If Cloud/FRP is already unavailable but the six application sites must be
+restored independently, use the explicit recovery mode:
+
+```bash
+sudo FRONTDOOR_ALLOW_CLOUD_UNAVAILABLE=1 ./deploy-host-frontdoor.sh
+```
+
+This skips only the Cloud/FRP availability checks. All certificate, loopback,
+Docker Nginx, host Nginx, and six application endpoint checks still run. The
+script does not edit the Cloud virtual host, `/etc/nginx/sites-available/default`,
+or FRP; `cloud.hydroclimatex.com` may remain unavailable until its tunnel is
+repaired separately.
+
 ## Verify
 
 ```bash
