@@ -39,7 +39,9 @@ This skips only the Cloud/FRP availability checks. All certificate, loopback,
 Docker Nginx, host Nginx, and six application endpoint checks still run. The
 script does not edit the Cloud virtual host, `/etc/nginx/sites-available/default`,
 or FRP; `cloud.hydroclimatex.com` may remain unavailable until its tunnel is
-repaired separately.
+repaired separately. Host and public endpoint checks retry briefly while a
+graceful Nginx reload replaces the old workers, so a transient old certificate
+does not trigger an immediate rollback.
 
 ## Verify
 

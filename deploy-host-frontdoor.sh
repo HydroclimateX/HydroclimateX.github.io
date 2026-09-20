@@ -12,6 +12,8 @@ RENEWAL_SCRIPT="${WASP_RENEWAL_SCRIPT:-/usr/local/sbin/renew-wasp-cert}"
 NGINX_HTTP_PUBLISH="127.0.0.1:18080"
 NGINX_HTTPS_PUBLISH="127.0.0.1:18443"
 ALLOW_CLOUD_UNAVAILABLE="${FRONTDOOR_ALLOW_CLOUD_UNAVAILABLE:-0}"
+VERIFY_ATTEMPTS="${FRONTDOOR_VERIFY_ATTEMPTS:-15}"
+VERIFY_DELAY_SECONDS="${FRONTDOOR_VERIFY_DELAY_SECONDS:-1}"
 DOMAINS=(
   wasp.hydroclimatex.com
   lisflood.hydroclimatex.com
@@ -97,15 +99,34 @@ ensure_publish_port_available_or_owned() {
     | grep -qx "127.0.0.1:${host_port}"
 }
 
+curl_with_retry() {
+  local attempt
+  for ((attempt = 1; attempt <= VERIFY_ATTEMPTS; attempt++)); do
+    if curl "$@"; then
+      return 0
+    fi
+    if ((attempt < VERIFY_ATTEMPTS)); then
+      sleep "$VERIFY_DELAY_SECONDS"
+    fi
+  done
+  return 1
+}
+
 verify_local_backend() {
   local domain="$1" path="$2"
-  curl --fail --silent --show-error --max-time 20 --noproxy '*' \
+  curl_with_retry --fail --silent --show-error --max-time 20 --noproxy '*' \
     --resolve "$domain:18443:127.0.0.1" "https://$domain:18443$path" >/dev/null
+}
+
+verify_host_frontdoor() {
+  local domain="$1" path="$2"
+  curl_with_retry --fail --silent --show-error --max-time 20 --noproxy '*' \
+    --resolve "$domain:443:127.0.0.1" "https://$domain$path" >/dev/null
 }
 
 verify_public_endpoint() {
   local domain="$1" path="$2"
-  curl --fail --silent --show-error --max-time 20 --noproxy '*' \
+  curl_with_retry --fail --silent --show-error --max-time 20 --noproxy '*' \
     "https://$domain$path" >/dev/null
 }
 
@@ -142,6 +163,10 @@ main() {
   [[ "$EUID" -eq 0 || "${FRONTDOOR_ALLOW_NON_ROOT:-0}" == "1" ]] || fail "run as root"
   [[ "$ALLOW_CLOUD_UNAVAILABLE" == "0" || "$ALLOW_CLOUD_UNAVAILABLE" == "1" ]] \
     || fail "FRONTDOOR_ALLOW_CLOUD_UNAVAILABLE must be 0 or 1"
+  [[ "$VERIFY_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] \
+    || fail "FRONTDOOR_VERIFY_ATTEMPTS must be a positive integer"
+  [[ "$VERIFY_DELAY_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]] \
+    || fail "FRONTDOOR_VERIFY_DELAY_SECONDS must be a non-negative number"
   export WASP_STATE_DIR="$STATE_DIR"
   for command in docker curl openssl sha256sum nginx systemctl ss; do
     command -v "$command" >/dev/null 2>&1 || fail "missing required command: $command"
@@ -200,6 +225,14 @@ main() {
   ln -sfn "$HOST_SITE_AVAILABLE" "$HOST_SITE_ENABLED"
   nginx -t
   systemctl reload nginx
+
+  info "Waiting for the host Nginx workers to serve the application certificates."
+  verify_host_frontdoor wasp.hydroclimatex.com /api/health
+  verify_host_frontdoor lisflood.hydroclimatex.com /health
+  verify_host_frontdoor analytics.hydroclimatex.com /health
+  verify_host_frontdoor telemetry.hydroclimatex.com /config.json
+  verify_host_frontdoor wqm.hydroclimatex.com /health
+  verify_host_frontdoor synthesis.hydroclimatex.com /health
 
   if [[ "$ALLOW_CLOUD_UNAVAILABLE" == "0" ]]; then
     verify_public_endpoint cloud.hydroclimatex.com /status.php

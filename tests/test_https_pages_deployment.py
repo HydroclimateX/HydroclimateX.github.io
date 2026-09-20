@@ -1498,6 +1498,10 @@ class HostFrontDoorTests(unittest.TestCase):
             calls = log.read_text(encoding="utf-8")
             self.assertIn("compose up -d --no-build --force-recreate --wait --wait-timeout 180 nginx", calls)
             self.assertIn("systemctl NGINX_CONFIG= args=reload nginx", calls)
+            self.assertIn(
+                "--resolve wasp.hydroclimatex.com:443:127.0.0.1 https://wasp.hydroclimatex.com/api/health",
+                calls,
+            )
             self.assertNotIn("restart frps", calls)
 
     def test_frontdoor_can_restore_apps_while_cloud_is_unavailable(self) -> None:
@@ -1569,6 +1573,45 @@ class HostFrontDoorTests(unittest.TestCase):
             self.assertNotIn("cloud.hydroclimatex.com/status.php", calls)
             self.assertIn("https://lisflood.hydroclimatex.com/health", calls)
             self.assertIn("https://wasp.hydroclimatex.com/api/health", calls)
+
+    def test_frontdoor_endpoint_verification_retries_during_nginx_reload(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            stubs = root / "stubs"
+            stubs.mkdir()
+            count_file = root / "curl-count"
+            curl = stubs / "curl"
+            curl.write_text(
+                "#!/usr/bin/env bash\n"
+                "count=0\n"
+                "if [[ -f \"$FRONTDOOR_CURL_COUNT_FILE\" ]]; then count=\"$(<\"$FRONTDOOR_CURL_COUNT_FILE\")\"; fi\n"
+                "count=$((count + 1))\n"
+                "printf '%s' \"$count\" > \"$FRONTDOOR_CURL_COUNT_FILE\"\n"
+                "[[ \"$count\" -ge 3 ]]\n",
+                encoding="utf-8",
+            )
+            curl.chmod(0o755)
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "PATH": f"{stubs}{os.pathsep}{environment['PATH']}",
+                    "FRONTDOOR_CURL_COUNT_FILE": str(count_file),
+                    "FRONTDOOR_VERIFY_ATTEMPTS": "3",
+                    "FRONTDOOR_VERIFY_DELAY_SECONDS": "0",
+                }
+            )
+            command = 'source "$1"; verify_public_endpoint lisflood.hydroclimatex.com /health'
+            result = subprocess.run(
+                ["bash", "-c", command, "bash", str(ROOT / "deploy-host-frontdoor.sh")],
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                env=environment,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(count_file.read_text(encoding="utf-8"), "3")
 
     def test_frontdoor_runbook_documents_safe_cutover(self) -> None:
         runbook = read("HOST_FRONTDOOR.md")
