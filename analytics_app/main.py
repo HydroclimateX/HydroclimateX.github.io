@@ -6,7 +6,6 @@ import io
 from pathlib import Path
 from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Literal
-from uuid import UUID
 
 from fastapi import Cookie, Depends, FastAPI, Header, HTTPException, Query, Response
 from fastapi.responses import StreamingResponse
@@ -15,7 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .config import Settings
-from .domain import PeriodError, aggregate_country_rows, format_timestamp_seconds, resolve_period
+from .domain import PeriodError, aggregate_country_rows, format_timestamp_seconds, reporting_windows, resolve_period
 from .repository import AdminSession, EventConflict, Repository, UsageEvent
 from .security import LoginLimiter, create_session_credentials, hash_token, verify_password
 
@@ -219,11 +218,37 @@ def create_app(*, settings: Settings, repository: Repository, umami, report_serv
             },
         }
 
+    def wasp_run_windows(now: datetime) -> dict[str, int | None]:
+        """Successful WASP runs per reporting window, from the server-side events.
+
+        The rest of the Website Analytics table is Umami-sourced, but WASP has no
+        client-side analytics, so this row is counted where the runs are actually
+        recorded. Unverifiable windows stay null rather than being reported as zero.
+        """
+        counts: dict[str, int | None] = {}
+        for name, period in reporting_windows(now, settings.collected_since).items():
+            try:
+                usage = aggregate_country_rows(repository.events_between(period.start, period.end, "wasp"))
+                counts[name] = usage["totals"]["successful_runs"]
+            except Exception:
+                counts[name] = None
+        return counts
+
+    def with_wasp_runs(windows: dict[str, object], counts: dict[str, int | None]) -> dict[str, object]:
+        metrics = list(windows.get("metrics") or [])
+        anchor = next(
+            (index for index, item in enumerate(metrics) if item.get("metric") == "LISFLOOD runs"),
+            None,
+        )
+        metrics.insert(anchor + 1 if anchor is not None else len(metrics), {"metric": "WASP runs", **counts})
+        return {**windows, "metrics": metrics}
+
     @app.get("/api/v1/website/windows")
     def website_windows(
         _: AdminSession = Depends(authenticated_session),
     ) -> dict[str, object]:
-        return umami.website_windows(now_utc())
+        now = now_utc()
+        return with_wasp_runs(umami.website_windows(now), wasp_run_windows(now))
 
     def usage_for(app: str, period) -> dict[str, object]:
         try:

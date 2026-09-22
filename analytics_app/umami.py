@@ -5,7 +5,7 @@ from datetime import datetime
 import httpx
 
 from .config import Settings
-from .domain import NORMALIZE_COUNTRY, Period, resolve_period
+from .domain import NORMALIZE_COUNTRY, Period, reporting_windows
 
 
 EVENT_METRICS = {
@@ -98,11 +98,7 @@ class UmamiClient:
         return result
 
     def website_windows(self, now: datetime) -> dict[str, object]:
-        periods = {
-            "days_30": resolve_period("30d", now=now),
-            "months_12": resolve_period("12m", now=now),
-            "all_time": resolve_period("all", now=now, collected_since=self.settings.collected_since),
-        }
+        periods = reporting_windows(now, self.settings.collected_since)
         summaries = {name: self.summary(period) for name, period in periods.items()}
         available = all(item["status"] == "available" for item in summaries.values())
         fields = [

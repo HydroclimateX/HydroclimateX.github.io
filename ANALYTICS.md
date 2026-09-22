@@ -30,6 +30,15 @@ LISFLOOD also reports two named Umami events on the public site — `lisflood_la
 
 The `window` timestamp for each application therefore differs: `usage_events` rows begin at `ANALYTICS_COLLECTED_SINCE` for WASP and at the first LISFLOOD deployment that included tracking.
 
+### Website Analytics is deliberately mixed-source
+
+The **Website Analytics** table is mostly Umami, with two exceptions that come from `usage_events` instead:
+
+- **WASP runs** — WASP serves no client analytics at all (the application never loads Umami, and its host is absent from the telemetry allowed domains and CORS map), so there is no `wasp_run` event to count. The row is computed from WASP's server-side `run_success` events, which is also the more reliable measure: it is unaffected by ad blockers or client-side failures.
+- **LISFLOOD runs** is a genuine Umami event fired when a result loads in the browser, so it counts cached results too, where the server-side `run_success` does not. The map's own per-country runs come from `usage_events`.
+
+In short, `WASP runs` and `LISFLOOD runs` in that table are counted differently by necessity — do not read them as directly comparable.
+
 ## Operations
 
 - Apply migrations: `docker compose run --rm analytics-api python -m analytics_app.cli migrate`

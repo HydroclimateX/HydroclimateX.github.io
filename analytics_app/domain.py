@@ -62,6 +62,15 @@ def resolve_period(
     raise PeriodError(f"unsupported period: {key}")
 
 
+def reporting_windows(now: datetime, collected_since: datetime | None) -> dict[str, Period]:
+    """Return the three columns of the Website Analytics table, in order."""
+    return {
+        "days_30": resolve_period("30d", now=now),
+        "months_12": resolve_period("12m", now=now),
+        "all_time": resolve_period("all", now=now, collected_since=collected_since),
+    }
+
+
 NORMALIZE_COUNTRY = {"HK": "CN", "TW": "CN", "MO": "CN"}
 
 

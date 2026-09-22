@@ -329,3 +329,87 @@ def test_unknown_application_is_rejected() -> None:
     login(client)
 
     assert client.get("/api/v1/wqm/countries?period=30d").status_code == 422
+
+
+def metric_row(payload: dict, label: str) -> dict:
+    return next(item for item in payload["metrics"] if item["metric"] == label)
+
+
+def recent() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def test_website_windows_reports_wasp_runs_from_server_side_events() -> None:
+    """WASP has no client analytics, so this row is counted where runs are recorded."""
+    client, repository = make_client()
+    repository.seed_event("run_success", "s1", "AU", recent(), run_id="wasp-run")
+    repository.seed_event("run_success", "s2", "CN", recent(), run_id="lisflood-run", app="lisflood")
+    login(client)
+
+    response = client.get("/api/v1/website/windows")
+
+    assert response.status_code == 200
+    row = metric_row(response.json(), "WASP runs")
+    assert row["days_30"] == 1
+    assert row["months_12"] == 1
+    assert row["all_time"] == 1
+
+
+def test_website_windows_wasp_runs_ignores_failed_and_lisflood_runs() -> None:
+    client, repository = make_client()
+    repository.seed_event("run_failure", "s1", "AU", recent(), run_id="wasp-failed")
+    repository.seed_event("run_success", "s2", "CN", recent(), run_id="lisflood-run", app="lisflood")
+    login(client)
+
+    row = metric_row(client.get("/api/v1/website/windows").json(), "WASP runs")
+
+    # A verified zero, not an unavailable value.
+    assert row["days_30"] == 0
+    assert row["all_time"] == 0
+
+
+def test_website_windows_reports_wasp_runs_unavailable_rather_than_zero() -> None:
+    client, repository = make_client()
+    login(client)
+    repository.events_between = lambda *_args, **_kwargs: (_ for _ in ()).throw(ConnectionError())
+
+    response = client.get("/api/v1/website/windows")
+
+    assert response.status_code == 200
+    row = metric_row(response.json(), "WASP runs")
+    assert row["days_30"] is None
+    assert row["all_time"] is None
+
+
+def test_website_windows_places_wasp_runs_beside_lisflood_runs() -> None:
+    repository = MemoryRepository()
+    settings = Settings(
+        admin_email="ze.jiang@hhu.edu.cn",
+        admin_password_hash=hash_password("correct horse battery staple"),
+        internal_token="i" * 32,
+        session_secret="s" * 32,
+        collected_since=datetime(2026, 8, 1, tzinfo=timezone.utc),
+    )
+
+    class OrderedUmami(FakeUmami):
+        def website_windows(self, _now):
+            return {
+                "status": "available",
+                "metrics": [
+                    {"metric": "Visitors", "days_30": 1, "months_12": 1, "all_time": 1},
+                    {"metric": "LISFLOOD runs", "days_30": 2, "months_12": 2, "all_time": 2},
+                    {"metric": "File downloads", "days_30": 3, "months_12": 3, "all_time": 3},
+                ],
+            }
+
+    client = TestClient(
+        create_app(settings=settings, repository=repository, umami=OrderedUmami(), report_service=FakeReports(repository)),
+        base_url="https://analytics.hydroclimatex.test",
+    )
+    login(client)
+
+    labels = [item["metric"] for item in client.get("/api/v1/website/windows").json()["metrics"]]
+
+    assert labels == ["Visitors", "LISFLOOD runs", "WASP runs", "File downloads"]
+    # The Umami-sourced rows must survive the merge untouched.
+    assert metric_row(client.get("/api/v1/website/windows").json(), "Visitors")["days_30"] == 1
