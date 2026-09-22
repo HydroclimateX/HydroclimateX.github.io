@@ -171,8 +171,8 @@ def test_summary_combines_umami_and_wasp_metrics() -> None:
         "success_rate": 1.0,
         "countries": 1,
     }
-    assert response.json()["sources"] == {"website": "available", "wasp": "available"}
-    assert response.json()["source_freshness"]["wasp"]["last_activity"] == "2026-08-25T01:00:00Z"
+    assert response.json()["sources"] == {"website": "available", "app": "available"}
+    assert response.json()["source_freshness"]["app"]["last_activity"] == "2026-08-25T01:00:00Z"
     assert response.json()["source_freshness"]["website"]["checked_at"]
 
 
@@ -184,7 +184,7 @@ def test_summary_marks_failed_wasp_source_unavailable_instead_of_zero() -> None:
     response = client.get("/api/v1/summary?period=30d")
 
     assert response.status_code == 200
-    assert response.json()["sources"]["wasp"] == "unavailable"
+    assert response.json()["sources"]["app"] == "unavailable"
     assert response.json()["kpis"]["successful_runs"] is None
     assert response.json()["kpis"]["success_rate"] is None
     assert response.json()["kpis"]["countries"] is None
@@ -209,7 +209,7 @@ def test_country_api_supports_map_detail_and_csv_export() -> None:
     assert countries.json()["countries"][0]["country"] == "Australia"
     assert detail.json()["downloads"] == 1
     assert export.headers["content-type"].startswith("text/csv")
-    assert export.headers["content-disposition"] == 'attachment; filename="hydroclimatex_usage_30d.csv"'
+    assert export.headers["content-disposition"] == 'attachment; filename="hydroclimatex_wasp_usage_30d.csv"'
     assert "Country Code,Country,Successful Runs,Failed Runs,Downloads,Sessions,Last Activity" in export.text
     assert "AU,Australia,1,0,1,1,2026-08-25T02:00:00Z" in export.text
 
@@ -247,3 +247,85 @@ def test_report_preview_and_send_are_protected_by_session_and_csrf() -> None:
     )
     assert sent.json() == {"sent": True, "message_id": "message-id"}
     assert reports.sent == [(date(2026, 7, 1), True)]
+
+
+def test_lisflood_ingestion_accepts_job_ids_and_is_idempotent() -> None:
+    client, repository = make_client()
+    headers = {"X-Analytics-Token": "internal-token-with-at-least-32-characters"}
+    event = {
+        "event_type": "run_success",
+        "session_hash": "b" * 64,
+        "country_code": "CN",
+        "occurred_at": "2026-08-25T01:00:00Z",
+        "run_id": "23ff8b534d92fd1ca7ad",  # a 20-character LISFLOOD job id, not a UUID
+    }
+
+    assert client.post("/internal/v1/lisflood-events", json=event).status_code == 401
+    assert client.post("/internal/v1/lisflood-events", json=event, headers=headers).json() == {"created": True}
+    assert client.post("/internal/v1/lisflood-events", json=event, headers=headers).json() == {"created": False}
+    assert len(repository.events) == 1
+
+
+def test_lisflood_run_cannot_be_recorded_with_two_different_outcomes() -> None:
+    client, _ = make_client()
+    headers = {"X-Analytics-Token": "internal-token-with-at-least-32-characters"}
+    base = {
+        "session_hash": "b" * 64,
+        "country_code": "CN",
+        "occurred_at": "2026-08-25T01:00:00Z",
+        "run_id": "23ff8b534d92fd1ca7ad",
+    }
+
+    assert client.post(
+        "/internal/v1/lisflood-events", headers=headers, json={**base, "event_type": "run_success"}
+    ).status_code == 202
+    conflict = client.post(
+        "/internal/v1/lisflood-events", headers=headers, json={**base, "event_type": "run_failure"}
+    )
+    assert conflict.status_code == 409
+
+
+def test_wasp_and_lisflood_usage_stay_isolated() -> None:
+    client, repository = make_client()
+    repository.seed_event("session_start", "s1", "AU", "2026-08-25T00:00:00Z")
+    repository.seed_event("run_success", "s1", "AU", "2026-08-25T01:00:00Z", run_id="wasp-run")
+    repository.seed_event("run_success", "s2", "CN", "2026-08-25T02:00:00Z", run_id="lisflood-run", app="lisflood")
+    login(client)
+
+    wasp = client.get("/api/v1/wasp/countries?period=30d").json()
+    lisflood = client.get("/api/v1/lisflood/countries?period=30d").json()
+
+    assert [row["country_code"] for row in wasp["countries"]] == ["AU"]
+    assert [row["country_code"] for row in lisflood["countries"]] == ["CN"]
+    assert wasp["totals"]["successful_runs"] == 1
+    assert lisflood["totals"]["successful_runs"] == 1
+    # A run id is only unique within its own application.
+    assert client.get("/api/v1/lisflood/countries/AU?period=30d").status_code == 404
+
+
+def test_summary_follows_the_selected_application() -> None:
+    client, repository = make_client()
+    repository.seed_event("run_success", "s2", "CN", "2026-08-25T02:00:00Z", run_id="lisflood-run", app="lisflood")
+    login(client)
+
+    assert client.get("/api/v1/summary?period=30d&app=lisflood").json()["kpis"]["successful_runs"] == 1
+    assert client.get("/api/v1/summary?period=30d&app=wasp").json()["kpis"]["successful_runs"] == 0
+
+
+def test_lisflood_export_names_the_application() -> None:
+    client, repository = make_client()
+    repository.seed_event("run_success", "s2", "CN", "2026-08-25T02:00:00Z", run_id="lisflood-run", app="lisflood")
+    login(client)
+
+    export = client.get("/api/v1/lisflood/export.csv?period=30d")
+
+    assert export.status_code == 200
+    assert export.headers["content-disposition"] == 'attachment; filename="hydroclimatex_lisflood_usage_30d.csv"'
+    assert "CN,China,1,0,0,1,2026-08-25T02:00:00Z" in export.text
+
+
+def test_unknown_application_is_rejected() -> None:
+    client, _ = make_client()
+    login(client)
+
+    assert client.get("/api/v1/wqm/countries?period=30d").status_code == 422

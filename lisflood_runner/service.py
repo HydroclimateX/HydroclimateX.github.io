@@ -18,6 +18,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from . import generate
+from .usage import UsageTracker, new_session_token, session_hash
 
 
 DEFAULT_WINDOW = (460, 124, 1037, 701)
@@ -27,6 +28,8 @@ JOB_ID_PATTERN = re.compile(r"[0-9a-f]{20}\Z")
 STALE_TEMP_PATTERN = re.compile(r"\.[0-9a-f]{20}\.tmp\Z")
 EXPECTED_LAYER_NAMES = frozenset({"dem", "population", "depth", "velocity", "hazard", "risk"})
 FAILED_STATE_LIMIT = 64
+USAGE_COOKIE = "hx_lisflood_session"
+USAGE_SESSION_SECONDS = 30 * 60
 
 
 class QueueFull(Exception):
@@ -93,6 +96,27 @@ def _finite_nonnegative(value) -> bool:
     return math.isfinite(number) and number >= 0
 
 
+def _cookie_value(header: str | None, name: str) -> str | None:
+    for chunk in (header or "").split(";"):
+        key, _, value = chunk.strip().partition("=")
+        if key == name and value:
+            return value
+    return None
+
+
+def usage_session(cookie_header: str | None) -> tuple[str, tuple[tuple[str, str], ...]]:
+    """Return the browser session token and any ``Set-Cookie`` header for it."""
+    existing = _cookie_value(cookie_header, USAGE_COOKIE)
+    if existing:
+        return existing, ()
+    token = new_session_token()
+    cookie = (
+        f"{USAGE_COOKIE}={token}; Max-Age={USAGE_SESSION_SECONDS}; Path=/; "
+        "HttpOnly; Secure; SameSite=Lax"
+    )
+    return token, (("Set-Cookie", cookie),)
+
+
 class Service:
     """Own a bounded FIFO queue and one optional background worker."""
 
@@ -125,6 +149,7 @@ class Service:
             raise ValueError("invalid LISFLOOD service settings")
         self.minimum_free_gb = minimum_free_gb
         self.runner = runner
+        self.usage = UsageTracker.from_env()
         self._uses_default_runner = runner is generate.run_job
         self.queue: queue.Queue = queue.Queue(maxsize=8)
         self.state: dict[str, dict] = {}
@@ -452,7 +477,37 @@ class Service:
             response["manifestUrl"] = f"/results/{identifier}/manifest.json"
         return response
 
-    def submit(self, bounds, period) -> dict:
+    def _usage_context(self, session_token: str | None, client_ip: str | None) -> dict:
+        """Return the privacy-safe usage fields captured for one request."""
+        try:
+            secret = getattr(self.usage, "session_secret", "")
+            return {
+                "sessionHash": session_hash(session_token or "", secret),
+                "countryCode": self.usage.country(client_ip),
+            }
+        except Exception:
+            return {}
+
+    def track_session(self, session_token: str | None, client_ip: str | None) -> bool:
+        """Emit ``session_start``; a tracking failure is never fatal."""
+        return self._emit_usage("session_start", self._usage_context(session_token, client_ip), None)
+
+    def _emit_usage(self, event_type: str, usage: dict, run_id: str | None) -> bool:
+        if not usage:
+            return False
+        try:
+            return bool(
+                self.usage.emit(
+                    event_type,
+                    session_hash=usage["sessionHash"],
+                    country_code=usage["countryCode"],
+                    run_id=run_id,
+                )
+            )
+        except Exception:
+            return False
+
+    def submit(self, bounds, period, *, session_token=None, client_ip=None) -> dict:
         period = _normalise_period(period)
         window, effective_bounds = generate.snap_bounds(bounds, self.header, self.max_area)
         window = tuple(int(value) for value in window)
@@ -465,6 +520,9 @@ class Service:
             self.model_version,
             self.data_version,
         )
+        # The request is gone by the time the worker runs the job, so attribution
+        # is captured here and travels with the queued job.
+        usage = self._usage_context(session_token, client_ip)
         with self.lock:
             completed = self._completed_response_locked(identifier)
             if completed is not None:
@@ -482,7 +540,7 @@ class Service:
             except Exception as error:
                 raise InsufficientStorage("Insufficient storage") from error
             try:
-                self.queue.put_nowait((identifier, window, period, effective_bounds))
+                self.queue.put_nowait((identifier, window, period, effective_bounds, usage))
             except queue.Full as error:
                 raise QueueFull("Queue is full") from error
             self.state[identifier] = {
@@ -540,7 +598,7 @@ class Service:
         return self._process_item(item)
 
     def _process_item(self, item):
-        identifier, window, period, effective_bounds = item
+        identifier, window, period, effective_bounds, usage = item
         temp = self.cache_dir / f".{identifier}.tmp"
         try:
             with self.lock:
@@ -596,7 +654,9 @@ class Service:
             temp.rename(self.cache_dir / identifier)
             with self.lock:
                 self.state.pop(identifier, None)
-            return self.status(identifier)
+            response = self.status(identifier)
+            self._emit_usage("run_success", usage, identifier)
+            return response
         except Exception:
             logging.getLogger(__name__).exception(
                 "LISFLOOD job %s for return period %s failed", identifier, period
@@ -608,6 +668,7 @@ class Service:
                 pass
             with self.lock:
                 self._remember_failure_locked(identifier)
+            self._emit_usage("run_failure", usage, identifier)
             return self._failed_response()
         finally:
             self.queue.task_done()
@@ -668,7 +729,7 @@ def make_handler(service: Service):
         def send_error(self, code, message=None, explain=None):
             self._not_found()
 
-        def _send_json(self, status: int, payload: dict) -> None:
+        def _send_json(self, status: int, payload: dict, extra_headers=()) -> None:
             try:
                 body = json.dumps(
                     payload,
@@ -682,8 +743,15 @@ def make_handler(service: Service):
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
+            for name, value in extra_headers:
+                self.send_header(name, value)
             self.end_headers()
             self.wfile.write(body)
+
+        def _client_ip(self) -> str | None:
+            return self.headers.get("X-Real-IP") or (
+                self.client_address[0] if self.client_address else None
+            )
 
         def _not_found(self):
             self._send_json(404, {"error": "Not found"})
@@ -727,10 +795,16 @@ def make_handler(service: Service):
         def do_GET(self):
             path = urlsplit(self.path).path
             if path == "/api/lisflood/config":
+                # ponytail: the map page fetches config once per load, so the
+                # usage session rides along instead of adding an endpoint.
+                token, extra_headers = usage_session(self.headers.get("Cookie"))
                 try:
-                    self._send_json(200, service.config())
+                    self._send_json(200, service.config(), extra_headers)
                 except Exception:
                     self._send_json(500, {"error": "Internal service error"})
+                if extra_headers:
+                    # A freshly minted cookie is a new 30 minute session.
+                    service.track_session(token, self._client_ip())
                 return
             if path == "/api/lisflood/ready":
                 try:
@@ -773,7 +847,15 @@ def make_handler(service: Service):
                     raise ValueError("returnPeriod is required")
                 if set(payload) - {"bounds", "returnPeriod"}:
                     raise ValueError("Invalid request")
-                result = service.submit(payload["bounds"], payload["returnPeriod"])
+                # A direct API call without the config-driven cookie still gets a
+                # distinct session rather than one shared placeholder token.
+                token = _cookie_value(self.headers.get("Cookie"), USAGE_COOKIE) or new_session_token()
+                result = service.submit(
+                    payload["bounds"],
+                    payload["returnPeriod"],
+                    session_token=token,
+                    client_ip=self._client_ip(),
+                )
             except OverflowError:
                 self._send_json(413, {"error": "Request body too large"})
             except (socket.timeout, TimeoutError):

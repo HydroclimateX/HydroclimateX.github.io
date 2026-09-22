@@ -1,7 +1,8 @@
 (() => {
   'use strict';
   const byId = id => document.getElementById(id);
-  const state = { csrf: '', period: '30d', start: '', end: '', countries: [] };
+  const APPLICATIONS = { wasp: 'WASP', lisflood: 'LISFLOOD' };
+  const state = { csrf: '', period: '30d', start: '', end: '', app: 'wasp', countries: [] };
 
   async function api(path, options = {}) {
     const response = await fetch(path, { credentials: 'same-origin', ...options });
@@ -31,12 +32,23 @@
     element.classList.toggle('unavailable', status !== 'available');
   }
 
+  // LISFLOOD has no downloads, so that metric and column are hidden for it.
+  function applyApplication() {
+    const label = APPLICATIONS[state.app];
+    const noDownloads = state.app === 'lisflood';
+    document.body.classList.toggle('no-downloads', noDownloads);
+    if (noDownloads && byId('mapMetric').value === 'downloads') byId('mapMetric').value = 'successful_runs';
+    byId('usageTitle').textContent = `Global ${label} Usage`;
+    byId('usageMap').alt = `World map of ${label} usage by country`;
+  }
+
   async function loadDashboard() {
     byId('dashboardError').textContent = '';
+    applyApplication();
     try {
       const query = periodQuery();
       const [summary, usage, website] = await Promise.all([
-        api(`/api/v1/summary?${query}`), api(`/api/v1/wasp/countries?${query}`), api('/api/v1/website/windows'),
+        api(`/api/v1/summary?${query}&app=${state.app}`), api(`/api/v1/${state.app}/countries?${query}`), api('/api/v1/website/windows'),
       ]);
       byId('kpiVisitors').textContent = formatNumber(summary.kpis.visitors);
       byId('kpiPageviews').textContent = formatNumber(summary.kpis.pageviews);
@@ -45,35 +57,38 @@
       byId('kpiCountries').textContent = formatNumber(summary.kpis.countries);
       byId('collectedSince').textContent = `Data collected since ${new Date(summary.collected_since).toLocaleString('en-AU',{timeZone:'Asia/Hong_Kong'})} · Reporting timezone: Asia/Hong_Kong`;
       setSourceStatus('websiteStatus','Website',summary.sources.website,summary.source_freshness?.website);
-      setSourceStatus('waspStatus','WASP',summary.sources.wasp,summary.source_freshness?.wasp);
+      setSourceStatus('appStatus',APPLICATIONS[state.app],summary.sources.app,summary.source_freshness?.app);
       state.countries = usage.countries;
       renderMap(); renderCountryTable(); renderWebsiteTable(website.metrics || []);
-      byId('csvLink').href = `/api/v1/wasp/export.csv?${query}`;
+      byId('csvLink').href = `/api/v1/${state.app}/export.csv?${query}`;
     } catch (error) { if (error.message !== 'Authentication required') byId('dashboardError').textContent = error.message; }
   }
 
   function renderMap() {
     const metric = byId('mapMetric').value;
-    byId('usageMap').src = `/api/v1/wasp/map.png?${periodQuery()}&metric=${encodeURIComponent(metric)}`;
+    byId('usageMap').src = `/api/v1/${state.app}/map.png?${periodQuery()}&metric=${encodeURIComponent(metric)}`;
   }
 
   function renderCountryTable() {
     const body = byId('countryRows'); body.replaceChildren();
     state.countries.forEach(row => {
       const tr = document.createElement('tr'); tr.dataset.country = row.country_code; tr.tabIndex = 0;
-      [row.country,row.successful_runs,row.failed_runs,row.downloads,row.sessions,row.last_activity || '—'].forEach(value=>{const td=document.createElement('td');td.textContent=value;tr.appendChild(td);});
+      [row.country,row.successful_runs,row.failed_runs,row.downloads,row.sessions,row.last_activity || '—'].forEach((value,index)=>{const td=document.createElement('td');if(index===3)td.className='col-downloads';td.textContent=value;tr.appendChild(td);});
       const choose=()=>selectCountry(row.country_code); tr.addEventListener('click',choose); tr.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();void choose();}}); body.appendChild(tr);
     });
   }
 
   async function selectCountry(code) {
     try {
-      const row = await api(`/api/v1/wasp/countries/${encodeURIComponent(code)}?${periodQuery()}`);
+      const row = await api(`/api/v1/${state.app}/countries/${encodeURIComponent(code)}?${periodQuery()}`);
       const panel=byId('countryDetail'); panel.replaceChildren();
       const eyebrow=document.createElement('p');eyebrow.className='eyebrow';eyebrow.textContent='Country detail';
       const title=document.createElement('h3');title.textContent=row.country;
       const list=document.createElement('dl');
-      [['Successful runs',row.successful_runs],['Failed runs',row.failed_runs],['Downloads',row.downloads],['Sessions',row.sessions],['Last activity',row.last_activity||'—']].forEach(([label,value])=>{const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;list.append(dt,dd);});
+      const detail=[['Successful runs',row.successful_runs],['Failed runs',row.failed_runs]];
+      if(state.app!=='lisflood')detail.push(['Downloads',row.downloads]);
+      detail.push(['Sessions',row.sessions],['Last activity',row.last_activity||'—']);
+      detail.forEach(([label,value])=>{const dt=document.createElement('dt');dt.textContent=label;const dd=document.createElement('dd');dd.textContent=value;list.append(dt,dd);});
       panel.append(eyebrow,title,list);
     } catch(error){byId('dashboardError').textContent=error.message;}
   }
@@ -91,6 +106,7 @@
   byId('logoutButton').addEventListener('click',async()=>{try{await api('/auth/logout',{method:'POST',headers:{'X-CSRF-Token':state.csrf}});}finally{state.csrf='';showLogin();}});
   byId('periodSelect').addEventListener('change',event=>{state.period=event.target.value;byId('customDates').hidden=state.period!=='custom';if(state.period!=='custom')void loadDashboard();});
   byId('applyDates').addEventListener('click',()=>{state.start=byId('startDate').value;state.end=byId('endDate').value;if(state.start&&state.end)void loadDashboard();});
+  byId('appSelect').addEventListener('change',event=>{state.app=event.target.value;void loadDashboard();});
   byId('mapMetric').addEventListener('change',renderMap);
   byId('previewReport').addEventListener('click',async()=>{const month=byId('reportMonth').value;if(!month)return;try{const report=await api(`/api/v1/reports/${month}`);byId('reportPreview').textContent=JSON.stringify(report,null,2);}catch(error){byId('reportPreview').textContent=error.message;}});
   byId('sendReport').addEventListener('click',async()=>{const month=byId('reportMonth').value;if(!month)return;try{const result=await api(`/api/v1/reports/${month}/send`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf},body:JSON.stringify({force:true})});byId('reportPreview').textContent=JSON.stringify(result,null,2);}catch(error){byId('reportPreview').textContent=error.message;}});

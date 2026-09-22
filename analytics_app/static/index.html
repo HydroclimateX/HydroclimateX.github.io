@@ -43,7 +43,7 @@
           <div><label for="endDate">End</label><input id="endDate" type="date"></div>
           <button id="applyDates">Apply</button>
         </div>
-        <div class="freshness"><span id="websiteStatus" class="status-pill">Website: checking</span><span id="waspStatus" class="status-pill">WASP: checking</span></div>
+        <div class="freshness"><span id="websiteStatus" class="status-pill">Website: checking</span><span id="appStatus" class="status-pill">Tool: checking</span></div>
       </section>
       <p id="collectedSince" class="collected-since"></p>
       <p id="dashboardError" class="error" role="alert"></p>
@@ -60,9 +60,12 @@
         <div class="section-heading">
           <div><p class="eyebrow">Scientific software usage</p><h2 id="usageTitle">Global WASP Usage</h2></div>
           <div class="usage-controls">
+            <div><label for="appSelect">Tool</label><select id="appSelect">
+              <option value="wasp">WASP</option><option value="lisflood">LISFLOOD</option>
+            </select></div>
             <div><label for="mapMetric">Map metric</label><select id="mapMetric">
               <option value="successful_runs">Successful runs</option><option value="failed_runs">Failed runs</option>
-              <option value="downloads">Downloads</option><option value="sessions">Sessions</option>
+              <option id="metricDownloads" class="col-downloads" value="downloads">Downloads</option><option value="sessions">Sessions</option>
             </select></div>
             <a id="csvLink" class="button-link" href="/api/v1/wasp/export.csv?period=30d">Download CSV</a>
           </div>
@@ -74,7 +77,7 @@
           </aside>
         </div>
         <div class="table-actions"><h3>Country usage</h3></div>
-        <div class="table-wrap"><table><thead><tr><th>Country</th><th>Successful runs</th><th>Failed runs</th><th>Downloads</th><th>Sessions</th><th>Last activity</th></tr></thead><tbody id="countryRows"></tbody></table></div>
+        <div class="table-wrap"><table id="countryTable"><thead><tr><th>Country</th><th>Successful runs</th><th>Failed runs</th><th class="col-downloads">Downloads</th><th>Sessions</th><th>Last activity</th></tr></thead><tbody id="countryRows"></tbody></table></div>
       </section>
 
       <section class="section-card" aria-labelledby="websiteTitle">

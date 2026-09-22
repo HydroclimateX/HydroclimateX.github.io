@@ -19,9 +19,10 @@ class PostgresRepository:
     def migrate(self) -> None:
         from pathlib import Path
 
-        migration = (Path(__file__).with_name("migrations") / "001_initial.sql").read_text(encoding="utf-8")
+        migrations = Path(__file__).with_name("migrations")
         with self._connect() as connection:
-            connection.execute(migration)
+            for migration in sorted(migrations.glob("*.sql")):
+                connection.execute(migration.read_text(encoding="utf-8"))
 
     def create_session(self, session: AdminSession) -> None:
         with self._connect() as connection:
@@ -69,38 +70,46 @@ class PostgresRepository:
         with self._connect() as connection:
             cursor = connection.execute(
                 """
-                INSERT INTO wasp_events (event_type, session_hash, country_code, occurred_at, run_id)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO usage_events (app, event_type, session_hash, country_code, occurred_at, run_id)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT DO NOTHING
                 RETURNING id
                 """,
-                (event.event_type, event.session_hash, event.country_code, event.occurred_at, event.run_id),
+                (
+                    event.app,
+                    event.event_type,
+                    event.session_hash,
+                    event.country_code,
+                    event.occurred_at,
+                    event.run_id,
+                ),
             )
             if cursor.fetchone():
                 return True
             if event.event_type in {"run_success", "run_failure"}:
                 existing = connection.execute(
                     """
-                    SELECT event_type, session_hash, country_code, occurred_at, run_id::text AS run_id
-                    FROM wasp_events WHERE run_id = %s AND event_type IN ('run_success', 'run_failure')
+                    SELECT event_type, session_hash, country_code, occurred_at, run_id
+                    FROM usage_events
+                    WHERE app = %s AND run_id = %s AND event_type IN ('run_success', 'run_failure')
                     """,
-                    (event.run_id,),
+                    (event.app, event.run_id),
                 ).fetchone()
                 if not existing or existing["event_type"] != event.event_type:
                     raise EventConflict("run already has an outcome")
             return False
 
-    def events_between(self, start: datetime, end: datetime) -> list[dict[str, object]]:
+    def events_between(self, start: datetime, end: datetime, app: str = "wasp") -> list[dict[str, object]]:
         with self._connect() as connection:
             return list(connection.execute(
                 """
                 SELECT event_type, session_hash, country_code,
-                       occurred_at, run_id::text AS run_id
-                FROM wasp_events
-                WHERE occurred_at >= %s AND occurred_at < %s
+                       occurred_at, run_id
+                FROM usage_events
+                WHERE app = %s AND occurred_at >= %s AND occurred_at < %s
                 ORDER BY occurred_at
                 """,
-                (start, end),
+                (app, start, end),
             ).fetchall())
 
     def get_report(self, report_month: date) -> MonthlyReport | None:

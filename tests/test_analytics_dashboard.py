@@ -56,13 +56,29 @@ def test_dashboard_script_uses_only_protected_analytics_interfaces() -> None:
 
     for endpoint in (
         "/auth/login", "/auth/logout", "/auth/session", "/api/v1/summary",
-        "/api/v1/website/windows", "/api/v1/wasp/countries",
-        "/api/v1/wasp/countries/", "/api/v1/wasp/export.csv",
-        "/api/v1/wasp/map.png", "/api/v1/reports/",
+        "/api/v1/website/windows", "/api/v1/${state.app}/countries",
+        "/api/v1/${state.app}/countries/", "/api/v1/${state.app}/export.csv",
+        "/api/v1/${state.app}/map.png", "/api/v1/reports/",
     ):
         assert endpoint in script
     assert "Plotly" not in script
     assert "force:true" in script
+
+
+def test_dashboard_exposes_a_tool_selector_for_every_tracked_application() -> None:
+    html = (ROOT / "analytics_app" / "static" / "index.html").read_text(encoding="utf-8")
+    script = (ROOT / "analytics_app" / "static" / "app.js").read_text(encoding="utf-8")
+    css = (ROOT / "analytics_app" / "static" / "style.css").read_text(encoding="utf-8")
+
+    assert 'id="appSelect"' in html
+    for value in ('value="wasp"', 'value="lisflood"'):
+        assert value in html
+    # Every usage request must follow the selected tool rather than hardcode WASP.
+    assert "/api/v1/wasp/" not in script
+    # LISFLOOD has no downloads, so that metric and column are hidden for it.
+    assert "no-downloads" in script
+    assert "col-downloads" in html
+    assert ".no-downloads .col-downloads{display:none}" in css
 
 
 def test_dashboard_css_has_responsive_and_accessible_states() -> None:

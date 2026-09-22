@@ -19,7 +19,16 @@ PostgreSQL, Umami administration and WASP event ingestion have no host ports. Ng
 
 No historical logs are imported. Set `ANALYTICS_COLLECTED_SINCE` to the UTC production-launch timestamp. Website/WASP values that cannot be verified are reported as unavailable, never estimated or replaced with zero. `init-umami` authenticates with the Umami admin account (`admin`/`umami` by default); if that password was rotated manually, export `UMAMI_ADMIN_USERNAME` and `UMAMI_ADMIN_PASSWORD` in the deployment shell (or `.env`) before re-running it.
 
-LISFLOOD usage is counted through two named events: `lisflood_launch` when a visitor follows a public-site link to the application, and `lisflood_run` after a simulation result is successfully loaded. Failed submissions are not counted as runs.
+## Usage tracking by application
+
+WASP and LISFLOOD share one usage pipeline, discriminated by an `app` column in `usage_events`. Each application's service resolves the visitor's country from the request IP and emits privacy-safe events to `POST /internal/v1/{app}-events`; the Dashboard reads them back through `/api/v1/{app}/…`, and the **Tool** selector switches the map, country table, CSV export and KPIs between the two.
+
+- **WASP** — `session_start`, `run_success`, `run_failure`, `download`, emitted by the WASP API (`backend/`).
+- **LISFLOOD** — `session_start`, `run_success`, `run_failure`, emitted by `lisflood_runner/`. A session is counted when the application loads its configuration, and a run when a simulation job completes; a failed job counts as `run_failure`. A cached result reuses the same run id, so it is never counted twice.
+
+LISFLOOD also reports two named Umami events on the public site — `lisflood_launch` when a visitor follows a link to the application, and `lisflood_run` after a result loads. Those feed the Website Analytics section only; the LISFLOOD usage map comes from the server-side events above, because Umami cannot break its country metrics down by event.
+
+The `window` timestamp for each application therefore differs: `usage_events` rows begin at `ANALYTICS_COLLECTED_SINCE` for WASP and at the first LISFLOOD deployment that included tracking.
 
 ## Operations
 

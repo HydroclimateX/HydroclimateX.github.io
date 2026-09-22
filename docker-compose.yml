@@ -154,8 +154,13 @@ services:
       LISFLOOD_CACHE_DIR: /opt/lisflood/cache
       LISFLOOD_MAX_AREA_KM2: ${LISFLOOD_MAX_AREA_KM2:-300}
       LISFLOOD_JOB_TIMEOUT_SECONDS: ${LISFLOOD_JOB_TIMEOUT_SECONDS:-7200}
+      ANALYTICS_INTERNAL_EVENTS_URL: http://analytics-api:8001/internal/v1/lisflood-events
+      ANALYTICS_INTERNAL_TOKEN: ${ANALYTICS_INTERNAL_TOKEN:-}
+      ANALYTICS_SESSION_SECRET: ${ANALYTICS_SESSION_SECRET:-}
+      ANALYTICS_GEOIP_DATABASE: /opt/geoip/dbip-country-lite.mmdb
     volumes:
       - ${LISFLOOD_CACHE_DIR:-/opt/hydroclimatex-wasp/state/lisflood-cache}:/opt/lisflood/cache
+      - ./geoip:/opt/geoip:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/lisflood/ready')"]
       interval: 10s

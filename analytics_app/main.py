@@ -21,6 +21,7 @@ from .security import LoginLimiter, create_session_credentials, hash_token, veri
 
 
 SESSION_COOKIE = "hx_analytics_session"
+APP_LABELS = {"wasp": "WASP", "lisflood": "LISFLOOD"}
 
 
 class LoginRequest(BaseModel):
@@ -33,7 +34,7 @@ class EventRequest(BaseModel):
     session_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
     country_code: str = Field(pattern=r"^[A-Za-z]{2}$")
     occurred_at: datetime
-    run_id: UUID | None = None
+    run_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9-]{1,64}$")
 
 
 class SendReportRequest(BaseModel):
@@ -141,8 +142,9 @@ def create_app(*, settings: Settings, repository: Repository, umami, report_serv
         response.status_code = 204
         return response
 
-    @app.post("/internal/v1/wasp-events", status_code=202)
+    @app.post("/internal/v1/{app}-events", status_code=202)
     def ingest_event(
+        app: Literal["wasp", "lisflood"],
         payload: EventRequest,
         token: Annotated[str | None, Header(alias="X-Analytics-Token")] = None,
     ) -> dict[str, bool]:
@@ -156,7 +158,8 @@ def create_app(*, settings: Settings, repository: Repository, umami, report_serv
                 payload.session_hash,
                 payload.country_code.upper(),
                 payload.occurred_at.astimezone(timezone.utc),
-                str(payload.run_id) if payload.run_id else None,
+                payload.run_id,
+                app,
             ))
         except EventConflict as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
@@ -181,30 +184,31 @@ def create_app(*, settings: Settings, repository: Repository, umami, report_serv
     def summary(
         _: AdminSession = Depends(authenticated_session),
         period=Depends(selected_period),
+        app: Literal["wasp", "lisflood"] = Query("wasp"),
     ) -> dict[str, object]:
         website = umami.summary(period)
         checked_at = now_utc()
         try:
-            event_rows = repository.events_between(period.start, period.end)
-            wasp = aggregate_country_rows(event_rows)
-            totals = wasp["totals"]
-            wasp_status = "available"
+            event_rows = repository.events_between(period.start, period.end, app)
+            usage = aggregate_country_rows(event_rows)
+            totals = usage["totals"]
+            app_status = "available"
             raw_last_activity = max(
                 (row.get("occurred_at") for row in event_rows if row.get("occurred_at")),
                 default=None,
             )
-            wasp_last_activity = format_timestamp_seconds(raw_last_activity) if raw_last_activity is not None else None
+            app_last_activity = format_timestamp_seconds(raw_last_activity) if raw_last_activity is not None else None
         except Exception:
             totals = {"successful_runs": None, "success_rate": None, "countries": None}
-            wasp_status = "unavailable"
-            wasp_last_activity = None
+            app_status = "unavailable"
+            app_last_activity = None
         return {
             "period": {"key": period.key, "label": period.label, "start": period.start, "end": period.end},
             "collected_since": settings.collected_since,
-            "sources": {"website": website.get("status", "unavailable"), "wasp": wasp_status},
+            "sources": {"website": website.get("status", "unavailable"), "app": app_status},
             "source_freshness": {
                 "website": {"checked_at": checked_at},
-                "wasp": {"checked_at": checked_at, "last_activity": wasp_last_activity},
+                "app": {"checked_at": checked_at, "last_activity": app_last_activity},
             },
             "kpis": {
                 "visitors": website.get("visitors"),
@@ -221,9 +225,9 @@ def create_app(*, settings: Settings, repository: Repository, umami, report_serv
     ) -> dict[str, object]:
         return umami.website_windows(now_utc())
 
-    def wasp_usage(period) -> dict[str, object]:
+    def usage_for(app: str, period) -> dict[str, object]:
         try:
-            usage = aggregate_country_rows(repository.events_between(period.start, period.end))
+            usage = aggregate_country_rows(repository.events_between(period.start, period.end, app))
             usage["status"] = "available"
             return usage
         except Exception:
@@ -236,54 +240,58 @@ def create_app(*, settings: Settings, repository: Repository, umami, report_serv
                 "countries": [],
             }
 
-    @app.get("/api/v1/wasp/countries")
+    @app.get("/api/v1/{app}/countries")
     def countries(
+        app: Literal["wasp", "lisflood"],
         _: AdminSession = Depends(authenticated_session),
         period=Depends(selected_period),
     ) -> dict[str, object]:
-        usage = wasp_usage(period)
+        usage = usage_for(app, period)
         return {
             "period": {"key": period.key, "label": period.label, "start": period.start, "end": period.end},
             **usage,
         }
 
-    @app.get("/api/v1/wasp/map.png")
+    @app.get("/api/v1/{app}/map.png")
     def usage_map_png(
+        app: Literal["wasp", "lisflood"],
         _: AdminSession = Depends(authenticated_session),
         period=Depends(selected_period),
         metric: str = Query("successful_runs"),
     ) -> Response:
-        usage = wasp_usage(period)
+        usage = usage_for(app, period)
         if usage["status"] != "available":
-            raise HTTPException(status_code=503, detail="WASP analytics source unavailable")
+            raise HTTPException(status_code=503, detail=f"{APP_LABELS[app]} analytics source unavailable")
         from .map_render import render_usage_map
 
         png = render_usage_map(usage["countries"], metric)
         return Response(content=png, media_type="image/png", headers={"Cache-Control": "no-store"})
 
-    @app.get("/api/v1/wasp/countries/{country_code}")
+    @app.get("/api/v1/{app}/countries/{country_code}")
     def country_detail(
+        app: Literal["wasp", "lisflood"],
         country_code: str,
         _: AdminSession = Depends(authenticated_session),
         period=Depends(selected_period),
     ) -> dict[str, object]:
         code = country_code.upper()
-        usage = wasp_usage(period)
+        usage = usage_for(app, period)
         if usage["status"] != "available":
-            raise HTTPException(status_code=503, detail="WASP analytics source unavailable")
+            raise HTTPException(status_code=503, detail=f"{APP_LABELS[app]} analytics source unavailable")
         row = next((item for item in usage["countries"] if item["country_code"] == code), None)
         if row is None:
             raise HTTPException(status_code=404, detail="country not found")
         return row
 
-    @app.get("/api/v1/wasp/export.csv")
+    @app.get("/api/v1/{app}/export.csv")
     def export_csv(
+        app: Literal["wasp", "lisflood"],
         _: AdminSession = Depends(authenticated_session),
         period=Depends(selected_period),
     ) -> StreamingResponse:
-        usage = wasp_usage(period)
+        usage = usage_for(app, period)
         if usage["status"] != "available":
-            raise HTTPException(status_code=503, detail="WASP analytics source unavailable")
+            raise HTTPException(status_code=503, detail=f"{APP_LABELS[app]} analytics source unavailable")
         output = io.StringIO(newline="")
         writer = csv.writer(output, lineterminator="\n")
         writer.writerow([
@@ -295,7 +303,7 @@ def create_app(*, settings: Settings, repository: Repository, umami, report_serv
                 row["country_code"], row["country"], row["successful_runs"],
                 row["failed_runs"], row["downloads"], row["sessions"], row["last_activity"],
             ])
-        filename = f"hydroclimatex_usage_{period.key}.csv"
+        filename = f"hydroclimatex_{app}_usage_{period.key}.csv"
         return StreamingResponse(
             iter([output.getvalue()]),
             media_type="text/csv; charset=utf-8",
