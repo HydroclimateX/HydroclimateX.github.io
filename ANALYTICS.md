@@ -26,18 +26,17 @@ WASP and LISFLOOD share one usage pipeline, discriminated by an `app` column in 
 - **WASP** — `session_start`, `run_success`, `run_failure`, `download`, emitted by the WASP API (`backend/`).
 - **LISFLOOD** — `session_start`, `run_success`, `run_failure`, emitted by `lisflood_runner/`. A session is counted when the application loads its configuration, and a run when a simulation job completes; a failed job counts as `run_failure`. A cached result reuses the same run id, so it is never counted twice.
 
-LISFLOOD also reports two named Umami events on the public site — `lisflood_launch` when a visitor follows a link to the application, and `lisflood_run` after a result loads. Those feed the Website Analytics section only; the LISFLOOD usage map comes from the server-side events above, because Umami cannot break its country metrics down by event.
+LISFLOOD also reports two named Umami events on the public site — `lisflood_launch` when a visitor follows a link to the application, and `lisflood_run` after a result loads. The launches feed the Website Analytics section; `lisflood_run` is still collected but no longer displayed, because it counts every result load including cached ones and therefore disagreed with the usage map. The run numbers shown anywhere come from the server-side events above, because Umami cannot break its country metrics down by event.
 
 The `window` timestamp for each application therefore differs: `usage_events` rows begin at `ANALYTICS_COLLECTED_SINCE` for WASP and at the first LISFLOOD deployment that included tracking.
 
-### Website Analytics is deliberately mixed-source
+### Where the run counts come from
 
-The **Website Analytics** table is mostly Umami, with two exceptions that come from `usage_events` instead:
+Every run number on the Dashboard and in the monthly report — the per-country maps and the `WASP runs` / `LISFLOOD runs` rows of the Website Analytics table — is computed from `usage_events` over the same window, so a tool's table row and its map always agree.
 
-- **WASP runs** — WASP serves no client analytics at all (the application never loads Umami, and its host is absent from the telemetry allowed domains and CORS map), so there is no `wasp_run` event to count. The row is computed from WASP's server-side `run_success` events, which is also the more reliable measure: it is unaffected by ad blockers or client-side failures.
-- **LISFLOOD runs** is a genuine Umami event fired when a result loads in the browser, so it counts cached results too, where the server-side `run_success` does not. The map's own per-country runs come from `usage_events`.
+The rest of the Website Analytics rows (visitors, page views, countries, launches, clicks) remain Umami. `File downloads` is collected by Umami but no longer displayed.
 
-In short, `WASP runs` and `LISFLOOD runs` in that table are counted differently by necessity — do not read them as directly comparable.
+Because the LISFLOOD server-side events only began at the deployment that added tracking, its displayed counts are lower than Umami's historical client-side total and have no backfill — that history carries no country and no server-side record.
 
 ## Operations
 

@@ -13,10 +13,16 @@ class FakeUmami:
         return {"status": "available", "visitors": 1245, "pageviews": 3682, "countries": 46}
 
     def website_windows(self, _now):
+        # Mirrors the real row skeleton: the usage-run rows ship null because the
+        # caller fills them from the server-side events.
         return {
             "status": "available",
             "metrics": [
                 {"metric": "Visitors", "days_30": 1245, "months_12": 5000, "all_time": 5000},
+                {"metric": "WASP launches", "days_30": 7, "months_12": 7, "all_time": 7},
+                {"metric": "WASP runs", "days_30": None, "months_12": None, "all_time": None},
+                {"metric": "LISFLOOD launches", "days_30": 6, "months_12": 6, "all_time": 6},
+                {"metric": "LISFLOOD runs", "days_30": None, "months_12": None, "all_time": None},
             ],
         }
 
@@ -381,35 +387,41 @@ def test_website_windows_reports_wasp_runs_unavailable_rather_than_zero() -> Non
     assert row["all_time"] is None
 
 
-def test_website_windows_places_wasp_runs_beside_lisflood_runs() -> None:
-    repository = MemoryRepository()
-    settings = Settings(
-        admin_email="ze.jiang@hhu.edu.cn",
-        admin_password_hash=hash_password("correct horse battery staple"),
-        internal_token="i" * 32,
-        session_secret="s" * 32,
-        collected_since=datetime(2026, 8, 1, tzinfo=timezone.utc),
-    )
+def test_website_windows_orders_each_run_row_under_its_launches() -> None:
+    client, _ = make_client()
+    login(client)
 
-    class OrderedUmami(FakeUmami):
-        def website_windows(self, _now):
-            return {
-                "status": "available",
-                "metrics": [
-                    {"metric": "Visitors", "days_30": 1, "months_12": 1, "all_time": 1},
-                    {"metric": "LISFLOOD runs", "days_30": 2, "months_12": 2, "all_time": 2},
-                    {"metric": "File downloads", "days_30": 3, "months_12": 3, "all_time": 3},
-                ],
-            }
+    payload = client.get("/api/v1/website/windows").json()
 
-    client = TestClient(
-        create_app(settings=settings, repository=repository, umami=OrderedUmami(), report_service=FakeReports(repository)),
-        base_url="https://analytics.hydroclimatex.test",
-    )
+    assert [item["metric"] for item in payload["metrics"]] == [
+        "Visitors", "WASP launches", "WASP runs",
+        "LISFLOOD launches", "LISFLOOD runs",
+    ]
+    # The Umami-sourced rows must survive the merge untouched.
+    assert metric_row(payload, "Visitors")["days_30"] == 1245
+    assert metric_row(payload, "WASP launches")["days_30"] == 7
+
+
+def test_website_windows_omits_file_downloads() -> None:
+    client, _ = make_client()
     login(client)
 
     labels = [item["metric"] for item in client.get("/api/v1/website/windows").json()["metrics"]]
 
-    assert labels == ["Visitors", "LISFLOOD runs", "WASP runs", "File downloads"]
-    # The Umami-sourced rows must survive the merge untouched.
-    assert metric_row(client.get("/api/v1/website/windows").json(), "Visitors")["days_30"] == 1
+    assert "File downloads" not in labels
+
+
+def test_website_windows_lisflood_runs_match_the_lisflood_usage_map() -> None:
+    """The table and the map must report the same run count for the same window."""
+    client, repository = make_client()
+    for index in range(3):
+        repository.seed_event("run_success", "s1", "CN", recent(), run_id=f"lisflood-{index}", app="lisflood")
+    login(client)
+
+    table = metric_row(client.get("/api/v1/website/windows").json(), "LISFLOOD runs")
+    mapped = client.get("/api/v1/lisflood/countries?period=30d").json()
+
+    assert table["days_30"] == mapped["totals"]["successful_runs"] == 3
+    # WASP stays isolated and its own map agrees too.
+    assert metric_row(client.get("/api/v1/website/windows").json(), "WASP runs")["days_30"] == 0
+    assert client.get("/api/v1/wasp/countries?period=30d").json()["totals"]["successful_runs"] == 0

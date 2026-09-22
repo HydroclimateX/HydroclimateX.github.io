@@ -70,17 +70,14 @@ class ReportService:
         self.smtp_factory = smtp_factory
         self.map_renderer = map_renderer
 
-    def generate(self, report_month: date) -> MonthlyReport:
-        existing = self.repository.get_report(report_month)
-        if existing and existing.snapshot["website"].get("status") == "available":
-            return existing
-        period = month_period(report_month)
-        website = self.umami.summary(period)
+    def _usage(self, period: Period, app: str) -> dict[str, object]:
+        """Server-side usage for one application, never zero-filled when unavailable."""
         try:
-            usage = aggregate_country_rows(self.repository.events_between(period.start, period.end))
+            usage = aggregate_country_rows(self.repository.events_between(period.start, period.end, app))
             usage["status"] = "available"
+            return usage
         except Exception:
-            usage = {
+            return {
                 "status": "unavailable",
                 "totals": {
                     "successful_runs": None,
@@ -93,12 +90,20 @@ class ReportService:
                 },
                 "countries": [],
             }
+
+    def generate(self, report_month: date) -> MonthlyReport:
+        existing = self.repository.get_report(report_month)
+        if existing and existing.snapshot["website"].get("status") == "available":
+            return existing
+        period = month_period(report_month)
+        website = self.umami.summary(period)
         snapshot = {
             "month": report_month.isoformat(),
             "label": period.label,
             "timezone": "Asia/Hong_Kong",
             "website": website,
-            "wasp": usage,
+            "wasp": self._usage(period, "wasp"),
+            "lisflood": self._usage(period, "lisflood"),
         }
         report = MonthlyReport(report_month, snapshot, "generated", datetime.now(timezone.utc))
         return self.repository.save_report(report)
@@ -120,12 +125,29 @@ class ReportService:
     def _html(self, report: MonthlyReport, *, has_map: bool) -> str:
         website = report.snapshot["website"]  # type: ignore[assignment]
         wasp = report.snapshot["wasp"]  # type: ignore[assignment]
-        totals = wasp["totals"]
+        # Reports archived before LISFLOOD usage was recorded carry no section.
+        lisflood = report.snapshot.get("lisflood") or {"status": "unavailable", "totals": {}, "countries": []}
+        wasp_totals = wasp["totals"]
+        lisflood_totals = lisflood.get("totals") or {}
         website_available = website["status"] == "available"
+
         def display(value) -> str:
             return "Data unavailable" if value is None else f"{value:,}" if isinstance(value, int) else str(value)
-        wasp_available = wasp.get("status", "available") == "available"
-        success_rate = totals["success_rate"]
+
+        def usage_table(usage: dict, name: str) -> str:
+            totals = usage.get("totals") or {}
+            rate = totals.get("success_rate")
+            rate_text = "N/A" if rate is None else f"{rate:.1%}"
+            notice = "" if usage.get("status", "available") == "available" else f"{name} data unavailable"
+            return (
+                f"<p>{notice}</p><table>"
+                f"<tr><td>Successful runs</td><td>{display(totals.get('successful_runs'))}</td></tr>"
+                f"<tr><td>Failed runs</td><td>{display(totals.get('failed_runs'))}</td></tr>"
+                f"<tr><td>Success rate</td><td>{rate_text}</td></tr>"
+                f"<tr><td>Countries</td><td>{display(totals.get('countries'))}</td></tr>"
+                f"<tr><td>Result downloads</td><td>{display(totals.get('downloads'))}</td></tr></table>"
+            )
+
         top = wasp["countries"][:5]
         top_rows = "".join(
             f"<li>{html.escape(str(row['country']))} — {row['successful_runs']} successful runs</li>"
@@ -140,17 +162,13 @@ class ReportService:
         <tr><td>Page views</td><td>{display(website.get('pageviews'))}</td></tr>
         <tr><td>Countries</td><td>{display(website.get('countries'))}</td></tr>
         <tr><td>WASP launches</td><td>{display(website.get('wasp_launches'))}</td></tr>
+        <tr><td>WASP runs</td><td>{display(wasp_totals.get('successful_runs'))}</td></tr>
         <tr><td>LISFLOOD launches</td><td>{display(website.get('lisflood_launches'))}</td></tr>
-        <tr><td>LISFLOOD runs</td><td>{display(website.get('lisflood_runs'))}</td></tr>
+        <tr><td>LISFLOOD runs</td><td>{display(lisflood_totals.get('successful_runs'))}</td></tr>
         <tr><td>GitHub clicks</td><td>{display(website.get('github_clicks'))}</td></tr>
-        <tr><td>Publication clicks</td><td>{display(website.get('publication_clicks'))}</td></tr>
-        <tr><td>File downloads</td><td>{display(website.get('file_downloads'))}</td></tr></table>
-        <h3>WASP</h3><p>{'' if wasp_available else 'WASP data unavailable'}</p><table>
-        <tr><td>Successful runs</td><td>{display(totals['successful_runs'])}</td></tr>
-        <tr><td>Failed runs</td><td>{display(totals['failed_runs'])}</td></tr>
-        <tr><td>Success rate</td><td>{'N/A' if success_rate is None else f'{success_rate:.1%}'}</td></tr>
-        <tr><td>Countries</td><td>{display(totals['countries'])}</td></tr>
-        <tr><td>Result downloads</td><td>{display(totals['downloads'])}</td></tr></table>
+        <tr><td>Publication clicks</td><td>{display(website.get('publication_clicks'))}</td></tr></table>
+        <h3>WASP</h3>{usage_table(wasp, 'WASP')}
+        <h3>LISFLOOD</h3>{usage_table(lisflood, 'LISFLOOD')}
         <h3>Top countries</h3><ol>{top_rows}</ol>
         {('<img src="cid:usage-map" alt="Global WASP usage map" style="max-width:100%">' if has_map else '')}
         <p style="font-size:12px;color:#60747a"><a href="https://db-ip.com">IP Geolocation by DB-IP</a></p>

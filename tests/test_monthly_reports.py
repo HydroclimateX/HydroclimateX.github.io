@@ -117,7 +117,7 @@ def test_sent_month_is_idempotent() -> None:
 
 def test_unavailable_wasp_source_sends_status_without_unverified_attachments() -> None:
     class BrokenRepository(MemoryRepository):
-        def events_between(self, _start, _end):
+        def events_between(self, _start, _end, _app="wasp"):
             raise ConnectionError("database unavailable")
 
     FakeSMTP.instances.clear()
@@ -166,6 +166,71 @@ def test_map_render_failure_does_not_abort_send() -> None:
     saved = repository.get_report(date(2026, 7, 1))
     assert saved.status == "sent"
     assert saved.failure_code is None
+
+
+def report_html(report_month: date = date(2026, 7, 1), repository: MemoryRepository | None = None) -> str:
+    FakeSMTP.instances.clear()
+    service = ReportService(
+        settings(), repository or MemoryRepository(), FakeUmami(),
+        smtp_factory=FakeSMTP,
+        map_renderer=lambda _rows: b"png-bytes",
+    )
+    service.send(report_month)
+    message = FakeSMTP.instances[0].messages[0]
+    return "\n".join(
+        part.get_content()
+        for part in message.walk()
+        if part.get_content_type() == "text/html"
+    )
+
+
+def test_report_counts_runs_from_the_usage_events_not_umami() -> None:
+    """The email must agree with the usage maps, which read usage_events."""
+    repository = MemoryRepository()
+    repository.seed_event("run_success", "s1", "AU", "2026-07-05T01:00:00Z", run_id="wasp-run")
+    repository.seed_event("run_success", "s2", "CN", "2026-07-05T02:00:00Z", run_id="lisflood-run", app="lisflood")
+
+    html = report_html(repository=repository)
+
+    # FakeUmami reports 64 LISFLOOD runs; the server-side truth is 1.
+    assert "<td>LISFLOOD runs</td><td>1</td>" in html
+    assert "<td>WASP runs</td><td>1</td>" in html
+    assert "<td>LISFLOOD runs</td><td>64</td>" not in html
+
+
+def test_report_has_a_lisflood_section_and_no_file_downloads() -> None:
+    repository = MemoryRepository()
+    repository.seed_event("run_success", "s2", "CN", "2026-07-05T02:00:00Z", run_id="lisflood-run", app="lisflood")
+
+    html = report_html(repository=repository)
+
+    assert "<h3>LISFLOOD</h3>" in html
+    assert "<h3>WASP</h3>" in html
+    assert "File downloads" not in html
+
+
+def test_report_renders_archived_snapshots_that_predate_lisflood_usage() -> None:
+    """Snapshots are immutable, so older ones have no lisflood section at all."""
+    repository = MemoryRepository()
+    repository.save_report(MonthlyReport(
+        date(2026, 7, 1),
+        {
+            "month": "2026-07-01",
+            "label": "July 2026",
+            "timezone": "Asia/Hong_Kong",
+            "website": {"status": "available", "visitors": 10, "lisflood_runs": 64},
+            "wasp": {"status": "available", "totals": {"successful_runs": 2}, "countries": []},
+        },
+        "generated",
+        datetime(2026, 8, 1, tzinfo=timezone.utc),
+    ))
+
+    html = report_html(repository=repository)
+
+    assert "<h3>LISFLOOD</h3>" in html
+    assert "LISFLOOD data unavailable" in html
+    # The archived Umami value must not be mistaken for a server-side count.
+    assert "<td>LISFLOOD runs</td><td>64</td>" not in html
 
 
 def test_report_includes_website_section_when_available() -> None:

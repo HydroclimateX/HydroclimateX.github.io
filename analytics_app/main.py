@@ -218,29 +218,29 @@ def create_app(*, settings: Settings, repository: Repository, umami, report_serv
             },
         }
 
-    def wasp_run_windows(now: datetime) -> dict[str, int | None]:
-        """Successful WASP runs per reporting window, from the server-side events.
+    def usage_run_windows(now: datetime, app: str) -> dict[str, int | None]:
+        """Successful runs per reporting window, from the server-side usage events.
 
-        The rest of the Website Analytics table is Umami-sourced, but WASP has no
-        client-side analytics, so this row is counted where the runs are actually
-        recorded. Unverifiable windows stay null rather than being reported as zero.
+        The run rows are counted where the runs are actually recorded so they agree
+        with the Global Usage maps. Unverifiable windows stay null rather than being
+        reported as zero.
         """
         counts: dict[str, int | None] = {}
         for name, period in reporting_windows(now, settings.collected_since).items():
             try:
-                usage = aggregate_country_rows(repository.events_between(period.start, period.end, "wasp"))
+                usage = aggregate_country_rows(repository.events_between(period.start, period.end, app))
                 counts[name] = usage["totals"]["successful_runs"]
             except Exception:
                 counts[name] = None
         return counts
 
-    def with_wasp_runs(windows: dict[str, object], counts: dict[str, int | None]) -> dict[str, object]:
-        metrics = list(windows.get("metrics") or [])
-        anchor = next(
-            (index for index, item in enumerate(metrics) if item.get("metric") == "LISFLOOD runs"),
-            None,
-        )
-        metrics.insert(anchor + 1 if anchor is not None else len(metrics), {"metric": "WASP runs", **counts})
+    def with_usage_runs(
+        windows: dict[str, object], counts_by_label: dict[str, dict[str, int | None]]
+    ) -> dict[str, object]:
+        metrics = [
+            {**item, **counts_by_label[item["metric"]]} if item.get("metric") in counts_by_label else item
+            for item in (windows.get("metrics") or [])
+        ]
         return {**windows, "metrics": metrics}
 
     @app.get("/api/v1/website/windows")
@@ -248,7 +248,10 @@ def create_app(*, settings: Settings, repository: Repository, umami, report_serv
         _: AdminSession = Depends(authenticated_session),
     ) -> dict[str, object]:
         now = now_utc()
-        return with_wasp_runs(umami.website_windows(now), wasp_run_windows(now))
+        return with_usage_runs(umami.website_windows(now), {
+            "WASP runs": usage_run_windows(now, "wasp"),
+            "LISFLOOD runs": usage_run_windows(now, "lisflood"),
+        })
 
     def usage_for(app: str, period) -> dict[str, object]:
         try:

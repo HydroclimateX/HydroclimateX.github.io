@@ -106,18 +106,20 @@ class UmamiClient:
             ("Page views", "pageviews"),
             ("Countries", "countries"),
             ("WASP launches", "wasp_launches"),
+            ("WASP runs", None),
             ("LISFLOOD launches", "lisflood_launches"),
-            ("LISFLOOD runs", "lisflood_runs"),
+            ("LISFLOOD runs", None),
             ("Publication clicks", "publication_clicks"),
             ("GitHub clicks", "github_clicks"),
-            ("File downloads", "file_downloads"),
         ]
         return {
             "status": "available" if available else "unavailable",
             "metrics": [
                 {
                     "metric": label,
-                    **{window: summaries[window].get(field) for window in periods},
+                    # A null field marks a row the caller fills from the server-side
+                    # usage events, so the run counts match the usage maps.
+                    **{window: summaries[window].get(field) if field else None for window in periods},
                 }
                 for label, field in fields
             ],
