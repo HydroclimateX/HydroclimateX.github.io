@@ -4,6 +4,14 @@
     "authors": "Y Li, Z Jiang, S Wu, J Gao, A Sharma",
     "venue": "Geophysical Research Letters 53 (6), e2025GL119793",
     "year": 2026,
+    "citations": 2,
+    "type": "article"
+  },
+  {
+    "title": "Season-Ahead Flood Quantile Forecasting with Climate-Informed Models for Indian Catchments",
+    "authors": "A Ganapathy, Z Jiang, A Agarwal",
+    "venue": "Journal of Hydrologic Engineering 31 (3), 04026009",
+    "year": 2026,
     "citations": 1,
     "type": "article"
   },
@@ -11,14 +19,6 @@
     "title": "A physics-informed data-driven framework for 30m soil moisture estimation from multi-source datasets",
     "authors": "Y Jiang, J Zhang, Z Cai, Y Chen, S Wei, M Liu, Z Jiang, YY Liu, W Ma",
     "venue": "Journal of Hydrology: Regional Studies 66, 103656",
-    "year": 2026,
-    "citations": 0,
-    "type": "article"
-  },
-  {
-    "title": "Season-Ahead Flood Quantile Forecasting with Climate-Informed Models for Indian Catchments",
-    "authors": "A Ganapathy, Z Jiang, A Agarwal",
-    "venue": "Journal of Hydrologic Engineering 31 (3), 04026009",
     "year": 2026,
     "citations": 0,
     "type": "article"
@@ -100,7 +100,7 @@
     "authors": "Y Wu, Y Li, Z Jiang, Z Xu, M Yang, J Ding, C Zhang",
     "venue": "ACS ES&T Engineering",
     "year": 2023,
-    "citations": 22,
+    "citations": 23,
     "type": "article"
   },
   {
@@ -116,7 +116,7 @@
     "authors": "Z Jiang, F Johnson",
     "venue": "Monthly Weather Review 151 (8), 1909-1925",
     "year": 2023,
-    "citations": 7,
+    "citations": 8,
     "type": "article"
   },
   {
@@ -164,7 +164,7 @@
     "authors": "Y Lang, Z Jiang, X Wu",
     "venue": "Water 14 (7), 1065",
     "year": 2022,
-    "citations": 20,
+    "citations": 22,
     "type": "article"
   },
   {
@@ -268,7 +268,7 @@
     "authors": "Z Jiang, MM Rashid, F Johnson, A Sharma",
     "venue": "Environmental Modelling & Software 135, 104907",
     "year": 2020,
-    "citations": 39,
+    "citations": 40,
     "type": "article"
   },
   {
@@ -276,7 +276,7 @@
     "authors": "R Hohl, Z Jiang, MT Vu, S Vijayaraghavan, SY Liong",
     "venue": "Agricultural Finance Review 81 (1), 151-168",
     "year": 2020,
-    "citations": 24,
+    "citations": 25,
     "type": "article"
   },
   {
@@ -308,7 +308,7 @@
     "authors": "Z Jiang, SV Raghavan, J Hur, Y Sun, SY Liong, VQ Nguyen, ...",
     "venue": "Theoretical and Applied Climatology 137 (1-2), 545-555",
     "year": 2019,
-    "citations": 46,
+    "citations": 48,
     "type": "article"
   },
   {
